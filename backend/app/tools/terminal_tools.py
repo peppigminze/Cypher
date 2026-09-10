@@ -1,6 +1,6 @@
 """
 Terminal access (project spec sections 13, 15). This is the single most
-powerful tool in JARVIS, so it layers every safety mechanism the
+powerful tool in Cypher, so it layers every safety mechanism the
 project has:
 
     1. security = CONFIRM_REQUIRED - a human must approve every single
@@ -30,7 +30,7 @@ from app.tools.base import Tool, ToolResult, ToolSecurity
 from app.tools.command_safety import is_blocked_command
 from app.tools.paths import PathNotAllowedError, resolve_allowed_path
 
-logger = logging.getLogger("jarvis.tools.terminal")
+logger = logging.getLogger("cypher.tools.terminal")
 
 MAX_OUTPUT_CHARS = 20_000
 

@@ -193,7 +193,7 @@ class MemoryEntry(Base):
     """Long-term memory (project spec section 10). Short-term/conversation
     context is intentionally NOT stored here - it's just the recent
     Message rows for the active conversation, already available without
-    a separate table. Only information JARVIS decides is durably
+    a separate table. Only information Cypher decides is durably
     relevant (a fact, a stated preference, project knowledge) lands
     here via the save_memory tool or the /api/memory endpoint.
     """
@@ -234,7 +234,7 @@ class ActionStatus(str, enum.Enum):
 class PendingAction(Base):
     """A tool call the agent planned but must not run automatically
     (security = CONFIRM_REQUIRED, see app/tools/base.py). Created by the
-    JARVIS Agent Core when it pauses mid-pipeline; resolved by the human
+    Cypher Agent Core when it pauses mid-pipeline; resolved by the human
     user via /api/actions/{id}/confirm|reject, then picked up and
     executed by the local PC agent, which resumes the paused pipeline.
 
@@ -302,7 +302,7 @@ class AgentHeartbeat(Base):
 class CommandLog(Base):
     """Audit trail for every run_command execution (project spec section
     15: "command logging"). A brand-new table - no migration risk. Never
-    delete rows here automatically; this is the record of what JARVIS
+    delete rows here automatically; this is the record of what Cypher
     actually ran on the user's PC."""
 
     __tablename__ = "command_logs"
@@ -319,8 +319,8 @@ class CommandLog(Base):
 
 
 class Project(Base):
-    """A project JARVIS should know about (project spec section 28), so
-    "arbeite an meinem JARVIS-Projekt" resolves to real context (path,
+    """A project Cypher should know about (project spec section 28), so
+    "arbeite an meinem Cypher-Projekt" resolves to real context (path,
     tech stack, repo) instead of the model guessing. A brand-new table -
     no migration risk."""
 

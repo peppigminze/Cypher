@@ -4,7 +4,7 @@ Sync worker for the local PC agent.
 Two things are polled every cycle (see project spec sections 3, 14, 19):
 
     1. GET /api/sync/pending
-        -> for each new message: run the JARVIS Agent Core pipeline
+        -> for each new message: run the Cypher Agent Core pipeline
            locally (local LLM + local tools + local DB).
            - finished            -> POST /api/sync/complete
            - paused (needs a     -> POST /api/sync/actions (PendingAction),
@@ -48,7 +48,7 @@ BACKEND_DIR = REPO_ROOT / "backend"
 sys.path.insert(0, str(BACKEND_DIR))
 sys.path.insert(0, str(REPO_ROOT))
 
-from app.agent.core import JarvisAgent, PipelineResult  # noqa: E402
+from app.agent.core import CypherAgent, PipelineResult  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.database.db import init_db, session_scope  # noqa: E402
 from app.database.models import Message  # noqa: E402
@@ -58,14 +58,14 @@ from app.tools.defaults import build_default_registry  # noqa: E402
 
 from agent.client import BackendClient  # noqa: E402
 
-logger = logging.getLogger("jarvis.agent.sync_worker")
+logger = logging.getLogger("cypher.agent.sync_worker")
 
 
 class SyncWorker:
     def __init__(self, client: BackendClient):
         self.client = client
         settings = get_settings()
-        self.jarvis = JarvisAgent(
+        self.cypher = CypherAgent(
             llm=get_llm_provider(settings),
             tools=build_default_registry(),
             cloud_llm=get_cloud_llm_provider(settings),
@@ -109,7 +109,7 @@ class SyncWorker:
         logger.info("Processing message %s (retry_count=%d)", message_id, retry_count)
         try:
             with session_scope() as db:
-                result = await self.jarvis.run_pipeline(db, content)
+                result = await self.cypher.run_pipeline(db, content)
             await self._apply_result(message_id, result)
         except LLMUnavailableError:
             logger.error("Local LLM is unavailable while processing message %s", message_id)
@@ -155,7 +155,7 @@ class SyncWorker:
         message_id = action.get("message_id")
         logger.info("Executing confirmed action %s (%s)", action_id, tool_name)
 
-        tool = self.jarvis.tools.get(tool_name)
+        tool = self.cypher.tools.get(tool_name)
         if tool is None:
             logger.error("Confirmed action %s references unknown tool '%s'", action_id, tool_name)
             await self._safe_fail_action(action_id, f"Unknown tool '{tool_name}'.")
@@ -165,8 +165,8 @@ class SyncWorker:
 
         try:
             with session_scope() as db:
-                tool_result = await self.jarvis.execute_tools(db, tool, arguments)
-                observations = observations + [self.jarvis.build_observation(tool_name, arguments, tool_result)]
+                tool_result = await self.cypher.execute_tools(db, tool, arguments)
+                observations = observations + [self.cypher.build_observation(tool_name, arguments, tool_result)]
                 await self.client.complete_action(action_id, result=tool_result.data if tool_result.success else {"error": tool_result.error})
 
                 if message_id is None:
@@ -177,7 +177,7 @@ class SyncWorker:
                     logger.error("Confirmed action %s references missing message %s", action_id, message_id)
                     return
 
-                result = await self.jarvis.run_pipeline(db, message.content, observations=observations)
+                result = await self.cypher.run_pipeline(db, message.content, observations=observations)
             await self._apply_result(message_id, result)
         except LLMUnavailableError:
             logger.error("Local LLM unavailable while resuming message %s", message_id)

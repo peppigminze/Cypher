@@ -2,7 +2,7 @@
 Project context tool (project spec section 28). Read-only - the agent
 never creates/edits projects itself, only the human user does via the
 PWA (app/api/projects.py). Lets the model resolve "arbeite an meinem
-JARVIS-Projekt" to real path/tech-stack/repo context instead of
+Cypher-Projekt" to real path/tech-stack/repo context instead of
 guessing or hallucinating details.
 """
 from __future__ import annotations

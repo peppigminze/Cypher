@@ -21,7 +21,7 @@ class CreateTaskTool(Tool):
     name = "create_task"
     description = (
         "Create a new task/todo item, optionally with a due date, priority, notes, "
-        "and tags. Set due_at plus reminder=true to make this a reminder JARVIS will "
+        "and tags. Set due_at plus reminder=true to make this a reminder Cypher will "
         "notify the user about when it comes due. Use recurrence for repeating "
         "reminders like 'every Friday' (weekly) or 'every day' (daily). Always "
         "compute due_at as an absolute ISO-8601 datetime relative to the current "

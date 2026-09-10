@@ -9,7 +9,7 @@ import json
 
 import pytest
 
-from app.agent.core import MAX_AGENT_STEPS, JarvisAgent
+from app.agent.core import MAX_AGENT_STEPS, CypherAgent
 from app.database.db import Base, SessionLocal, engine
 from app.llm.base import ChatMessage, LLMProvider, LLMUnavailableError
 from app.tools.defaults import build_default_registry
@@ -57,9 +57,9 @@ def plan_json(tool=None, arguments=None, done=True, reply="") -> str:
 
 async def test_pipeline_answers_directly_without_a_tool(db_session):
     llm = ScriptedLLM([plan_json(tool=None, done=True, reply="Hallo!")])
-    agent = JarvisAgent(llm=llm, tools=build_default_registry())
+    agent = CypherAgent(llm=llm, tools=build_default_registry())
 
-    result = await agent.run_pipeline(db_session, "Hi JARVIS")
+    result = await agent.run_pipeline(db_session, "Hi Cypher")
 
     assert result.done is True
     assert result.reply == "Hallo!"
@@ -73,7 +73,7 @@ async def test_pipeline_runs_a_safe_tool_then_finishes(db_session):
             "Es ist gerade Mittag.",  # the _summarize() call after the tool ran
         ]
     )
-    agent = JarvisAgent(llm=llm, tools=build_default_registry())
+    agent = CypherAgent(llm=llm, tools=build_default_registry())
 
     result = await agent.run_pipeline(db_session, "Wie spät ist es?")
 
@@ -92,7 +92,7 @@ async def test_pipeline_chains_two_tool_calls(db_session):
             "Ich habe die Aufgabe erstellt.",
         ]
     )
-    agent = JarvisAgent(llm=llm, tools=build_default_registry())
+    agent = CypherAgent(llm=llm, tools=build_default_registry())
 
     result = await agent.run_pipeline(db_session, "Leg eine Aufgabe an und zeig mir alle.")
 
@@ -104,7 +104,7 @@ async def test_pipeline_pauses_on_confirm_required_tool(db_session):
     llm = ScriptedLLM(
         [plan_json(tool="delete_task", arguments={"task_id": 1}, done=False, reply="Soll ich Task 1 löschen?")]
     )
-    agent = JarvisAgent(llm=llm, tools=build_default_registry())
+    agent = CypherAgent(llm=llm, tools=build_default_registry())
 
     result = await agent.run_pipeline(db_session, "Lösch Task 1")
 
@@ -119,7 +119,7 @@ async def test_pipeline_resumes_after_confirmation(db_session):
     the previously-pending tool, then resume with its observation."""
     from app.tools.base import ToolResult
 
-    agent = JarvisAgent(
+    agent = CypherAgent(
         llm=ScriptedLLM([plan_json(tool=None, done=True, reply="ok"), "Task 1 wurde gelöscht."]),
         tools=build_default_registry(),
     )
@@ -160,7 +160,7 @@ async def test_pipeline_does_not_re_pause_on_a_repeated_failed_confirm_required_
             "Das konnte ich leider nicht ausführen.",
         ]
     )
-    agent = JarvisAgent(llm=llm, tools=build_default_registry())
+    agent = CypherAgent(llm=llm, tools=build_default_registry())
 
     # Simulate: first attempt paused (write_file is CONFIRM_REQUIRED), the
     # human confirmed it, the agent executed it, and it failed (outside
@@ -189,7 +189,7 @@ async def test_pipeline_stops_at_max_steps_instead_of_looping_forever(db_session
     ]
     responses.append("Ich konnte nicht alles abschließen.")
     llm = ScriptedLLM(responses)
-    agent = JarvisAgent(llm=llm, tools=build_default_registry())
+    agent = CypherAgent(llm=llm, tools=build_default_registry())
 
     result = await agent.run_pipeline(db_session, "Mach unendlich viele Dinge")
 
@@ -209,7 +209,7 @@ async def test_pipeline_does_not_re_execute_a_repeated_identical_tool_call(db_se
             "Ich habe die Aufgabe erstellt.",
         ]
     )
-    agent = JarvisAgent(llm=llm, tools=build_default_registry())
+    agent = CypherAgent(llm=llm, tools=build_default_registry())
 
     result = await agent.run_pipeline(db_session, "Leg einmal die Aufgabe 'Einmalig' an.")
 
@@ -222,6 +222,6 @@ async def test_pipeline_does_not_re_execute_a_repeated_identical_tool_call(db_se
 
 
 async def test_llm_unavailable_propagates(db_session):
-    agent = JarvisAgent(llm=AlwaysUnavailableLLM(), tools=build_default_registry())
+    agent = CypherAgent(llm=AlwaysUnavailableLLM(), tools=build_default_registry())
     with pytest.raises(LLMUnavailableError):
         await agent.run_pipeline(db_session, "Hallo")

@@ -5,7 +5,7 @@ import { usePolling } from "./usePolling";
 
 /**
  * Notifies when a message finishes processing (project spec section 31:
- * "JARVIS action completed/failed") - useful when the PWA is
+ * "Cypher action completed/failed") - useful when the PWA is
  * backgrounded/minimized and the PC agent finishes a request the user
  * isn't actively watching the chat for. Independent poller (like
  * useReminderNotifications) so it works regardless of which view is
@@ -51,12 +51,12 @@ export function useMessageNotifications(intervalMs = 4000) {
       seenRef.current.add(key);
 
       if (m.status === "completed") {
-        new Notification("JARVIS hat geantwortet", {
+        new Notification("Cypher hat geantwortet", {
           body: m.response || m.content,
           tag: `jarvis-message-${m.id}`,
         });
       } else {
-        new Notification("JARVIS: Aktion fehlgeschlagen", {
+        new Notification("Cypher: Aktion fehlgeschlagen", {
           body: m.error || "Die Aktion konnte nicht ausgeführt werden.",
           tag: `jarvis-message-${m.id}`,
         });

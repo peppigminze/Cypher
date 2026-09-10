@@ -3,7 +3,7 @@ Tests for the PC-tool safety layer (Phase 5): ALLOWED_DIRECTORIES
 sandboxing (app/tools/paths.py) and the command denylist
 (app/tools/command_safety.py). These are the most safety-critical
 pieces in the whole project - a bug here means a path or command
-escapes the sandbox JARVIS is supposed to be confined to.
+escapes the sandbox Cypher is supposed to be confined to.
 """
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 """
 Minimal web research tool (project spec section 26). Fetches a single
-URL and returns its readable text, so JARVIS can look something up and
+URL and returns its readable text, so Cypher can look something up and
 cite the source - it does not do open-ended web search (no search API
 configured), only "read this specific page". SAFE (read-only, no local
 side effects), but every fetch goes through ssrf_guard.check_ssrf()
@@ -61,6 +61,33 @@ class _TextExtractor(HTMLParser):
 
     def title(self) -> str:
         return " ".join(self.title_chunks).strip()
+
+
+class WebSearchTool(Tool):
+    """Placeholder web search - no real search API is wired up yet.
+    Exists so the tool-calling loop has a "search the web" affordance
+    to route generic lookup questions to; swap the body for a real
+    provider (Brave/SerpAPI/etc.) later without touching the schema or
+    any caller."""
+
+    name = "web_search"
+    description = (
+        "Search the web for a query and return a short list of results (title + snippet + url). "
+        "Use this for open-ended questions you don't know the answer to and don't have an exact URL for. "
+        "PLACEHOLDER: not wired to a real search engine yet, results are stubbed."
+    )
+    parameters = {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}
+    security = ToolSecurity.SAFE
+
+    async def execute(self, db=None, query: str = "", **_) -> ToolResult:
+        return ToolResult(
+            success=True,
+            data={
+                "query": query,
+                "results": [],
+                "note": "web_search is a placeholder - no real search backend is configured yet.",
+            },
+        )
 
 
 class FetchUrlTool(Tool):

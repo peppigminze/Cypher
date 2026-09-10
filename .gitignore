@@ -36,3 +36,6 @@ Thumbs.db
 # --- Logs ---
 *.log
 logs/
+
+# --- Local model weights (large binaries - fetched on demand, not committed) ---
+/backend/models/

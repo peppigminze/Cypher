@@ -9,7 +9,7 @@ def test_create_message_is_pending(client, user_headers):
 
 
 def test_create_message_idempotent_client_id(client, user_headers):
-    payload = {"content": "Hallo JARVIS", "client_id": "abc-123"}
+    payload = {"content": "Hallo Cypher", "client_id": "abc-123"}
     first = client.post("/api/messages", json=payload, headers=user_headers).json()
     second = client.post("/api/messages", json=payload, headers=user_headers).json()
     assert first["id"] == second["id"]

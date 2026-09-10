@@ -52,7 +52,7 @@ export function MemoryView() {
         <div className="inline-form">
           <input
             className="text-input"
-            placeholder="Was soll JARVIS sich merken?"
+            placeholder="Was soll Cypher sich merken?"
             value={content}
             onChange={(e) => setContent(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSave()}

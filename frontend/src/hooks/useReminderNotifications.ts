@@ -5,7 +5,7 @@ import { usePolling } from "./usePolling";
 
 /**
  * Polls /api/tasks/due-reminders and shows a browser Notification for
- * any reminder JARVIS hasn't already surfaced this session (project
+ * any reminder Cypher hasn't already surfaced this session (project
  * spec section 31 - push notifications are prepared as a native/browser
  * Notification here; a proper mobile push channel is a later phase).
  * Silently does nothing if the user hasn't granted notification
@@ -32,7 +32,7 @@ export function useReminderNotifications(intervalMs = 15000) {
       const key = `${task.id}-${task.last_notified_at}`;
       if (seenRef.current.has(key)) continue;
       seenRef.current.add(key);
-      new Notification("JARVIS Erinnerung", { body: task.title, tag: `jarvis-reminder-${task.id}` });
+      new Notification("Cypher Erinnerung", { body: task.title, tag: `jarvis-reminder-${task.id}` });
     }
   }, intervalMs);
 }

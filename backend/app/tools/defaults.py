@@ -32,7 +32,7 @@ from app.tools.system_tools import (
 )
 from app.tools.task_tools import CompleteTaskTool, CreateTaskTool, DeleteTaskTool, ListTasksTool
 from app.tools.terminal_tools import RunCommandTool
-from app.tools.web_tools import FetchUrlTool
+from app.tools.web_tools import FetchUrlTool, WebSearchTool
 
 
 def build_default_registry() -> ToolRegistry:
@@ -57,6 +57,7 @@ def build_default_registry() -> ToolRegistry:
     registry.register(NetworkStatusTool())
     registry.register(ListProjectsTool())
     registry.register(FetchUrlTool())
+    registry.register(WebSearchTool())
 
     # Destructive / task-affecting - CONFIRM_REQUIRED
     registry.register(DeleteTaskTool())

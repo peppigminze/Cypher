@@ -1,5 +1,5 @@
 """
-JARVIS local PC agent entrypoint.
+Cypher local PC agent entrypoint.
 
 Run from the project root (see README.md):
 
@@ -9,7 +9,7 @@ This starts two concurrent loops:
     1. Heartbeat  - tells the backend "this PC is online" every
                     AGENT_HEARTBEAT_INTERVAL_SECONDS.
     2. Sync worker - polls for pending messages and processes them
-                     using the local JARVIS Agent Core + local LLM.
+                     using the local Cypher Agent Core + local LLM.
 
 If the local LLM or the backend is unreachable, this process logs the
 problem and keeps retrying - it never crashes outright (see project
@@ -33,7 +33,7 @@ from agent.client import BackendClient  # noqa: E402
 from agent.sync_worker import SyncWorker  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger("jarvis.agent")
+logger = logging.getLogger("cypher.agent")
 
 
 async def heartbeat_loop(client: BackendClient, interval: float) -> None:
@@ -48,7 +48,7 @@ async def heartbeat_loop(client: BackendClient, interval: float) -> None:
 
 async def main() -> None:
     settings = get_settings()
-    logger.info("JARVIS agent starting.")
+    logger.info("Cypher agent starting.")
     logger.info("Backend: %s", settings.BACKEND_BASE_URL)
     logger.info("LLM provider: %s (%s)", settings.LLM_PROVIDER, settings.LOCAL_LLM_MODEL)
 
@@ -65,4 +65,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("JARVIS agent stopped.")
+        logger.info("Cypher agent stopped.")

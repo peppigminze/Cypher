@@ -1,6 +1,6 @@
-# JARVIS – V1 (Local-First Personal AI Agent)
+# Cypher – V1 (Local-First Personal AI Agent)
 
-JARVIS ist ein persönlicher AI-Assistent, der **primär lokal auf deinem
+Cypher ist ein persönlicher AI-Assistent, der **primär lokal auf deinem
 Windows-PC läuft**. Es wird keine kostenpflichtige API vorausgesetzt: das
 Sprachmodell läuft über eine lokale LLM-Runtime (z. B. [Ollama](https://ollama.com)).
 
@@ -86,7 +86,7 @@ npm --version
 
 ## 4. Lokale LLM-Runtime installieren (Ollama)
 
-JARVIS erwartet standardmäßig eine **Ollama-kompatible** lokale
+Cypher erwartet standardmäßig eine **Ollama-kompatible** lokale
 Chat-API unter `http://localhost:11434`. Andere OpenAI-kompatible lokale
 Runtimes (z. B. LM Studio) funktionieren ebenso, solange sie
 `POST /v1/chat/completions` bereitstellen.
@@ -113,8 +113,8 @@ den Modellnamen einfach in `.env` unter `LOCAL_LLM_MODEL` ein.
 Im Projekt-Root:
 
 ```powershell
-git clone <dein-repo-url> jarvis
-cd jarvis
+git clone <dein-repo-url> cypher
+cd cypher
 copy .env.example .env
 ```
 
@@ -129,7 +129,7 @@ AGENT_TOKEN=ein-anderer-langer-zufälliger-string
 Falls du ein anderes Modell als `llama3.1:8b` heruntergeladen hast, passe
 `LOCAL_LLM_MODEL` entsprechend an.
 
-Trage außerdem ein, welche Verzeichnisse JARVIS' Datei- und
+Trage außerdem ein, welche Verzeichnisse Cypher' Datei- und
 Terminal-Tools anfassen dürfen (leer = alles deaktiviert):
 
 ```env
@@ -167,7 +167,7 @@ in `backend/`), weil er sowohl das `backend`- als auch das
 `agent`-Package importiert. Öffne dafür ein **zweites Terminal**:
 
 ```powershell
-cd jarvis
+cd cypher
 backend\venv\Scripts\activate
 python -m agent.run_agent
 ```
@@ -186,7 +186,7 @@ werden.
 Drittes Terminal:
 
 ```powershell
-cd jarvis\frontend
+cd cypher\frontend
 npm install
 npm run dev
 ```
@@ -196,7 +196,7 @@ npm run dev
 ## 10. PWA verwenden
 
 - Am Desktop: im Browser (Chrome/Edge) über das Adressleisten-Icon
-  "App installieren" wählen, um JARVIS als eigenständiges Fenster zu
+  "App installieren" wählen, um Cypher als eigenständiges Fenster zu
   nutzen.
 - Am Smartphone: die URL im mobilen Browser öffnen und "Zum Startbildschirm
   hinzufügen" wählen. Dafür muss dein Handy dieselbe Adresse erreichen
@@ -241,11 +241,11 @@ npm test
 ## 13. Projektstruktur
 
 ```text
-jarvis/
+cypher/
 ├── backend/
 │   ├── app/
 │   │   ├── api/           # REST-Endpunkte (messages, tasks, memory, sync, agent)
-│   │   ├── agent/         # JARVIS Agent Core (Pipeline: understand -> plan -> tools -> reply)
+│   │   ├── agent/         # Cypher Agent Core (Pipeline: understand -> plan -> tools -> reply)
 │   │   ├── database/      # SQLAlchemy Models + Session-Setup
 │   │   ├── llm/           # LLMProvider-Abstraktion (aktuell nur LocalLLMProvider)
 │   │   ├── memory/        # MemoryStore-Abstraktion
@@ -311,7 +311,7 @@ die Nachricht sofort als `pending` (die PWA blockiert nie auf eine
 Antwort) → der PC-Agent pollt regelmäßig `/api/sync/pending`, holt neue
 Nachrichten ab (dabei werden sie serverseitig auf `processing` gesetzt,
 damit sie nicht doppelt verarbeitet werden) → der Agent führt die
-JARVIS-Pipeline aus (Memory abrufen → LLM fragen, ob/welches Tool
+Cypher-Pipeline aus (Memory abrufen → LLM fragen, ob/welches Tool
 gebraucht wird → Tool ausführen → Antwort formulieren) → das Ergebnis
 geht per `/api/sync/complete` (oder `/api/sync/fail`) zurück ans Backend
 → die PWA zeigt die Antwort beim nächsten Poll an.
@@ -360,7 +360,7 @@ Jedes Tool (`app/tools/*.py`) trägt eine Sicherheitsstufe:
 | `BLOCKED` | (Framework vorhanden, aktuell nicht genutzt) | - |
 
 **Confirmation-Flow:** Wählt das Modell ein `CONFIRM_REQUIRED`-Tool, pausiert
-`JarvisAgent.run_pipeline` (`app/agent/core.py`) sofort - das Tool wird
+`CypherAgent.run_pipeline` (`app/agent/core.py`) sofort - das Tool wird
 *nicht* ausgeführt. Stattdessen entsteht ein `PendingAction`-Eintrag
 (`app/database/models.py`), die Nachricht bleibt `processing`, und die PWA
 zeigt eine Bestätigen/Abbrechen-Leiste (`ConfirmBar.tsx`). Erst nach
@@ -387,7 +387,7 @@ Exit-Code und Timeout-Status in `command_logs` protokolliert
 (`app/tools/terminal_tools.py`).
 
 **Web-Fetch (`fetch_url`):** Kein Suchmaschinen-Zugriff (keine Such-API
-konfiguriert), aber JARVIS kann eine konkrete URL abrufen und deren
+konfiguriert), aber Cypher kann eine konkrete URL abrufen und deren
 lesbaren Text extrahieren - der Systemprompt weist das Modell an, die
 URL als Quelle zu nennen, wenn es Informationen daraus verwendet
 (Projektauftrag Abschnitt 26). Jede Anfrage läuft zuerst durch einen
@@ -396,11 +396,11 @@ Open-Source-Projekt OpenJarvis, Apache 2.0) - private/reservierte
 IP-Bereiche und Cloud-Metadata-Endpunkte (z. B. `169.254.169.254`)
 werden blockiert, auch nach einer Weiterleitung erneut geprüft. So kann
 das Modell dieses Tool nicht nutzen, um dein eigenes lokales Netzwerk
-(inklusive des JARVIS-Backends selbst) abzuklopfen.
+(inklusive des Cypher-Backends selbst) abzuklopfen.
 
 ## 17. Cloud-LLM-Fallback (optional)
 
-**LOCAL FIRST, immer:** JARVIS nutzt standardmäßig ausschließlich das lokale
+**LOCAL FIRST, immer:** Cypher nutzt standardmäßig ausschließlich das lokale
 Modell. Ein Cloud-Fallback ist vorhanden, aber per Default deaktiviert und
 kostet dich nichts, bis du ihn explizit aktivierst:
 
@@ -416,9 +416,9 @@ OpenAI-kompatible Chat-Completions-Format, funktioniert also mit der
 echten OpenAI-API und mit jedem kompatiblen Anbieter, wenn du
 `CLOUD_LLM_BASE_URL` entsprechend änderst. Er wird **ausschließlich**
 dann versucht, wenn das lokale Modell selbst nicht erreichbar ist
-(`JarvisAgent._chat`, `app/agent/core.py`) - niemals, weil das
+(`CypherAgent._chat`, `app/agent/core.py`) - niemals, weil das
 Cloud-Modell "besser" sein könnte. Ist er deaktiviert oder kein API-Key
-gesetzt, verhält sich JARVIS exakt wie ohne diesen Abschnitt: Eine
+gesetzt, verhält sich Cypher exakt wie ohne diesen Abschnitt: Eine
 Nachricht wird bei nicht erreichbarem lokalem LLM automatisch mit
 Backoff wiederholt (siehe Abschnitt "Sync" oben) statt an die Cloud zu
 gehen. Der API-Key steht ausschließlich in deiner lokalen `.env` und
@@ -445,7 +445,7 @@ Die tatsächliche V1-Umsetzung (Abschnitt 23 im Auftrag):
 - `scripts/wake_pc.py` - ein eigenständiges, abhängigkeitsfreies Skript,
   das ein echtes WOL-Magic-Packet verschickt. Es muss von einem
   **anderen Gerät im selben lokalen Netzwerk** laufen (Laptop, Handy mit
-  Termux/Pythonista, Raspberry Pi, ...), nicht vom JARVIS-PC selbst.
+  Termux/Pythonista, Raspberry Pi, ...), nicht vom Cypher-PC selbst.
 - Die **Settings-Seite** in der PWA (`SettingsView.tsx`) zeigt dir MAC-
   Adresse, Broadcast-Adresse und den fertigen Befehl zum Kopieren an -
   automatisch aus `WAKE_ON_LAN_MAC`/`WAKE_ON_LAN_BROADCAST`/
@@ -453,7 +453,7 @@ Die tatsächliche V1-Umsetzung (Abschnitt 23 im Auftrag):
   lesend).
 
 Voraussetzungen, damit Wake-on-LAN auf deinem PC überhaupt funktioniert
-(unabhängig von JARVIS, reine Windows-/BIOS-Sache):
+(unabhängig von Cypher, reine Windows-/BIOS-Sache):
 
 1. **BIOS/UEFI:** "Wake on LAN" bzw. "Power On by PCI-E/PCI" aktivieren.
 2. **Windows Geräte-Manager:** Netzwerkadapter → Eigenschaften →
@@ -481,7 +481,7 @@ Standardlösung").
 
 ## 19. Autostart (Windows)
 
-JARVIS kann sich per **Windows-Aufgabenplanung** (Task Scheduler)
+Cypher kann sich per **Windows-Aufgabenplanung** (Task Scheduler)
 automatisch bei der Anmeldung starten - Backend und Agent zusammen,
 über `scripts/start_jarvis.ps1`.
 
@@ -590,7 +590,7 @@ einzuführen.
 - **Auto-Vorlesen ist optional und aus per Default:** Der
   Lautsprecher-Toggle in der Chat-Ansicht (`useSpeechOutput`,
   `frontend/src/hooks/useSpeechOutput.ts`) liest neu abgeschlossene
-  JARVIS-Antworten automatisch vor, sobald aktiviert; Zustand wird in
+  Cypher-Antworten automatisch vor, sobald aktiviert; Zustand wird in
   `localStorage` gemerkt. Beim Aktivieren werden bereits sichtbare
   Nachrichten nicht nachträglich vorgelesen - nur alles, was danach
   fertig wird.
@@ -598,9 +598,9 @@ einzuführen.
   Browser des jeweiligen Herstellers (Chrome/Edge unterstützen
   `SpeechRecognition` gut, Firefox/Safari nicht oder nur
   eingeschränkt). Das ist **nicht** Teil der eigenen lokalen
-  JARVIS-Pipeline, sondern wird von Google/Microsoft-Servern
+  Cypher-Pipeline, sondern wird von Google/Microsoft-Servern
   verarbeitet, sobald STT genutzt wird - anders als der Rest von
-  JARVIS (Ollama läuft lokal). Wer das nicht will, nutzt einfach die
+  Cypher (Ollama läuft lokal). Wer das nicht will, nutzt einfach die
   Texteingabe; beide UI-Elemente blenden sich automatisch aus, wenn der
   Browser die jeweilige API nicht unterstützt (`voice.isSupported` /
   `speech.isSupported`).

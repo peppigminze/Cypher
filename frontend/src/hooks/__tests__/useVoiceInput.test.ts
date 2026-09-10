@@ -44,12 +44,12 @@ describe("useVoiceInput", () => {
     expect(result.current.isListening).toBe(true);
 
     const recognition = instances[0];
-    const finalResult = Object.assign([{ transcript: "Hallo JARVIS" }], { isFinal: true });
+    const finalResult = Object.assign([{ transcript: "Hallo Cypher" }], { isFinal: true });
     act(() => {
       recognition.onresult?.({ resultIndex: 0, results: [finalResult] });
     });
 
-    expect(onFinal).toHaveBeenCalledWith("Hallo JARVIS");
+    expect(onFinal).toHaveBeenCalledWith("Hallo Cypher");
   });
 
   it("stop() ends the listening session", () => {

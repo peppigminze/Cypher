@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Cypher TTS Test</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        background: #05070d;
+        color: #e6e8ef;
+        max-width: 640px;
+        margin: 40px auto;
+        padding: 0 20px;
+      }
+      h1 {
+        font-size: 1.3rem;
+      }
+      p.hint {
+        color: #8b90a3;
+        font-size: 0.85rem;
+      }
+      label {
+        display: block;
+        margin-top: 12px;
+        font-size: 0.85rem;
+        color: #a8adc0;
+      }
+      input,
+      textarea {
+        width: 100%;
+        padding: 8px;
+        margin-top: 4px;
+        background: #10131d;
+        border: 1px solid #2a2f42;
+        border-radius: 6px;
+        color: #e6e8ef;
+        box-sizing: border-box;
+        font-family: inherit;
+      }
+      textarea {
+        resize: vertical;
+        min-height: 80px;
+      }
+      button {
+        margin-top: 20px;
+        padding: 12px 20px;
+        font-size: 1rem;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        background: #3d6bff;
+        color: white;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      #status {
+        margin-top: 16px;
+        font-size: 0.9rem;
+        color: #a8adc0;
+      }
+      #result {
+        margin-top: 20px;
+        padding: 16px;
+        background: #10131d;
+        border: 1px solid #2a2f42;
+        border-radius: 8px;
+        white-space: pre-wrap;
+        min-height: 20px;
+        font-size: 0.85rem;
+        color: #a8adc0;
+      }
+      audio {
+        margin-top: 16px;
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Cypher - lokaler TTS-Test (Piper via sherpa-onnx)</h1>
+    <p class="hint">
+      Standalone-Testseite, unabhängig von useSpeechOutput.ts/der Chat-App. Schickt Text an POST /speak und spielt
+      das zurückgegebene WAV-Audio ab.
+    </p>
+
+    <label for="backendUrl">Backend-URL</label>
+    <input id="backendUrl" value="http://localhost:8000" />
+
+    <label for="token">USER_TOKEN (Bearer)</label>
+    <input id="token" value="change-me-user-token" />
+
+    <label for="text">Text</label>
+    <textarea id="text">Hallo, ich bin Cypher, dein lokaler Assistent.</textarea>
+
+    <button id="speakBtn">Sprechen</button>
+
+    <div id="status">Bereit.</div>
+    <audio id="playback" controls hidden></audio>
+    <div id="result"></div>
+
+    <script>
+      const speakBtn = document.getElementById("speakBtn");
+      const statusEl = document.getElementById("status");
+      const resultEl = document.getElementById("result");
+      const playback = document.getElementById("playback");
+      const backendUrlInput = document.getElementById("backendUrl");
+      const tokenInput = document.getElementById("token");
+      const textInput = document.getElementById("text");
+
+      speakBtn.addEventListener("click", async () => {
+        const text = textInput.value.trim();
+        if (!text) return;
+
+        speakBtn.disabled = true;
+        statusEl.textContent = "Sende an /speak ...";
+        resultEl.textContent = "";
+        const started = performance.now();
+
+        try {
+          const resp = await fetch(`${backendUrlInput.value.replace(/\/$/, "")}/speak`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${tokenInput.value}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ text }),
+          });
+          const roundtrip = ((performance.now() - started) / 1000).toFixed(2);
+
+          if (!resp.ok) {
+            const errText = await resp.text();
+            statusEl.textContent = `Fehler (HTTP ${resp.status})`;
+            resultEl.textContent = errText;
+            return;
+          }
+
+          const audioDuration = resp.headers.get("X-Audio-Duration-Seconds");
+          const generationTime = resp.headers.get("X-Generation-Time-Seconds");
+          const sampleRate = resp.headers.get("X-Sample-Rate");
+
+          const blob = await resp.blob();
+          playback.src = URL.createObjectURL(blob);
+          playback.hidden = false;
+          playback.play();
+
+          statusEl.textContent = `Fertig (Roundtrip inkl. Netzwerk: ${roundtrip}s)`;
+          resultEl.textContent =
+            `Audiolänge: ${Number(audioDuration).toFixed(2)}s\n` +
+            `Generierungszeit (Server): ${Number(generationTime).toFixed(2)}s\n` +
+            `Sample-Rate: ${sampleRate} Hz`;
+        } catch (err) {
+          statusEl.textContent = "Netzwerkfehler - läuft das Backend? CORS erlaubt?";
+          resultEl.textContent = String(err);
+        } finally {
+          speakBtn.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

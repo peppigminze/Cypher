@@ -176,7 +176,7 @@ export function ChatView() {
       <div className="chat__messages" ref={scrollRef}>
         {!hasContent && (
           <div className="chat__empty">
-            Schreib JARVIS eine Nachricht. Läuft dein PC gerade nicht, wird sie gespeichert
+            Schreib Cypher eine Nachricht. Läuft dein PC gerade nicht, wird sie gespeichert
             und verarbeitet, sobald er wieder online ist.
           </div>
         )}
@@ -208,7 +208,7 @@ export function ChatView() {
         )}
         <textarea
           className="chat__input"
-          placeholder={voice.isListening ? voice.interimTranscript || "Ich höre zu..." : "Nachricht an JARVIS..."}
+          placeholder={voice.isListening ? voice.interimTranscript || "Ich höre zu..." : "Nachricht an Cypher..."}
           rows={1}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}

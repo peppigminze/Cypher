@@ -1,5 +1,5 @@
 """
-Thin HTTP client the local PC agent uses to talk to the JARVIS backend.
+Thin HTTP client the local PC agent uses to talk to the Cypher backend.
 
 Kept separate from the backend's own code so the agent could, in
 principle, run against a remote backend over the network using only
@@ -13,7 +13,7 @@ from typing import Any, List
 
 import httpx
 
-logger = logging.getLogger("jarvis.agent.client")
+logger = logging.getLogger("cypher.agent.client")
 
 
 class BackendClient:

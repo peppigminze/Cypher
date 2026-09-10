@@ -10,7 +10,7 @@ interface Props {
 /**
  * The futuristic HUD centerpiece: a ringed, glowing orb that idles with
  * a slow pulse, spins up and brightens while listening (voice input),
- * and shifts to a second hue while JARVIS speaks (voice output) - so
+ * and shifts to a second hue while Cypher speaks (voice output) - so
  * "who's talking" is readable at a glance, not just from a label.
  */
 export function VoiceOrb({ state, onClick, size = 56, title }: Props) {

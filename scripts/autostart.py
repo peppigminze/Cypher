@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Windows autostart for JARVIS via a per-user logon Scheduled Task
+Windows autostart for Cypher via a per-user logon Scheduled Task
 (project spec section 24). Starts scripts/start_jarvis.ps1 (backend +
 agent) a short delay after login.
 
@@ -63,7 +63,7 @@ def build_register_task_script(task_name: str, launcher_script: Path, delay_seco
         "-DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew\n"
         f"  Register-ScheduledTask -TaskName '{_ps_lit(task_name)}' -Action $action "
         "-Trigger $trigger -Settings $settings "
-        "-Description 'Starts the JARVIS backend and local PC agent at login.' -Force | Out-Null\n"
+        "-Description 'Starts the Cypher backend and local PC agent at login.' -Force | Out-Null\n"
         "  exit 0\n"
         "} catch { Write-Error $_; exit 1 }\n"
     )
@@ -177,14 +177,14 @@ def uninstall() -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Manage JARVIS's Windows logon autostart task.")
+    parser = argparse.ArgumentParser(description="Manage Cypher's Windows logon autostart task.")
     parser.add_argument("command", choices=["install", "status", "uninstall"])
     args = parser.parse_args(argv)
 
     if args.command == "install":
         print("Registering the autostart task needs a one-time admin confirmation (UAC prompt)...")
         if install():
-            print(f"Autostart task '{TASK_NAME}' registered - JARVIS starts a few seconds after login.")
+            print(f"Autostart task '{TASK_NAME}' registered - Cypher starts a few seconds after login.")
             return 0
         print("Could not register the autostart task (UAC prompt declined, or another error).", file=sys.stderr)
         return 1

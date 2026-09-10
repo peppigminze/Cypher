@@ -39,7 +39,7 @@ class _FakeSettings:
 def test_warns_on_placeholder_user_token(caplog):
     import logging
 
-    with caplog.at_level(logging.WARNING, logger="jarvis.backend"):
+    with caplog.at_level(logging.WARNING, logger="cypher.backend"):
         _warn_if_default_tokens(_FakeSettings("change-me-user-token", "real-token-xyz"))
     assert any("placeholder" in r.message for r in caplog.records)
 
@@ -47,7 +47,7 @@ def test_warns_on_placeholder_user_token(caplog):
 def test_warns_on_placeholder_agent_token(caplog):
     import logging
 
-    with caplog.at_level(logging.WARNING, logger="jarvis.backend"):
+    with caplog.at_level(logging.WARNING, logger="cypher.backend"):
         _warn_if_default_tokens(_FakeSettings("real-token-xyz", "change-me-agent-token"))
     assert any("placeholder" in r.message for r in caplog.records)
 
@@ -55,7 +55,7 @@ def test_warns_on_placeholder_agent_token(caplog):
 def test_no_warning_for_real_tokens(caplog):
     import logging
 
-    with caplog.at_level(logging.WARNING, logger="jarvis.backend"):
+    with caplog.at_level(logging.WARNING, logger="cypher.backend"):
         _warn_if_default_tokens(_FakeSettings("real-user-token-xyz", "real-agent-token-abc"))
     assert not any("placeholder" in r.message for r in caplog.records)
 

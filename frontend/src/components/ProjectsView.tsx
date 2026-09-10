@@ -81,7 +81,7 @@ export function ProjectsView() {
 
       {projects.length === 0 ? (
         <div className="empty-state">
-          Noch keine Projekte registriert. JARVIS kann sich dann per Chat/Tool an Pfad, Tech-Stack
+          Noch keine Projekte registriert. Cypher kann sich dann per Chat/Tool an Pfad, Tech-Stack
           und Notizen erinnern.
         </div>
       ) : (

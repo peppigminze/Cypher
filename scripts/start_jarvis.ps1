@@ -10,7 +10,7 @@
 $ErrorActionPreference = 'Stop'
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$Python = Join-Path $RepoRoot 'backend\venv\Scripts\python.exe'
+$Python = Join-Path $RepoRoot 'backend\.venv\Scripts\python.exe'
 $LogDir = Join-Path $RepoRoot 'logs'
 
 if (-not (Test-Path $Python)) {

@@ -1,4 +1,4 @@
-export type View = "chat" | "tasks" | "memory" | "projects" | "settings";
+export type View = "voice" | "chat" | "tasks" | "memory" | "projects" | "settings";
 
 interface Props {
   active: View;
@@ -7,6 +7,7 @@ interface Props {
 }
 
 const NAV_ITEMS: { id: View; label: string }[] = [
+  { id: "voice", label: "Voice" },
   { id: "chat", label: "Chat" },
   { id: "tasks", label: "Tasks" },
   { id: "memory", label: "Memory" },
@@ -19,7 +20,7 @@ export function Sidebar({ active, onChange, pendingTaskCount }: Props) {
     <aside className="sidebar">
       <div className="sidebar__brand">
         <span className="sidebar__brand-dot" />
-        JARVIS
+        CYPHER
       </div>
       <nav className="sidebar__nav">
         {NAV_ITEMS.map((item) => (

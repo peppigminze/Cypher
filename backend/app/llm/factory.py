@@ -41,7 +41,7 @@ def get_cloud_llm_provider(settings: Settings | None = None) -> Optional[LLMProv
     """
     Returns the optional cloud fallback provider, or None if it's
     disabled or has no API key configured (project spec sections 8/9:
-    cloud is opt-in and never required to use local JARVIS). The Agent
+    cloud is opt-in and never required to use local Cypher). The Agent
     Core only ever calls this when the local LLM itself raised
     LLMUnavailableError - never as a first choice, so there is no
     surprise cloud spend.

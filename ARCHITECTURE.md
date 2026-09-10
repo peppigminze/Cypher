@@ -1,4 +1,4 @@
-# JARVIS – Architektur
+# Cypher – Architektur
 
 Ein Überblick über das Gesamtsystem, für alle, die den Code verstehen
 wollen, ohne erst jede Datei einzeln zu lesen. Für Installation und
@@ -6,7 +6,7 @@ Bedienung siehe [README.md](README.md).
 
 ## 1. Die drei Prozesse
 
-JARVIS besteht aus drei unabhängigen Prozessen, die in V1 alle auf
+Cypher besteht aus drei unabhängigen Prozessen, die in V1 alle auf
 demselben Windows-PC laufen:
 
 ```
@@ -39,7 +39,7 @@ demselben Windows-PC laufen:
    das ist bewusst Aufgabe des Agents (siehe unten, "Warum getrennt?").
 2. **Agent** (`agent/`) - separater Python-Prozess. Pollt das Backend
    nach neuen Nachrichten/bestätigten Aktionen, führt die eigentliche
-   JARVIS-Pipeline aus (LLM fragen, Tools ausführen), meldet das
+   Cypher-Pipeline aus (LLM fragen, Tools ausführen), meldet das
    Ergebnis zurück.
 3. **Frontend** (`frontend/`) - React/TypeScript PWA, spricht nur mit
    dem Backend, nie direkt mit dem Agent oder dem LLM.
@@ -74,7 +74,7 @@ POST /api/messages (USER_TOKEN)
 Agent pollt GET /api/sync/pending (AGENT_TOKEN)
     │  Backend setzt status=processing (verhindert Doppelverarbeitung)
     ▼
-JarvisAgent.run_pipeline() im Agent-Prozess:
+CypherAgent.run_pipeline() im Agent-Prozess:
     understand()  - relevante Memories suchen
     plan()        - LLM fragen: welches Tool (falls nötig)?
     execute_tools() - SAFE-Tools laufen sofort
@@ -89,7 +89,7 @@ PWA zeigt die Antwort beim nächsten Poll (alle 3s)
 
 ## 3. Mehrschritt-Pipeline + Bestätigungs-Flow
 
-`JarvisAgent.run_pipeline()` (`backend/app/agent/core.py`) ist eine
+`CypherAgent.run_pipeline()` (`backend/app/agent/core.py`) ist eine
 Schleife, kein einzelner Request/Response-Schritt:
 
 ```
@@ -177,7 +177,7 @@ LLMProvider (abstract)
 └── CloudLLMProvider   - optional, standardmäßig AUS, nur als Fallback
 ```
 
-`JarvisAgent._chat()` versucht immer zuerst `LocalLLMProvider`. Nur
+`CypherAgent._chat()` versucht immer zuerst `LocalLLMProvider`. Nur
 wenn die einen `LLMUnavailableError` wirft **und** ein
 `CloudLLMProvider` konfiguriert ist (`CLOUD_LLM_ENABLED=true` +
 API-Key), wird dieser als Fallback versucht. Schlägt auch das fehl (oder
@@ -229,4 +229,4 @@ Siehe [README.md Abschnitt 13](README.md#13-projektstruktur) für die
 vollständige Verzeichnisstruktur inklusive `scripts/` (Wake-on-LAN,
 Autostart - beide bewusst eigenständige, abhängigkeitsarme Skripte
 außerhalb von `backend`/`agent`, da sie auf einem anderen Rechner
-bzw. ganz ohne laufenden JARVIS-Prozess funktionieren müssen).
+bzw. ganz ohne laufenden Cypher-Prozess funktionieren müssen).

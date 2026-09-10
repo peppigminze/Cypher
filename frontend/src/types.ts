@@ -107,3 +107,26 @@ export interface PendingAction {
   created_at: string;
   resolved_at: string | null;
 }
+
+// ---------------------------------------------------------------- Voice (native tool-calling + local STT/TTS)
+
+export interface ToolCallResult {
+  name: string;
+  arguments: Record<string, unknown>;
+  success: boolean;
+  data?: unknown;
+  error: string | null;
+}
+
+export interface ToolChatResult {
+  reply: string;
+  tool_calls: ToolCallResult[];
+  steps_used: number;
+}
+
+export interface TranscribeResult {
+  text: string;
+  language: string | null;
+  audio_duration_seconds: number;
+  transcribe_time_seconds: number;
+}

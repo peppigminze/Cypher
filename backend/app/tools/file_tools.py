@@ -20,7 +20,7 @@ MAX_LIST_ENTRIES = 500
 
 class ListFilesTool(Tool):
     name = "list_files"
-    description = "List files and folders in a directory JARVIS is allowed to access."
+    description = "List files and folders in a directory Cypher is allowed to access."
     parameters = {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}
     security = ToolSecurity.SAFE
 
@@ -50,7 +50,7 @@ class ListFilesTool(Tool):
 
 class ReadFileTool(Tool):
     name = "read_file"
-    description = "Read the text content of a file JARVIS is allowed to access."
+    description = "Read the text content of a file Cypher is allowed to access."
     parameters = {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}
     security = ToolSecurity.SAFE
 

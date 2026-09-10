@@ -32,7 +32,7 @@ class FakeClient:
 
 @pytest.fixture()
 def worker(monkeypatch):
-    # SyncWorker.__init__ builds a real JarvisAgent (LLM provider + tool
+    # SyncWorker.__init__ builds a real CypherAgent (LLM provider + tool
     # registry) which we don't need for this pure retry-decision test.
     monkeypatch.setattr(SyncWorker, "__init__", lambda self, client: setattr(self, "client", client))
     return SyncWorker(client=FakeClient())

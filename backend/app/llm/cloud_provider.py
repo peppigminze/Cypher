@@ -17,7 +17,7 @@ import httpx
 
 from app.llm.base import ChatMessage, LLMProvider, LLMUnavailableError
 
-logger = logging.getLogger("jarvis.llm.cloud")
+logger = logging.getLogger("cypher.llm.cloud")
 
 
 class CloudLLMProvider(LLMProvider):

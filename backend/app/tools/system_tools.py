@@ -24,7 +24,7 @@ class GetCurrentTimeTool(Tool):
 
 class GetSystemStatusTool(Tool):
     name = "get_system_status"
-    description = "Get basic status info about the machine JARVIS is running on."
+    description = "Get basic status info about the machine Cypher is running on."
     parameters = {"type": "object", "properties": {}}
     security = ToolSecurity.SAFE
 

@@ -1,6 +1,6 @@
 """
-Project registry (project spec section 28) - lets JARVIS resolve
-"arbeite an meinem JARVIS-Projekt" to real context (path, tech stack,
+Project registry (project spec section 28) - lets Cypher resolve
+"arbeite an meinem Cypher-Projekt" to real context (path, tech stack,
 repo, notes) instead of guessing. Managed by the human user via the
 PWA; the agent only ever reads it (see tools/project_tools.py).
 """

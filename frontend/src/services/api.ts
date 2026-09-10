@@ -7,6 +7,8 @@ import type {
   Settings,
   SystemStatus,
   Task,
+  ToolChatResult,
+  TranscribeResult,
 } from "../types";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -216,4 +218,56 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
 
 export async function deleteProject(id: number): Promise<void> {
   await request<void>(`/api/projects/${id}`, { method: "DELETE" });
+}
+
+// ------------------------------------------------------------------ Voice (local STT/TTS + native tool-calling)
+// Powers useCypherVoiceState.ts (frontend/src/components/CypherVoiceView.tsx).
+// These three endpoints are separate from /api/messages (see backend
+// app/api/tool_chat.py, transcribe.py, speak.py) - none of them touch the
+// production chat pipeline above.
+
+export async function transcribeAudio(audioBlob: Blob): Promise<TranscribeResult> {
+  const formData = new FormData();
+  formData.append("audio", audioBlob, "recording.webm");
+
+  const resp = await fetch(`${BASE_URL}/transcribe`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${USER_TOKEN}` },
+    body: formData,
+  });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`Transkription fehlgeschlagen (${resp.status}): ${text || resp.statusText}`);
+  }
+  return (await resp.json()) as TranscribeResult;
+}
+
+export async function toolChat(message: string): Promise<ToolChatResult> {
+  return request<ToolChatResult>("/api/tool-chat", {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });
+}
+
+export interface SpeakResult {
+  audioBlob: Blob;
+  audioDurationSeconds: number;
+  generationTimeSeconds: number;
+}
+
+export async function speakText(text: string): Promise<SpeakResult> {
+  const resp = await fetch(`${BASE_URL}/speak`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+    body: JSON.stringify({ text }),
+  });
+  if (!resp.ok) {
+    const errText = await resp.text().catch(() => "");
+    throw new Error(`Sprachausgabe fehlgeschlagen (${resp.status}): ${errText || resp.statusText}`);
+  }
+  return {
+    audioBlob: await resp.blob(),
+    audioDurationSeconds: Number(resp.headers.get("X-Audio-Duration-Seconds") ?? 0),
+    generationTimeSeconds: Number(resp.headers.get("X-Generation-Time-Seconds") ?? 0),
+  };
 }

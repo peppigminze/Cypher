@@ -25,7 +25,7 @@ async def test_list_projects_empty(db_session):
 
 
 async def test_list_projects_returns_registered_projects(db_session):
-    project = Project(name="JARVIS", path="C:\\JARVIS", description="Assistant")
+    project = Project(name="Cypher", path="C:\\Cypher", description="Assistant")
     project.technologies = ["Python", "React"]
     db_session.add(project)
     db_session.commit()
@@ -34,16 +34,16 @@ async def test_list_projects_returns_registered_projects(db_session):
 
     assert result.success is True
     assert len(result.data) == 1
-    assert result.data[0]["name"] == "JARVIS"
+    assert result.data[0]["name"] == "Cypher"
     assert result.data[0]["technologies"] == ["Python", "React"]
 
 
 async def test_list_projects_filters_by_name(db_session):
-    for name in ("JARVIS", "AlwaysMC"):
+    for name in ("Cypher", "AlwaysMC"):
         db_session.add(Project(name=name))
     db_session.commit()
 
-    result = await ListProjectsTool().execute(db=db_session, name="jarvis")
+    result = await ListProjectsTool().execute(db=db_session, name="cypher")
 
     assert len(result.data) == 1
-    assert result.data[0]["name"] == "JARVIS"
+    assert result.data[0]["name"] == "Cypher"

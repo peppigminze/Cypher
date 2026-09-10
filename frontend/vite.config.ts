@@ -10,8 +10,8 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg"],
       manifest: {
-        name: "JARVIS",
-        short_name: "JARVIS",
+        name: "CYPHER",
+        short_name: "CYPHER",
         description: "Local-first personal AI agent",
         theme_color: "#05070d",
         background_color: "#05070d",

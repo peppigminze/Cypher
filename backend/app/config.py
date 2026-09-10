@@ -1,5 +1,5 @@
 """
-Central configuration for the JARVIS backend.
+Central configuration for the Cypher backend.
 
 All values are loaded from environment variables / a .env file.
 NOTHING here is hardcoded as a secret default that would be safe to
@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     # LLM
     LLM_PROVIDER: str = "local"
     LOCAL_LLM_BASE_URL: str = "http://localhost:11434"
-    LOCAL_LLM_MODEL: str = "llama3.1:8b"
+    LOCAL_LLM_MODEL: str = "qwen2.5:7b"
     LOCAL_LLM_TIMEOUT_SECONDS: float = 60.0
 
     # API server
@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     MESSAGE_RETRY_BACKOFF_SECONDS: float = 15.0
 
     # Cloud LLM fallback (project spec sections 8/9). LOCAL FIRST,
-    # ALWAYS - disabled by default, so JARVIS never makes a paid API
+    # ALWAYS - disabled by default, so Cypher never makes a paid API
     # call unless the user explicitly opts in here AND supplies their
     # own key. Only used when the local LLM raises LLMUnavailableError;
     # never used just because the cloud model might be "better".
@@ -83,6 +83,24 @@ class Settings(BaseSettings):
     CLOUD_LLM_MODEL: str = "gpt-4o-mini"
     CLOUD_LLM_API_KEY: str = ""
     CLOUD_LLM_TIMEOUT_SECONDS: float = 30.0
+
+    # Local speech-to-text (faster-whisper / CTranslate2, no cloud call,
+    # no API key). "base" is the default balance of speed vs. accuracy on
+    # CPU; "small" is more accurate but noticeably slower per request.
+    WHISPER_MODEL_SIZE: str = "base"
+    WHISPER_DEVICE: str = "cpu"
+    WHISPER_COMPUTE_TYPE: str = "int8"
+
+    # Local text-to-speech (Piper VITS voice via sherpa-onnx, Apache-2.0 -
+    # deliberately NOT the official piper-tts PyPI package, whose current
+    # piper1-gpl backend is GPL-3; this avoids that licensing entirely).
+    # Path is relative to backend/ (see _resolve_database_url in
+    # app/database/db.py for why paths are resolved that way, not against
+    # the launching process's CWD) unless given as an absolute path.
+    PIPER_MODEL_DIR: str = "models/piper/de_DE-thorsten-medium"
+    PIPER_NUM_THREADS: int = 2
+    PIPER_SPEAKER_ID: int = 0
+    PIPER_SPEED: float = 1.0
 
     @property
     def cors_origins_list(self) -> List[str]:

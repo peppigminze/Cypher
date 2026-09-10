@@ -7,22 +7,22 @@ def test_create_and_list_project(client, user_headers):
     resp = client.post(
         "/api/projects",
         json={
-            "name": "JARVIS",
-            "path": "C:\\Users\\Silvan\\Documents\\Claude\\JARVIS",
+            "name": "Cypher",
+            "path": "C:\\Users\\Silvan\\Documents\\Claude\\Cypher",
             "description": "Persönlicher lokaler AI-Assistent",
             "technologies": ["Python", "FastAPI", "React"],
-            "repository": "https://github.com/peppigminze/JARVIS",
+            "repository": "https://github.com/peppigminze/Cypher",
         },
         headers=user_headers,
     )
     assert resp.status_code == 200
     project = resp.json()
-    assert project["name"] == "JARVIS"
+    assert project["name"] == "Cypher"
     assert project["technologies"] == ["Python", "FastAPI", "React"]
 
     listed = client.get("/api/projects", headers=user_headers).json()
     assert len(listed) == 1
-    assert listed[0]["name"] == "JARVIS"
+    assert listed[0]["name"] == "Cypher"
 
 
 def test_duplicate_project_name_is_rejected(client, user_headers):

@@ -256,3 +256,20 @@ class SettingsOut(BaseModel):
     allowed_directories: List[str]
     message_max_retries: int
     wake_on_lan: WakeOnLanInfo
+
+
+# ---------------------------------------------------------------- Transcribe (speech-to-text)
+
+
+class TranscribeOut(BaseModel):
+    text: str
+    language: Optional[str]
+    audio_duration_seconds: float
+    transcribe_time_seconds: float
+
+
+# ---------------------------------------------------------------- Speak (text-to-speech)
+
+
+class SpeakIn(BaseModel):
+    text: str = Field(min_length=1, max_length=2000)

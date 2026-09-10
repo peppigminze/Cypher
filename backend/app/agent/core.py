@@ -1,5 +1,5 @@
 """
-JARVIS Agent Core.
+Cypher Agent Core.
 
 Pipeline (see project spec section 7):
     understand -> plan -> select_tools -> execute_tools -> observe
@@ -11,7 +11,7 @@ Pipeline (see project spec section 7):
 V1 does not have real LLM function-calling for every local model, so
 tool selection uses a small JSON protocol: the model is asked to
 reply with a JSON object describing which tool (if any) to call, a
-"done" flag, and a natural-language reply. This keeps JARVIS
+"done" flag, and a natural-language reply. This keeps Cypher
 provider-agnostic and works with any local chat model, not just ones
 with native tool use.
 
@@ -35,18 +35,18 @@ from sqlalchemy.orm import Session
 from app.database.models import Message, MessageStatus
 from app.llm.base import ChatMessage, LLMProvider, LLMUnavailableError
 from app.memory.store import MemoryStore
+from app.persona import CYPHER_PERSONA
 from app.tools.base import Tool, ToolResult
 from app.tools.registry import ToolRegistry
 
-logger = logging.getLogger("jarvis.agent")
+logger = logging.getLogger("cypher.agent")
 
 # Hard cap on tool-call steps per user request. Prevents a confused
 # local model from looping forever (project spec section 35).
 MAX_AGENT_STEPS = 5
 
 
-SYSTEM_PROMPT_TEMPLATE = """You are JARVIS, a helpful local-first personal AI assistant.
-
+SYSTEM_PROMPT_TEMPLATE = CYPHER_PERSONA + """
 The current date and time is: {now_iso} (UTC). When a tool needs an
 absolute date/time (e.g. due_at) and the user gave a relative one
 ("tomorrow", "in 30 minutes", "next Friday at 5pm"), compute the
@@ -75,8 +75,9 @@ Respond with ONLY a single JSON object, no other text, in this exact shape:
   "arguments": {{}},
   "done": <true if "reply" is your final answer to the user, false if you
            are calling a tool and want to see its result before continuing>,
-  "reply": "<natural-language text: the final answer if done=true, otherwise
-             a short status update the user may briefly see>"
+  "reply": "<natural-language text, per the tone/length rules above: the
+             final answer if done=true, otherwise a short status update
+             the user may briefly see>"
 }}
 
 Call at most one tool per step. If no tool is needed, set "tool" to null
@@ -87,16 +88,19 @@ request is fulfilled, set "done" to true - do not keep calling tools
 "just in case".
 """
 
-FINAL_ANSWER_PROMPT_TEMPLATE = """You are JARVIS. The user asked: "{user_message}"
+FINAL_ANSWER_PROMPT_TEMPLATE = CYPHER_PERSONA + """
+The user asked: "{user_message}"
 
 Here is what you did and found, as a JSON list of steps (each with the
 tool name, arguments, and either a result or an error):
 {observations}
 
-Write a short, natural, friendly final reply to the user summarizing what
-happened. Do not mention JSON, internal tool names, or step numbers
-explicitly. If something failed, say so honestly instead of pretending it
-worked. Reply with plain text only.
+Write the final reply to the user summarizing what happened, following
+the tone/length rules above - a short confirmation is enough for a
+routine successful action, don't pad it into a paragraph. Do not mention
+JSON, internal tool names, or step numbers explicitly. If something
+failed, say so honestly instead of pretending it worked. Reply with
+plain text only.
 """
 
 
@@ -132,7 +136,7 @@ class PipelineResult:
     processed_by: Optional[str] = None
 
 
-class JarvisAgent:
+class CypherAgent:
     def __init__(self, llm: LLMProvider, tools: ToolRegistry, cloud_llm: Optional[LLMProvider] = None):
         self.llm = llm
         self.tools = tools

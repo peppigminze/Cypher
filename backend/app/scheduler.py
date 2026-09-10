@@ -26,7 +26,7 @@ from sqlalchemy import select
 from app.database.db import session_scope
 from app.database.models import Task, TaskStatus, advance_due_date
 
-logger = logging.getLogger("jarvis.scheduler")
+logger = logging.getLogger("cypher.scheduler")
 
 SCHEDULER_INTERVAL_SECONDS = 20
 

@@ -10,7 +10,7 @@ from app.tools.base import Tool, ToolResult, ToolSecurity
 class SaveMemoryTool(Tool):
     name = "save_memory"
     description = (
-        "Save a piece of information JARVIS should remember across future "
+        "Save a piece of information Cypher should remember across future "
         "conversations - a durable fact (e.g. the user's name, an ongoing "
         "project), a stated preference (e.g. 'always answer in German'), or "
         "project knowledge. Do NOT use this for information only relevant "

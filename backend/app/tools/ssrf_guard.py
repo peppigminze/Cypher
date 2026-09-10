@@ -2,12 +2,12 @@
 SSRF protection for fetch_url (project spec section 26). Blocks
 requests to private/reserved IP ranges and cloud metadata endpoints, so
 a URL the LLM decides to fetch can't be used to probe the user's own
-LAN (including this very JARVIS backend) or a cloud metadata service
+LAN (including this very Cypher backend) or a cloud metadata service
 if this is ever run on a VM.
 
 Approach adapted from the SSRF-guard pattern in the open-source
 OpenJarvis project (Apache 2.0) - simplified to pure Python only (their
-version prefers a compiled Rust backend with this as a fallback; JARVIS
+version prefers a compiled Rust backend with this as a fallback; Cypher
 has no such extension, so this is just the fallback logic on its own).
 """
 from __future__ import annotations

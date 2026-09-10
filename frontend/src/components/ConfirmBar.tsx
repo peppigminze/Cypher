@@ -80,7 +80,7 @@ export function ConfirmBar({ onResolved }: Props) {
         <div className="confirm-bar__item" key={action.id}>
           <span className="confirm-bar__icon">⚠️</span>
           <span className="confirm-bar__text">
-            JARVIS möchte <strong>{describeAction(action)}</strong> ausführen. Bestätigen?
+            Cypher möchte <strong>{describeAction(action)}</strong> ausführen. Bestätigen?
           </span>
           <div className="confirm-bar__actions">
             <button

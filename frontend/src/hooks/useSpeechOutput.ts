@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 /**
  * Text-to-speech via the browser's native SpeechSynthesis API (project
  * spec section 25). Same honesty note as useVoiceInput: on most
- * platforms the voices are provided by the OS/browser, not a JARVIS-run
+ * platforms the voices are provided by the OS/browser, not a Cypher-run
  * local model - but it works today with zero new dependencies. Speaking
  * is always explicit (a message finishing) or opt-in (the "vorlesen"
  * toggle in Settings), never automatic on page load.

@@ -942,3 +942,301 @@
   padding: 2px 8px;
   border-radius: 999px;
 }
+
+/* ==========================================================================
+   Voice view — full-screen orb-centric main view (CypherVoiceView.tsx).
+   Own section, own class prefixes (voice-view__*, cypher-bubble__*) -
+   nothing here touches .shell/.sidebar/.voice-orb, so the existing
+   Chat/Tasks/Memory/Projects/Settings layout is unaffected.
+   ========================================================================== */
+
+.voice-view {
+  position: relative;
+  height: 100dvh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.voice-view__menu-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  color: var(--text-dim);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.voice-view__menu-btn:hover {
+  opacity: 1;
+  color: var(--accent);
+  border-color: var(--border-glow);
+}
+
+.voice-view__stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  padding: 0 24px;
+}
+
+.voice-view__caption {
+  margin: 0;
+  max-width: 480px;
+  min-height: 1.4em;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 15px;
+  line-height: 1.5;
+  transition: color 0.2s ease;
+}
+
+.voice-view__caption.is-error {
+  color: var(--danger);
+}
+
+.voice-view__statusbar {
+  position: absolute;
+  bottom: 18px;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--text-faint);
+}
+
+.voice-view__status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+.voice-view__status-dot.is-online {
+  background: var(--success);
+  box-shadow: 0 0 6px 1px var(--success);
+}
+
+.voice-view__status-dot.is-offline {
+  background: var(--danger);
+}
+
+.voice-view__last-task {
+  color: var(--text-faint);
+}
+
+/* ---------------------------------------------------------------- Menu overlay */
+/* Reuses the existing Sidebar component as a slide-in drawer, so
+   everything it can reach (Chat/Tasks/Memory/Projects/Settings) stays a
+   single, unmodified source of truth instead of a duplicate nav. */
+
+.voice-menu-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 6, 12, 0.6);
+  backdrop-filter: blur(2px);
+  z-index: 40;
+  animation: voice-menu-fade-in 0.15s ease;
+}
+
+@keyframes voice-menu-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.voice-menu-drawer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 240px;
+  animation: voice-menu-slide-in 0.18s ease;
+}
+
+.voice-menu-drawer .sidebar {
+  height: 100%;
+}
+
+@keyframes voice-menu-slide-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* ---------------------------------------------------------------- CypherBubble */
+
+.cypher-bubble {
+  --size: clamp(200px, 34vw, 280px);
+  position: relative;
+  width: var(--size);
+  height: var(--size);
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+
+.cypher-bubble:disabled {
+  cursor: not-allowed;
+  color: var(--text-faint);
+}
+
+.cypher-bubble__glow {
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+  opacity: 0.25;
+  filter: blur(6px);
+  transition: opacity 0.3s ease, background 0.3s ease;
+}
+
+.cypher-bubble__rings,
+.cypher-bubble__waveform {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.cypher-bubble__ring {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.4;
+  opacity: 0.5;
+  transform-origin: 50% 50%;
+}
+
+.cypher-bubble__ring--outer {
+  stroke-dasharray: 6 9;
+  animation: hud-spin 22s linear infinite;
+}
+
+.cypher-bubble__ring--mid {
+  stroke-dasharray: 3 6;
+  opacity: 0.32;
+  animation: hud-spin-reverse 15s linear infinite;
+}
+
+.cypher-bubble__core {
+  fill: var(--accent);
+  opacity: 0.14;
+  animation: cypher-breathe 4s ease-in-out infinite;
+}
+
+@keyframes cypher-breathe {
+  0%,
+  100% {
+    opacity: 0.1;
+    transform: scale(0.97);
+  }
+  50% {
+    opacity: 0.22;
+    transform: scale(1.03);
+  }
+}
+
+/* idle: slow ambient breathing (base rings/core animations above) */
+
+.cypher-bubble--listening .cypher-bubble__glow {
+  opacity: 0.4;
+}
+.cypher-bubble--listening .cypher-bubble__ring--outer {
+  animation-duration: 4s;
+  opacity: 0.85;
+}
+.cypher-bubble--listening .cypher-bubble__ring--mid {
+  animation-duration: 2.6s;
+  opacity: 0.6;
+}
+.cypher-bubble--listening .cypher-bubble__core {
+  animation-duration: 1.1s;
+  opacity: 0.3;
+}
+
+.cypher-bubble__bar {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent-glow);
+  transition: height 0.05s linear, opacity 0.05s linear;
+}
+
+/* thinking: fast, tight rotation - visually distinct from listening's
+   waveform and speaking's slower pulse. */
+.cypher-bubble--thinking {
+  color: var(--accent);
+}
+.cypher-bubble--thinking .cypher-bubble__glow {
+  opacity: 0.3;
+}
+.cypher-bubble--thinking .cypher-bubble__ring--outer {
+  animation-duration: 2.4s;
+  opacity: 0.9;
+}
+.cypher-bubble--thinking .cypher-bubble__ring--mid {
+  animation-duration: 1.5s;
+  opacity: 0.9;
+  stroke-dasharray: 2 4;
+}
+.cypher-bubble--thinking .cypher-bubble__core {
+  animation: cypher-breathe 0.9s ease-in-out infinite;
+  opacity: 0.28;
+}
+
+/* speaking: shifts to the secondary accent hue, slower pulse - same
+   "who's talking" language as the small VoiceOrb's speaking state. */
+.cypher-bubble--speaking {
+  color: var(--accent-2);
+}
+.cypher-bubble--speaking .cypher-bubble__glow {
+  background: radial-gradient(circle, rgba(124, 92, 255, 0.55) 0%, transparent 70%);
+  opacity: 0.45;
+}
+.cypher-bubble--speaking .cypher-bubble__ring--outer,
+.cypher-bubble--speaking .cypher-bubble__ring--mid {
+  stroke: var(--accent-2);
+  animation-duration: 5s;
+}
+.cypher-bubble--speaking .cypher-bubble__core {
+  fill: var(--accent-2);
+  animation-duration: 1.6s;
+  opacity: 0.3;
+}
+
+@media (max-width: 480px) {
+  .cypher-bubble {
+    --size: clamp(170px, 55vw, 220px);
+  }
+}

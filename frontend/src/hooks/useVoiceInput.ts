@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
  *
  * Honest limitation, not hidden: Chrome/Edge's SpeechRecognition sends
  * audio to the browser vendor's own speech service for transcription -
- * it is NOT JARVIS's local pipeline. This is the real, working, V1
+ * it is NOT Cypher's local pipeline. This is the real, working, V1
  * shape of voice input (zero new backend dependencies, works today);
  * see README's Voice section for the local-STT alternative this could
  * grow into later.

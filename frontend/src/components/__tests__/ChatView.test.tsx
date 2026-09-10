@@ -36,7 +36,7 @@ describe("ChatView", () => {
   it("shows the empty state when there are no messages", async () => {
     vi.mocked(api.listMessages).mockResolvedValue([]);
     render(<ChatView />);
-    expect(await screen.findByText(/Schreib JARVIS eine Nachricht/)).toBeInTheDocument();
+    expect(await screen.findByText(/Schreib Cypher eine Nachricht/)).toBeInTheDocument();
   });
 
   it("renders an existing completed message and its response", async () => {
@@ -98,7 +98,7 @@ describe("ChatView", () => {
     const user = userEvent.setup();
     render(<ChatView />);
 
-    const input = await screen.findByPlaceholderText("Nachricht an JARVIS...");
+    const input = await screen.findByPlaceholderText("Nachricht an Cypher...");
     await user.type(input, "neue nachricht");
     await user.click(screen.getByRole("button", { name: "Senden" }));
 
@@ -114,7 +114,7 @@ describe("ChatView", () => {
     const user = userEvent.setup();
     render(<ChatView />);
 
-    const input = await screen.findByPlaceholderText("Nachricht an JARVIS...");
+    const input = await screen.findByPlaceholderText("Nachricht an Cypher...");
     await user.type(input, "offline nachricht");
     await user.click(screen.getByRole("button", { name: "Senden" }));
 
@@ -127,7 +127,7 @@ describe("ChatView", () => {
     const user = userEvent.setup();
     render(<ChatView />);
 
-    const input = await screen.findByPlaceholderText("Nachricht an JARVIS...");
+    const input = await screen.findByPlaceholderText("Nachricht an Cypher...");
     await user.type(input, "   ");
     const sendButton = screen.getByRole("button", { name: "Senden" });
     expect(sendButton).toBeDisabled();

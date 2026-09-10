@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Send a Wake-on-LAN magic packet to wake the JARVIS PC (project spec
+Send a Wake-on-LAN magic packet to wake the Cypher PC (project spec
 section 23).
 
-IMPORTANT - why this is a standalone script and not a JARVIS API call:
-the JARVIS backend and agent run ON the PC you want to wake. If that PC
+IMPORTANT - why this is a standalone script and not a Cypher API call:
+the Cypher backend and agent run ON the PC you want to wake. If that PC
 is asleep/off, the backend is asleep/off too - it cannot send anything.
 Waking a PC over the network fundamentally requires the request to come
 FROM A DIFFERENT DEVICE on the same local network (a phone via Termux/
@@ -22,7 +22,7 @@ like. No insecure public UDP port-forwarding is set up by anything
 here (see project spec section 23: "keine unsichere öffentliche
 UDP-Portfreigabe als Standardlösung").
 
-Zero dependency on the rest of the JARVIS project on purpose - it must
+Zero dependency on the rest of the Cypher project on purpose - it must
 run from a machine that doesn't have this repo checked out.
 
 Usage:

@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import actions
 from app.api import agent as agent_api
-from app.api import health, memory, messages, projects, settings as settings_api, sync, tasks
+from app.api import health, memory, messages, projects, settings as settings_api, speak, sync, tasks, tool_chat, transcribe
 from app.config import get_settings
 from app.database.db import init_db
 from app.scheduler import run_forever as run_scheduler_forever
@@ -18,7 +18,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="[%(levelname)s] %(name)s: %(message)s",
 )
-logger = logging.getLogger("jarvis.backend")
+logger = logging.getLogger("cypher.backend")
 
 settings = get_settings()
 
@@ -43,7 +43,7 @@ def _warn_if_default_tokens(settings) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("JARVIS backend starting (env=%s)", settings.APP_ENV)
+    logger.info("Cypher backend starting (env=%s)", settings.APP_ENV)
     _warn_if_default_tokens(settings)
     init_db()
     logger.info("Database ready.")
@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
     scheduler_task.cancel()
 
 
-app = FastAPI(title="JARVIS Backend", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Cypher Backend", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -60,6 +60,10 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Without this, the browser hides custom response headers from
+    # fetch() even on a successful cross-origin request - needed so the
+    # /speak test page can read the timing headers (see app/api/speak.py).
+    expose_headers=["X-Audio-Duration-Seconds", "X-Generation-Time-Seconds", "X-Sample-Rate"],
 )
 
 app.include_router(health.router)
@@ -71,8 +75,11 @@ app.include_router(agent_api.router)
 app.include_router(actions.router)
 app.include_router(settings_api.router)
 app.include_router(projects.router)
+app.include_router(tool_chat.router)
+app.include_router(transcribe.router)
+app.include_router(speak.router)
 
 
 @app.get("/")
 def root() -> dict:
-    return {"name": "JARVIS Backend", "status": "running"}
+    return {"name": "Cypher Backend", "status": "running"}

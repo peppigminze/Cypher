@@ -26,12 +26,12 @@ def sandbox(tmp_path, monkeypatch):
 
 
 async def test_write_then_read_file(sandbox):
-    write_result = await WriteFileTool().execute(path=str(sandbox / "hello.txt"), content="Hallo JARVIS")
+    write_result = await WriteFileTool().execute(path=str(sandbox / "hello.txt"), content="Hallo Cypher")
     assert write_result.success is True
 
     read_result = await ReadFileTool().execute(path=str(sandbox / "hello.txt"))
     assert read_result.success is True
-    assert read_result.data["content"] == "Hallo JARVIS"
+    assert read_result.data["content"] == "Hallo Cypher"
 
 
 async def test_write_file_creates_parent_directories(sandbox):

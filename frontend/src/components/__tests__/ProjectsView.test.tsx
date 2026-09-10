@@ -10,8 +10,8 @@ vi.mock("../../services/api");
 function makeProject(overrides: Partial<Project> = {}): Project {
   return {
     id: 1,
-    name: "JARVIS",
-    path: "C:\\JARVIS",
+    name: "Cypher",
+    path: "C:\\Cypher",
     description: null,
     technologies: ["Python", "React"],
     repository: null,
@@ -36,7 +36,7 @@ describe("ProjectsView", () => {
   it("renders an existing project with its tech stack", async () => {
     vi.mocked(api.listProjects).mockResolvedValue([makeProject()]);
     render(<ProjectsView />);
-    expect(await screen.findByText("JARVIS")).toBeInTheDocument();
+    expect(await screen.findByText("Cypher")).toBeInTheDocument();
     expect(screen.getByText("Python")).toBeInTheDocument();
     expect(screen.getByText("React")).toBeInTheDocument();
   });
@@ -63,7 +63,7 @@ describe("ProjectsView", () => {
     const user = userEvent.setup();
     render(<ProjectsView />);
 
-    await screen.findByText("JARVIS");
+    await screen.findByText("Cypher");
     await user.click(screen.getByRole("button", { name: "Löschen" }));
 
     expect(api.deleteProject).toHaveBeenCalledWith(1);
