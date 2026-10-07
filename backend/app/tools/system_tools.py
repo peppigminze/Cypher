@@ -8,18 +8,50 @@ from datetime import datetime, timezone
 import psutil
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.tools.base import Tool, ToolResult, ToolSecurity
+
+
+_WEEKDAYS_DE = ("Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag")
+_MONTHS_DE = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember")
+
+
+def local_now() -> datetime:
+    """Current time in the user's time zone (TIMEZONE, else the PC's zone).
+
+    The old tool returned UTC only and the model then answered
+    "19:38 Uhr UTC" at 21:38 local time (docs/overhaul/AUDIT.md K3).
+    """
+    tz_name = get_settings().TIMEZONE
+    if tz_name:
+        from zoneinfo import ZoneInfo  # noqa: PLC0415
+
+        return datetime.now(ZoneInfo(tz_name))
+    return datetime.now().astimezone()
+
+
+def german_date(dt: datetime) -> str:
+    return f"{_WEEKDAYS_DE[dt.weekday()]}, {dt.day}. {_MONTHS_DE[dt.month - 1]} {dt.year}"
 
 
 class GetCurrentTimeTool(Tool):
     name = "get_current_time"
-    description = "Get the current date and time (UTC)."
+    description = "Aktuelle lokale Uhrzeit und Datum des Nutzers abfragen."
     parameters = {"type": "object", "properties": {}}
     security = ToolSecurity.SAFE
 
     async def execute(self, db: Session | None = None, **_) -> ToolResult:
-        now = datetime.now(timezone.utc)
-        return ToolResult(success=True, data={"utc_iso": now.isoformat()})
+        now = local_now()
+        return ToolResult(
+            success=True,
+            data={
+                "local_time": now.strftime("%H:%M"),
+                "local_date": german_date(now),
+                "local_iso": now.isoformat(timespec="seconds"),
+                "timezone": now.tzname(),
+                "utc_iso": now.astimezone(timezone.utc).isoformat(),
+            },
+        )
 
 
 class GetSystemStatusTool(Tool):
@@ -126,6 +158,8 @@ class GetSystemInfoTool(Tool):
             success=True,
             data={
                 "utc_iso": time_result.data["utc_iso"],
+                "local_time": time_result.data.get("local_time"),
+                "local_date": time_result.data.get("local_date"),
                 "cpu_percent": cpu_percent,
                 "ram_total_gb": round(vm.total / 1e9, 2),
                 "ram_free_gb": round(vm.available / 1e9, 2),

@@ -33,6 +33,7 @@ from sqlalchemy.orm import Session
 
 from app.agent.native_tool_agent import NativeToolCallingAgent, ToolCallingResult
 from app.auth import require_user
+from app.core import errors
 from app.database.db import get_db
 from app.llm.base import LLMUnavailableError
 from app.llm.factory import get_provider_by_name
@@ -79,7 +80,7 @@ def _build_agent(db: Session) -> tuple[NativeToolCallingAgent, str]:
     try:
         llm = get_provider_by_name(provider_name)
     except LLMUnavailableError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+        raise errors.cloud_not_configured() from exc
     registry = build_default_registry()
     agent = NativeToolCallingAgent(llm=llm, tools=registry, provider_name=provider_name)
     return agent, provider_name
@@ -117,7 +118,8 @@ async def tool_chat(
     try:
         result = await agent.run(db, payload.message)
     except LLMUnavailableError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+        # German message + hint via the error catalog (app/core/errors.py).
+        raise errors.from_exception(exc) from exc
 
     return _to_response(result, provider_name)
 
@@ -140,6 +142,7 @@ async def tool_chat_confirm(
     try:
         result = await agent.resume(db, approval, payload.approved)
     except LLMUnavailableError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+        # German message + hint via the error catalog (app/core/errors.py).
+        raise errors.from_exception(exc) from exc
 
     return _to_response(result, provider_name)

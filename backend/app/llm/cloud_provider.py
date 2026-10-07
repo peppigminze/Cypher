@@ -34,6 +34,8 @@ logger = logging.getLogger("cypher.llm.cloud")
 
 
 class CloudLLMProvider(LLMProvider):
+    name = "cloud"
+
     def __init__(self, base_url: str, model: str, api_key: str, timeout_seconds: float = 30.0):
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -52,18 +54,18 @@ class CloudLLMProvider(LLMProvider):
                 resp.raise_for_status()
                 data = resp.json()
         except httpx.ConnectError as exc:
-            raise LLMUnavailableError("Cloud LLM is unavailable.") from exc
+            raise LLMUnavailableError("Cloud LLM is unavailable.", provider="cloud") from exc
         except httpx.TimeoutException as exc:
-            raise LLMUnavailableError("Cloud LLM is unavailable.") from exc
+            raise LLMUnavailableError("Cloud LLM is unavailable.", provider="cloud") from exc
         except httpx.HTTPStatusError as exc:
             logger.error("Cloud LLM returned an error status: %s", exc)
-            raise LLMUnavailableError("Cloud LLM is unavailable.") from exc
+            raise LLMUnavailableError("Cloud LLM is unavailable.", provider="cloud") from exc
 
         try:
             return data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as exc:
             logger.error("Unexpected cloud LLM response shape: %s", data)
-            raise LLMUnavailableError("Cloud LLM returned an unexpected response.") from exc
+            raise LLMUnavailableError("Cloud LLM returned an unexpected response.", provider="cloud") from exc
 
     async def chat_with_tools(
         self,
@@ -93,16 +95,16 @@ class CloudLLMProvider(LLMProvider):
                 data = resp.json()
         except httpx.ConnectError as exc:
             logger.error("Cloud LLM connection failed: %s", exc)
-            raise LLMUnavailableError("Cloud LLM is unavailable.") from exc
+            raise LLMUnavailableError("Cloud LLM is unavailable.", provider="cloud") from exc
         except httpx.TimeoutException as exc:
             logger.error("Cloud LLM request timed out: %s", exc)
-            raise LLMUnavailableError("Cloud LLM is unavailable.") from exc
+            raise LLMUnavailableError("Cloud LLM is unavailable.", provider="cloud") from exc
         except httpx.HTTPStatusError as exc:
             # exc's default __str__ is "<method> <url> ... <status>" -
             # no headers, so the API key is never at risk of landing in
             # this log line.
             logger.error("Cloud LLM returned an error status: %s", exc)
-            raise LLMUnavailableError("Cloud LLM is unavailable.") from exc
+            raise LLMUnavailableError("Cloud LLM is unavailable.", provider="cloud") from exc
 
         usage = data.get("usage")
         if usage:
@@ -118,7 +120,7 @@ class CloudLLMProvider(LLMProvider):
             return ChatWithToolsResponse(message=data["choices"][0]["message"], usage=usage)
         except (KeyError, IndexError, TypeError) as exc:
             logger.error("Unexpected cloud LLM response shape: %s", data)
-            raise LLMUnavailableError("Cloud LLM returned an unexpected response.") from exc
+            raise LLMUnavailableError("Cloud LLM returned an unexpected response.", provider="cloud") from exc
 
     async def health_check(self) -> bool:
         if not self.api_key:

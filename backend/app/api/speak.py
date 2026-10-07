@@ -19,9 +19,10 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Response
 
 from app.auth import require_user
+from app.core import errors
 from app.schemas import SpeakIn
 from app.tts.piper_provider import VoiceNotFoundError, synthesize_speech
 
@@ -42,10 +43,10 @@ async def speak(
         # stall every other request the event loop is serving.
         result = await asyncio.to_thread(synthesize_speech, payload.text)
     except VoiceNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+        raise errors.tts_voice_missing() from exc
     except Exception as exc:  # noqa: BLE001
         logger.exception("Speech synthesis failed")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Synthesis failed: {exc}") from exc
+        raise errors.tts_failed() from exc
 
     logger.info(
         "SPEAK RESULT -> audio_duration=%.2fs generation_time=%.2fs sample_rate=%d",

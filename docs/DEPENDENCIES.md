@@ -58,3 +58,9 @@ Copyleft auf Dateiebene – betrifft nur Änderungen an deren eigenen Dateien, n
 |---|---|
 | `piper-tts` (PyPI) | aktuelles Backend `piper1-gpl` ist GPL-3 → stattdessen sherpa-onnx |
 | openWakeWord-Modelle | Code Apache-2.0, vortrainierte Modelle CC BY-NC-SA 4.0, kein „Hey Cypher" ohne Training |
+
+## Änderungsprotokoll
+
+| Meilenstein | Paket | Lizenz | Grund |
+|---|---|---|---|
+| M1 | tzdata 2026.5 | Apache-2.0 | IANA-Zeitzonen unter Windows (Einstellung `TIMEZONE`) |

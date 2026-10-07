@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 import sys
 from pathlib import Path
 
@@ -15,6 +16,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 os.environ.setdefault("USER_TOKEN", "test-user-token")
 os.environ.setdefault("AGENT_TOKEN", "test-agent-token")
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+
+# Tests must never touch the developer's real Ollama, logs or data, and must
+# not spend seconds loading Whisper/Piper/LLM models at app startup.
+_TEST_TMP = Path(tempfile.mkdtemp(prefix="cypher-tests-"))
+os.environ["APP_ENV"] = "test"
+os.environ["LOG_DIR"] = str(_TEST_TMP / "logs")
+os.environ["DATA_DIR"] = str(_TEST_TMP / "data")
+os.environ["LOCAL_LLM_BASE_URL"] = "http://127.0.0.1:9"  # discard port: connection refused, instantly
+os.environ["LLM_WARMUP_ON_START"] = "false"
+os.environ["LLM_MONITOR_INTERVAL_SECONDS"] = "0"
+os.environ["WHISPER_WARMUP_ON_START"] = "false"
+os.environ["TTS_WARMUP_ON_START"] = "false"
 
 from app.database import db as db_module  # noqa: E402
 from app.database.db import Base  # noqa: E402

@@ -42,3 +42,6 @@ logs/
 
 # --- Local tool config ---
 .claude/
+
+# --- Local runtime data (memory, notes, secrets, backups) ---
+/data/

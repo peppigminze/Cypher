@@ -12,9 +12,10 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, UploadFile
 
 from app.auth import require_user
+from app.core import errors
 from app.stt.whisper_provider import transcribe_audio
 from app.schemas import TranscribeOut
 
@@ -44,9 +45,9 @@ async def transcribe(
     )
 
     if len(audio_bytes) < MIN_AUDIO_BYTES:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Audio file is empty or too small.")
+        raise errors.audio_invalid("Die Aufnahme ist leer oder zu kurz. Halte die Taste etwas länger gedrückt.")
     if len(audio_bytes) > MAX_AUDIO_BYTES:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Audio file exceeds the 25 MB limit.")
+        raise errors.audio_invalid("Die Aufnahme ist größer als 25 MB.")
 
     try:
         # CPU-bound - offload to a worker thread so one transcription
@@ -54,7 +55,7 @@ async def transcribe(
         result = await asyncio.to_thread(transcribe_audio, audio_bytes)
     except Exception as exc:  # noqa: BLE001
         logger.exception("Transcription failed")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Transcription failed: {exc}") from exc
+        raise errors.stt_failed() from exc
 
     logger.info(
         "TRANSCRIBE RESULT -> text=%r language=%s audio_duration=%.2fs transcribe_time=%.2fs",

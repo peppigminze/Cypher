@@ -27,6 +27,7 @@ import numpy as np
 import sherpa_onnx
 
 from app.config import Settings, get_settings
+from app.core.metrics import metrics
 
 logger = logging.getLogger("cypher.tts.piper")
 
@@ -83,9 +84,35 @@ def _load_tts(model_dir: str, num_threads: int) -> sherpa_onnx.OfflineTts:
     return sherpa_onnx.OfflineTts(sherpa_onnx.OfflineTtsConfig(model=model_config))
 
 
+_loaded_keys: set[tuple] = set()
+
+
 def get_tts(settings: Settings | None = None) -> sherpa_onnx.OfflineTts:
     settings = settings or get_settings()
-    return _load_tts(settings.PIPER_MODEL_DIR, settings.PIPER_NUM_THREADS)
+    key = (settings.PIPER_MODEL_DIR, settings.PIPER_NUM_THREADS)
+    tts = _load_tts(*key)
+    _loaded_keys.add(key)
+    return tts
+
+
+def voice_files_present(settings: Settings | None = None) -> bool:
+    settings = settings or get_settings()
+    voice_dir = _resolve_model_dir(settings.PIPER_MODEL_DIR)
+    return (voice_dir / f"{voice_dir.name}.onnx").exists() and (voice_dir / "tokens.txt").exists()
+
+
+def is_loaded(settings: Settings | None = None) -> bool:
+    settings = settings or get_settings()
+    return (settings.PIPER_MODEL_DIR, settings.PIPER_NUM_THREADS) in _loaded_keys
+
+
+def warm_up(settings: Settings | None = None) -> float:
+    """Load the voice and synthesize one word - the first generate() call
+    after loading is ~20x slower than later ones (ONNX initialization)."""
+    settings = settings or get_settings()
+    started = time.perf_counter()
+    get_tts(settings).generate("Hallo.", sid=settings.PIPER_SPEAKER_ID, speed=settings.PIPER_SPEED)
+    return time.perf_counter() - started
 
 
 def _pcm16_wav_bytes(samples: np.ndarray, sample_rate: int) -> bytes:
@@ -116,6 +143,7 @@ def synthesize_speech(text: str, settings: Settings | None = None) -> SynthesisR
     started = time.monotonic()
     audio = tts.generate(text, sid=settings.PIPER_SPEAKER_ID, speed=settings.PIPER_SPEED)
     elapsed = time.monotonic() - started
+    metrics.record("tts", elapsed)
 
     samples = np.asarray(audio.samples, dtype=np.float32)
     wav_bytes = _pcm16_wav_bytes(samples, audio.sample_rate)

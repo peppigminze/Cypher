@@ -23,13 +23,14 @@ from app.api import (
     usage,
 )
 from app.config import get_settings
+from app.core.errors import install_exception_handlers
+from app.core.health import APP_VERSION
+from app.core.log import setup_logging
+from app.core.middleware import RequestIdMiddleware
 from app.database.db import init_db
+from app.runtime import Runtime, set_runtime
 from app.scheduler import run_forever as run_scheduler_forever
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="[%(levelname)s] %(name)s: %(message)s",
-)
 logger = logging.getLogger("cypher.backend")
 
 settings = get_settings()
@@ -39,25 +40,16 @@ _PLACEHOLDER_TOKENS = {"change-me-user-token", "change-me-agent-token"}
 
 
 def _check_tokens(settings) -> None:
-    """.env.example ships obviously-fake placeholder tokens with an
-    explicit "do not use these" comment.
+    """.env.example ships obviously-fake placeholder tokens.
 
-    Reachable only from localhost, a leaked/default token is low-stakes
-    - an attacker already needs code execution on this machine for it
-    to matter. Once API_HOST binds beyond localhost (Tailscale, LAN -
-    see TAILSCALE.md), that same placeholder is a real credential
-    anyone who has ever seen this public repo's default value could
-    use - so THAT combination refuses to start outright instead of
-    logging a warning that's easy to miss among the rest of the
-    startup output. Binding to localhost only, still just warns, same
-    as before Phase 8.
+    Reachable only from localhost, a placeholder token is low-stakes (an
+    attacker already needs code execution on this PC). Bound beyond
+    localhost (Tailscale, LAN - see TAILSCALE.md) it is a real credential
+    anyone who has seen this public repo could use, so that combination
+    refuses to start instead of logging an easy-to-miss warning.
 
-    NOTE: this only sees the truth about the bind address if the
-    backend was started via run.py, which actually reads API_HOST from
-    .env - starting uvicorn directly with your own --host flag (see
-    README.md's local-dev instructions) bypasses this check the same
-    way it already bypasses API_HOST/API_PORT entirely. TAILSCALE.md
-    tells you to use run.py for exactly this reason.
+    Only sees the real bind address when started via run.py (which reads
+    API_HOST); a hand-typed `uvicorn --host ...` bypasses this check.
     """
     has_placeholder = settings.USER_TOKEN in _PLACEHOLDER_TOKENS or settings.AGENT_TOKEN in _PLACEHOLDER_TOKENS
     if not has_placeholder:
@@ -81,16 +73,30 @@ def _check_tokens(settings) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Cypher backend starting (env=%s)", settings.APP_ENV)
+    log_file = setup_logging(settings)
+    logger.info("Cypher backend %s starting (env=%s, log=%s)", APP_VERSION, settings.APP_ENV, log_file)
     _check_tokens(settings)
     init_db()
     logger.info("Database ready.")
-    scheduler_task = asyncio.create_task(run_scheduler_forever())
-    yield
-    scheduler_task.cancel()
+
+    runtime = Runtime(settings)
+    set_runtime(runtime)
+    await runtime.start()
+    scheduler_task = asyncio.create_task(run_scheduler_forever(), name="reminder-scheduler")
+    try:
+        yield
+    finally:
+        logger.info("Cypher backend shutting down.")
+        scheduler_task.cancel()
+        try:
+            await scheduler_task
+        except (asyncio.CancelledError, Exception):  # noqa: BLE001 - shutting down
+            pass
+        await runtime.stop()
+        set_runtime(None)
 
 
-app = FastAPI(title="Cypher Backend", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Cypher Backend", version=APP_VERSION, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -98,11 +104,11 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    # Without this, the browser hides custom response headers from
-    # fetch() even on a successful cross-origin request - needed so the
-    # /speak test page can read the timing headers (see app/api/speak.py).
-    expose_headers=["X-Audio-Duration-Seconds", "X-Generation-Time-Seconds", "X-Sample-Rate"],
+    expose_headers=["X-Audio-Duration-Seconds", "X-Generation-Time-Seconds", "X-Sample-Rate", "X-Request-ID"],
 )
+# Added last = outermost: the request ID exists before CORS and every handler run.
+app.add_middleware(RequestIdMiddleware)
+install_exception_handlers(app)
 
 app.include_router(health.router)
 app.include_router(messages.router)
@@ -121,4 +127,4 @@ app.include_router(usage.router)
 
 @app.get("/")
 def root() -> dict:
-    return {"name": "Cypher Backend", "status": "running"}
+    return {"name": "Cypher Backend", "status": "running", "version": APP_VERSION}
