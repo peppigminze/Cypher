@@ -915,6 +915,46 @@
   line-height: 1.5;
 }
 
+.settings__hint--error {
+  color: var(--danger);
+}
+
+.settings__provider-toggle {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.settings__provider-btn {
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.settings__provider-btn:hover:not(:disabled) {
+  border-color: var(--border-glow);
+  color: var(--text);
+}
+
+.settings__provider-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.settings__provider-btn.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--border-glow);
+  cursor: default;
+  opacity: 1;
+}
+
 .settings__code-row {
   display: flex;
   align-items: center;
@@ -959,6 +999,31 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
+}
+
+.voice-view__provider-badge {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  color: var(--text-dim);
+  user-select: none;
+}
+
+.voice-view__provider-badge--local {
+  color: var(--accent);
+  border-color: rgba(56, 224, 255, 0.35);
+}
+
+.voice-view__provider-badge--cloud {
+  color: var(--amber);
+  border-color: rgba(255, 180, 84, 0.4);
 }
 
 .voice-view__menu-btn {
@@ -1235,8 +1300,109 @@
   opacity: 0.3;
 }
 
+/* confirming: a paused write_file approval (see useCypherVoiceState.ts)
+   needs to read as "waiting on you", not "working" - amber (the design
+   tokens' warning/priority accent) and a noticeably faster, bigger-
+   amplitude pulse than idle's breathing, distinct from thinking's tight
+   cyan spin and speaking's slow purple pulse. */
+.cypher-bubble--confirming {
+  color: var(--amber);
+}
+.cypher-bubble--confirming .cypher-bubble__glow {
+  background: radial-gradient(circle, rgba(255, 180, 84, 0.6) 0%, transparent 70%);
+  opacity: 0.5;
+}
+.cypher-bubble--confirming .cypher-bubble__ring--outer,
+.cypher-bubble--confirming .cypher-bubble__ring--mid {
+  stroke: var(--amber);
+  animation-duration: 3s;
+  opacity: 0.9;
+}
+.cypher-bubble--confirming .cypher-bubble__core {
+  fill: var(--amber);
+  animation: cypher-confirm-pulse 1.4s ease-in-out infinite;
+  opacity: 0.3;
+}
+
+@keyframes cypher-confirm-pulse {
+  0%,
+  100% {
+    opacity: 0.16;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 0.42;
+    transform: scale(1.08);
+  }
+}
+
 @media (max-width: 480px) {
   .cypher-bubble {
     --size: clamp(170px, 55vw, 220px);
   }
+}
+
+/* ---------------------------------------------------------------- Confirm panel */
+/* Visible Ja/Nein for the "confirming" state - the other half of
+   answering by voice (see useCypherVoiceState.ts's matchYesNo). Amber
+   to match the bubble's confirming color. */
+
+.voice-view__confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  background: var(--amber-soft);
+  border: 1px solid rgba(255, 180, 84, 0.4);
+  border-radius: var(--radius-lg);
+  max-width: 420px;
+  animation: voice-menu-fade-in 0.15s ease;
+}
+
+.voice-view__confirm-summary {
+  margin: 0;
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--text-dim);
+  word-break: break-word;
+}
+
+.voice-view__confirm-summary strong {
+  color: var(--amber);
+  font-family: var(--font-mono);
+}
+
+.voice-view__confirm-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.voice-view__confirm-btn {
+  padding: 8px 22px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: filter 0.15s ease, transform 0.1s ease;
+}
+
+.voice-view__confirm-btn:active {
+  transform: scale(0.96);
+}
+
+.voice-view__confirm-btn--yes {
+  background: var(--amber);
+  color: #1a1200;
+}
+
+.voice-view__confirm-btn--no {
+  background: transparent;
+  color: var(--text-dim);
+  border-color: var(--border);
+}
+
+.voice-view__confirm-btn:hover {
+  filter: brightness(1.1);
 }

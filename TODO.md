@@ -26,41 +26,41 @@ don't get forgotten before more feature work lands on top.
   single most recent tool call for the status bar, nothing persisted
   or browsable.
 
-## Approval gate (new in the stabilization pass, backend-only)
+## Approval gate — Voice UI wiring: ✅ done (2026-09-11)
 
-`/api/tool-chat` now pauses instead of executing a CONFIRM_REQUIRED
-tool (currently just `write_file`) and returns `pending_confirmation`
-(`approval_id`, `tool_name`, `arguments`). Call
-`POST /api/tool-chat/confirm` with `{approval_id, approved}` to
-resolve it - see `backend/app/tools/pending_approvals.py` and
-`backend/app/agent/native_tool_agent.py` for the mechanics.
+`/api/tool-chat` pauses instead of executing a CONFIRM_REQUIRED tool
+(currently just `write_file`) and returns `pending_confirmation`
+(`approval_id`, `tool_name`, `arguments`). `POST /api/tool-chat/confirm`
+with `{approval_id, approved}` resolves it - see
+`backend/app/tools/pending_approvals.py` and
+`backend/app/agent/native_tool_agent.py` for the backend mechanics
+(unchanged from the stabilization pass).
 
-**This is API-level only - nothing in the Voice UI surfaces or acts on
-`pending_confirmation` yet.** Today, if a voice request triggers
-`write_file`, Cypher will *say* "Ich möchte 'write_file' ausführen.
-Bestätigst du das?" (that's `reply`, and it does get spoken via
-`/speak` since `useCypherVoiceState` always sends `chatResult.reply`
-to TTS) - but there is no way to answer by voice or tap yet. The
-pipeline just returns to `idle` afterwards, and the tool never runs
-unless something calls `/api/tool-chat/confirm` directly (e.g. via
-curl, as done in the stabilization pass's test run - see the phase's
-status report for details).
+The Voice UI now handles this end to end: a new `"confirming"` state in
+`useCypherVoiceState.ts`, entered whenever a `toolChat()`/
+`confirmToolCall()` response carries `pending_confirmation`. Cypher
+speaks the prompt (fire-and-forget, doesn't block the UI) while two ways
+to answer are live at once - visible Ja/Nein buttons
+(`CypherVoiceView.tsx`'s confirm panel) and tapping the bubble again to
+give a spoken "ja"/"nein" (keyword-matched via `matchYesNo`, not NLU).
+Either path calls `/api/tool-chat/confirm` and resumes the normal
+`thinking → speaking → idle` flow from its result. Rejecting, an
+unrecognized voice answer, or a client-side mirror of the backend's
+5-minute TTL (`CONFIRMATION_TTL_MS`) all resolve cleanly - no stuck
+"confirming" state.
 
-Needed before this is actually usable end-to-end via voice:
-1. `useCypherVoiceState` needs to inspect `pending_confirmation` on
-   the `/api/tool-chat` response and enter some kind of
-   `awaiting-confirmation` sub-state instead of going straight to
-   `speaking` → `idle`.
-2. `CypherBubble`/`CypherVoiceView` need a way to capture the answer -
-   simplest version: a second short recording ("ja"/"nein") transcribed
-   and matched against a small yes/no vocabulary, or two visible
-   buttons that appear during the confirmation prompt (the "hands are
-   free" voice pitch takes a hit here either way - worth a deliberate
-   design decision, not a rushed one).
-3. On "yes", call `/api/tool-chat/confirm` and resume the normal
-   `thinking → speaking` flow with its response; on "no" (or a timeout
-   - `pending_approvals.py`'s `PENDING_TTL_SECONDS` is 5 minutes),
-   drop back to `idle` without ever calling confirm.
+Known remaining rough edges here, all deliberately out of scope for
+that pass:
+- No visual/audio distinction between "answering the confirmation by
+  voice" (reuses the plain "listening" waveform) and a normal new
+  request - functionally fine, just not visually called out.
+- The spoken confirmation prompt itself is whatever
+  `native_tool_agent.py` generates (e.g. `Ich möchte "write_file"
+  ausführen. Bestätigst du das?`) and deliberately does not include
+  argument values (so Cypher never reads e.g. a file's content aloud) -
+  the visible confirm panel shows a short argument summary instead.
+  Changing the spoken text itself would mean touching the approval-gate
+  backend, which is out of scope here.
 
 ## Risk tiers (future direction, not needed yet)
 

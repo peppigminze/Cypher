@@ -47,8 +47,9 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.llm.local_provider import LocalLLMProvider
+from app.llm.base import LLMProvider
 from app.persona import CYPHER_PERSONA
+from app.settings_store import record_token_usage
 from app.tools import pending_approvals
 from app.tools.base import ToolResult, ToolSecurity
 from app.tools.pending_approvals import PendingApproval
@@ -72,8 +73,18 @@ SYSTEM_PROMPT = CYPHER_PERSONA + (
 # The tools this loop exposes to the model. Kept as an explicit allowlist
 # (rather than every tool in the registry) so this demo path never
 # accidentally hands the model destructive/PC-control tools it wasn't
-# scoped for.
-DEFAULT_TOOL_NAMES = ["get_current_time", "read_file", "write_file", "web_search"]
+# scoped for. Phase 6 adds three SAFE, low-risk PC-control tools
+# (media_control, find_files, get_system_info) - see app/tools/
+# media_tools.py and search_tools.py.
+DEFAULT_TOOL_NAMES = [
+    "get_current_time",
+    "read_file",
+    "write_file",
+    "web_search",
+    "media_control",
+    "find_files",
+    "get_system_info",
+]
 
 
 @dataclass
@@ -123,14 +134,21 @@ class NativeToolCallingAgent:
     # flat enum - not needed yet for write_file alone.
     def __init__(
         self,
-        llm: LocalLLMProvider,
+        llm: LLMProvider,
         tools: ToolRegistry,
         tool_names: Optional[List[str]] = None,
+        provider_name: str = "local",
     ) -> None:
         self.llm = llm
         self.tools = tools
         self.tool_names = tool_names or DEFAULT_TOOL_NAMES
         self.executor = ToolExecutor(tools)
+        # "local" or "cloud" - which provider `llm` actually is, purely
+        # for Phase 7's per-provider token usage tracking (see
+        # record_token_usage() in _loop below). The caller
+        # (app/api/tool_chat.py) already knows this since it just chose
+        # the provider - passed in rather than re-derived via isinstance.
+        self.provider_name = provider_name
 
     async def run(self, db: Session | None, user_message: str) -> ToolCallingResult:
         messages: List[Dict[str, Any]] = [
@@ -180,8 +198,11 @@ class NativeToolCallingAgent:
         tools_schema = to_openai_tools(self.tools, self.tool_names)
 
         for step in range(start_step, MAX_STEPS + 1):
-            message = await self.llm.chat_with_tools(messages, tools=tools_schema)
+            response = await self.llm.chat_with_tools(messages, tools=tools_schema)
+            message = response.message
             messages.append(message)
+            if db is not None:
+                record_token_usage(db, self.provider_name, self.llm.model, response.usage)
 
             tool_calls = message.get("tool_calls") or []
             if not tool_calls:

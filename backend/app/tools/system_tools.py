@@ -92,6 +92,48 @@ class DiskUsageTool(Tool):
         )
 
 
+class GetSystemInfoTool(Tool):
+    """Bundles get_current_time + cpu_usage + ram_usage into one call
+    (Phase 6) - reuses GetCurrentTimeTool directly instead of
+    re-deriving "now" itself, so there is exactly one place that decides
+    what "current time" means. Exists because the native tool-calling
+    pipeline's system prompt asks the model for at most one tool call
+    per step (app/agent/native_tool_agent.py) - without this, a single
+    "how's the PC doing" voice question would cost three separate
+    tool-call round trips instead of one."""
+
+    name = "get_system_info"
+    description = (
+        "Get a combined system snapshot: current date/time (UTC), CPU usage, and RAM "
+        "free/total - one call instead of separate get_current_time/cpu_usage/ram_usage "
+        "requests."
+    )
+    parameters = {"type": "object", "properties": {}}
+    security = ToolSecurity.SAFE
+
+    async def execute(self, db: Session | None = None, **_) -> ToolResult:
+        try:
+            time_result = await GetCurrentTimeTool().execute(db=db)
+            cpu_percent = await asyncio.to_thread(psutil.cpu_percent, 0.3)
+            vm = psutil.virtual_memory()
+        except Exception as exc:  # noqa: BLE001 - psutil/platform calls, be defensive
+            return ToolResult(success=False, error=f"Could not read system info: {exc}")
+
+        if not time_result.success:
+            return ToolResult(success=False, error=time_result.error or "Could not determine the current time.")
+
+        return ToolResult(
+            success=True,
+            data={
+                "utc_iso": time_result.data["utc_iso"],
+                "cpu_percent": cpu_percent,
+                "ram_total_gb": round(vm.total / 1e9, 2),
+                "ram_free_gb": round(vm.available / 1e9, 2),
+                "ram_percent_used": vm.percent,
+            },
+        )
+
+
 class NetworkStatusTool(Tool):
     name = "network_status"
     description = "List which network interfaces are currently up."

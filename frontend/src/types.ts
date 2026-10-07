@@ -118,10 +118,23 @@ export interface ToolCallResult {
   error: string | null;
 }
 
+export interface PendingConfirmationInfo {
+  approval_id: string;
+  tool_name: string;
+  arguments: Record<string, unknown>;
+}
+
+export type LlmProviderName = "local" | "cloud";
+
 export interface ToolChatResult {
   reply: string;
   tool_calls: ToolCallResult[];
   steps_used: number;
+  pending_confirmation?: PendingConfirmationInfo | null;
+  // Which provider actually answered this request (Phase 7) - always
+  // present, so the UI can show a Lokal/Cloud indicator without a
+  // separate round-trip. See useCypherVoiceState.ts/CypherVoiceView.tsx.
+  provider: LlmProviderName;
 }
 
 export interface TranscribeResult {
@@ -129,4 +142,28 @@ export interface TranscribeResult {
   language: string | null;
   audio_duration_seconds: number;
   transcribe_time_seconds: number;
+}
+
+// ---------------------------------------------------------------- Provider toggle (Phase 7)
+
+export interface ActiveProviderInfo {
+  provider: LlmProviderName;
+  cloud_configured: boolean;
+}
+
+export interface UsageTotals {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  request_count: number;
+}
+
+export interface UsagePeriod {
+  total: UsageTotals;
+  by_provider: Record<string, UsageTotals>;
+}
+
+export interface UsageSummary {
+  today: UsagePeriod;
+  month: UsagePeriod;
 }

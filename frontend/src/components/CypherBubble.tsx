@@ -24,6 +24,14 @@ const BAR_INDICES = Array.from({ length: BAR_COUNT }, (_, i) => i);
  * mutation in a requestAnimationFrame loop (not React state) - at
  * ~60fps that would otherwise mean 28 state updates/re-renders per
  * frame for no visual benefit.
+ *
+ * "confirming" (a paused write_file approval - see
+ * useCypherVoiceState.ts) gets its own amber pulse, distinct from
+ * thinking's tight cyan spin and speaking's slow purple pulse, so a
+ * pending confirmation is readable at a glance. Tapping the bubble in
+ * this state starts a new recording for a spoken "ja"/"nein" answer;
+ * the visible Ja/Nein buttons (CypherVoiceView.tsx) are the other way
+ * to answer it.
  */
 export function CypherBubble({ state, micStream, onClick, disabled }: Props) {
   const barRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -66,7 +74,9 @@ export function CypherBubble({ state, micStream, onClick, disabled }: Props) {
       ? "Aufnahme stoppen"
       : state === "idle"
         ? "Sprachaufnahme starten"
-        : "Cypher ist beschäftigt";
+        : state === "confirming"
+          ? 'Antworte "ja" oder "nein", oder nutze die Buttons'
+          : "Cypher ist beschäftigt";
 
   return (
     <button

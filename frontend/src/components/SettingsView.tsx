@@ -1,11 +1,38 @@
-import { useCallback, useState } from "react";
-import type { Settings } from "../types";
-import { getSettingsOverview } from "../services/api";
+import { useCallback, useEffect, useState } from "react";
+import type { ActiveProviderInfo, LlmProviderName, Settings, UsageSummary } from "../types";
+import { getActiveProvider, getSettingsOverview, getUsageSummary, setActiveProvider } from "../services/api";
 import { usePolling } from "../hooks/usePolling";
+
+/** Rough "might be on a phone/PWA" signal for the Phase 7 cloud hint -
+ * deliberately just a suggestion shown next to the toggle, never used
+ * to switch anything automatically (that's an explicit non-goal: "Kosten
+ * dürfen nie ungefragt entstehen"). Re-checked on resize so rotating a
+ * tablet or resizing a window updates the hint without a reload. */
+function useIsLikelyMobileContext(): boolean {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => {
+      const standalone = window.matchMedia?.("(display-mode: standalone)").matches ?? false;
+      const narrow = window.innerWidth < 768;
+      setIsMobile(standalone || narrow);
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  return isMobile;
+}
 
 export function SettingsView() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [copied, setCopied] = useState(false);
+  const [activeProvider, setActiveProviderState] = useState<ActiveProviderInfo | null>(null);
+  const [providerBusy, setProviderBusy] = useState(false);
+  const [providerError, setProviderError] = useState<string | null>(null);
+  const [usage, setUsage] = useState<UsageSummary | null>(null);
+  const isLikelyMobile = useIsLikelyMobileContext();
 
   const refresh = useCallback(async () => {
     try {
@@ -13,9 +40,32 @@ export function SettingsView() {
     } catch {
       // keep showing the last known settings
     }
+    try {
+      setActiveProviderState(await getActiveProvider());
+    } catch {
+      // keep showing the last known provider state
+    }
+    try {
+      setUsage(await getUsageSummary());
+    } catch {
+      // usage is a nice-to-have readout - failing silently is fine
+    }
   }, []);
 
   usePolling(refresh, 15000, []);
+
+  async function handleProviderChange(next: LlmProviderName) {
+    if (!activeProvider || activeProvider.provider === next || providerBusy) return;
+    setProviderBusy(true);
+    setProviderError(null);
+    try {
+      setActiveProviderState(await setActiveProvider(next));
+    } catch (err) {
+      setProviderError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setProviderBusy(false);
+    }
+  }
 
   async function copyWakeCommand() {
     if (!settings?.wake_on_lan.command) return;
@@ -54,6 +104,64 @@ export function SettingsView() {
           <dt>Max. Wiederholungen</dt>
           <dd>{settings.message_max_retries}</dd>
         </dl>
+      </section>
+
+      <section className="settings__section">
+        <h2>Voice / Tool-Calling: Provider</h2>
+        <p className="settings__hint">
+          Legt fest, ob die Sprach-/Tool-Calling-Anfragen (Voice-UI, /api/tool-chat) über das
+          lokale Ollama-Modell oder einen Cloud-Anbieter laufen. Gilt für die laufende Session,
+          bleibt aber auch nach einem Neustart erhalten - wird nie automatisch umgeschaltet.
+        </p>
+
+        {activeProvider ? (
+          <>
+            <div className="settings__provider-toggle" role="group" aria-label="LLM-Provider wählen">
+              <button
+                type="button"
+                className={`settings__provider-btn ${activeProvider.provider === "local" ? "is-active" : ""}`}
+                onClick={() => handleProviderChange("local")}
+                disabled={providerBusy || activeProvider.provider === "local"}
+              >
+                🖥 Lokal
+              </button>
+              <button
+                type="button"
+                className={`settings__provider-btn ${activeProvider.provider === "cloud" ? "is-active" : ""}`}
+                onClick={() => handleProviderChange("cloud")}
+                disabled={providerBusy || activeProvider.provider === "cloud" || !activeProvider.cloud_configured}
+                title={!activeProvider.cloud_configured ? "CLOUD_LLM_API_KEY ist nicht in .env gesetzt" : undefined}
+              >
+                ☁ Cloud
+              </button>
+            </div>
+
+            {!activeProvider.cloud_configured && (
+              <p className="settings__hint">
+                Cloud ist nicht verfügbar - <code>CLOUD_LLM_API_KEY</code> fehlt in <code>.env</code>.
+              </p>
+            )}
+            {providerError && <p className="settings__hint settings__hint--error">{providerError}</p>}
+            {isLikelyMobile && activeProvider.provider === "local" && (
+              <p className="settings__hint">
+                Hinweis: Du wirkst gerade auf einem mobilen/PWA-Kontext unterwegs - der lokale PC
+                ist dann evtl. nicht erreichbar. Cloud könnte hier zuverlässiger laufen (manuell
+                umschalten, kein Automatismus).
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="settings__hint">Lade Provider-Status...</p>
+        )}
+
+        {usage && (
+          <dl className="settings__grid" style={{ marginTop: 14 }}>
+            <dt>Token-Nutzung heute</dt>
+            <dd>{usage.today.total.total_tokens.toLocaleString("de-DE")}</dd>
+            <dt>Token-Nutzung diesen Monat</dt>
+            <dd>{usage.month.total.total_tokens.toLocaleString("de-DE")}</dd>
+          </dl>
+        )}
       </section>
 
       <section className="settings__section">

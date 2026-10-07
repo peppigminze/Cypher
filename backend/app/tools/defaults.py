@@ -19,13 +19,16 @@ from app.tools.git_tools import (
     GitPushTool,
     GitStatusTool,
 )
+from app.tools.media_tools import MediaControlTool
 from app.tools.memory_tools import SaveMemoryTool, SearchMemoryTool
 from app.tools.project_tools import ListProjectsTool
 from app.tools.registry import ToolRegistry
+from app.tools.search_tools import FindFilesTool
 from app.tools.system_tools import (
     CpuUsageTool,
     DiskUsageTool,
     GetCurrentTimeTool,
+    GetSystemInfoTool,
     GetSystemStatusTool,
     NetworkStatusTool,
     RamUsageTool,
@@ -51,6 +54,7 @@ def build_default_registry() -> ToolRegistry:
     registry.register(SearchMemoryTool())
     registry.register(GetCurrentTimeTool())
     registry.register(GetSystemStatusTool())
+    registry.register(GetSystemInfoTool())
     registry.register(CpuUsageTool())
     registry.register(RamUsageTool())
     registry.register(DiskUsageTool())
@@ -58,6 +62,8 @@ def build_default_registry() -> ToolRegistry:
     registry.register(ListProjectsTool())
     registry.register(FetchUrlTool())
     registry.register(WebSearchTool())
+    registry.register(MediaControlTool())
+    registry.register(FindFilesTool())
 
     # Destructive / task-affecting - CONFIRM_REQUIRED
     registry.register(DeleteTaskTool())

@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from app.llm.base import ChatMessage, LLMProvider, LLMUnavailableError
+from app.llm.base import ChatMessage, ChatWithToolsResponse, LLMProvider, LLMUnavailableError
 
 logger = logging.getLogger("cypher.llm.local")
 
@@ -61,7 +61,7 @@ class LocalLLMProvider(LLMProvider):
         messages: List[Dict[str, Any]],
         tools: List[Dict[str, Any]],
         temperature: float = 0.2,
-    ) -> Dict[str, Any]:
+    ) -> ChatWithToolsResponse:
         """Send a chat request using the OpenAI "tools" function-calling
         format (https://platform.openai.com/docs/guides/function-calling),
         which Ollama implements natively for tool-capable models (e.g.
@@ -96,8 +96,18 @@ class LocalLLMProvider(LLMProvider):
             logger.error("Local LLM returned an error status: %s", exc)
             raise LLMUnavailableError("Local LLM is unavailable.") from exc
 
+        usage = data.get("usage")
+        if usage:
+            logger.info(
+                "TOKEN USAGE -> provider=local model=%s prompt=%s completion=%s total=%s",
+                self.model,
+                usage.get("prompt_tokens"),
+                usage.get("completion_tokens"),
+                usage.get("total_tokens"),
+            )
+
         try:
-            return data["choices"][0]["message"]
+            return ChatWithToolsResponse(message=data["choices"][0]["message"], usage=usage)
         except (KeyError, IndexError, TypeError) as exc:
             logger.error("Unexpected local LLM response shape: %s", data)
             raise LLMUnavailableError("Local LLM returned an unexpected response.") from exc

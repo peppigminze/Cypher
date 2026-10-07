@@ -1,5 +1,7 @@
 import type {
+  ActiveProviderInfo,
   ChatMessage,
+  LlmProviderName,
   MemoryEntry,
   MemoryType,
   PendingAction,
@@ -9,6 +11,7 @@ import type {
   Task,
   ToolChatResult,
   TranscribeResult,
+  UsageSummary,
 } from "../types";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -197,6 +200,27 @@ export async function getSettingsOverview(): Promise<Settings> {
   return request<Settings>("/api/settings");
 }
 
+// ------------------------------------------------------------------ Provider toggle (Phase 7)
+// Manual-only local/cloud switch for the native tool-calling pipeline
+// (/api/tool-chat). Never automatic - see CypherVoiceView.tsx's
+// provider badge and SettingsView.tsx's toggle, the only two places
+// that ever call setActiveProvider.
+
+export async function getActiveProvider(): Promise<ActiveProviderInfo> {
+  return request<ActiveProviderInfo>("/api/settings/provider");
+}
+
+export async function setActiveProvider(provider: LlmProviderName): Promise<ActiveProviderInfo> {
+  return request<ActiveProviderInfo>("/api/settings/provider", {
+    method: "POST",
+    body: JSON.stringify({ provider }),
+  });
+}
+
+export async function getUsageSummary(): Promise<UsageSummary> {
+  return request<UsageSummary>("/api/usage");
+}
+
 // ------------------------------------------------------------------ Projects
 
 export interface CreateProjectInput {
@@ -246,6 +270,18 @@ export async function toolChat(message: string): Promise<ToolChatResult> {
   return request<ToolChatResult>("/api/tool-chat", {
     method: "POST",
     body: JSON.stringify({ message }),
+  });
+}
+
+// Resolves a pending_confirmation from toolChat() (see
+// backend/app/tools/pending_approvals.py) - approving runs the paused
+// tool and continues the reply, rejecting cancels it. Throws (a plain
+// 404) if approval_id is unknown or its 5-minute TTL already expired -
+// callers should treat that the same as an explicit rejection.
+export async function confirmToolCall(approvalId: string, approved: boolean): Promise<ToolChatResult> {
+  return request<ToolChatResult>("/api/tool-chat/confirm", {
+    method: "POST",
+    body: JSON.stringify({ approval_id: approvalId, approved }),
   });
 }
 

@@ -12,7 +12,7 @@ import enum
 import json
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.db import Base, ensure_columns
@@ -344,6 +344,45 @@ class Project(Base):
     @technologies.setter
     def technologies(self, value: list[str] | None) -> None:
         self.technologies_json = json.dumps(value or [])
+
+
+class RuntimeSetting(Base):
+    """Generic key/value store for settings that must be changeable at
+    runtime (via an API call) and survive a restart - unlike
+    app/config.py's Settings, which are static, read once from .env at
+    process start. First (and so far only) user: the native
+    tool-calling pipeline's active LLM provider ("local" | "cloud")
+    toggle (Phase 7, see app/settings_store.py). A new table - no
+    migration risk."""
+
+    __tablename__ = "runtime_settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class TokenUsageDaily(Base):
+    """Cumulative daily token usage per provider/model (Phase 7) - one
+    row per (date, provider, model), incremented after every LLM call
+    the native tool-calling pipeline makes that reports usage (see
+    app/settings_store.py.record_token_usage). `date` is a UTC calendar
+    day string ("YYYY-MM-DD"), not a DateTime column, so "today" and
+    "this month" are plain string comparisons (GET /api/usage) instead
+    of timezone-aware range math. A new table - no migration risk."""
+
+    __tablename__ = "token_usage_daily"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    date: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(16), nullable=False)
+    model: Mapped[str] = mapped_column(String(128), nullable=False)
+    prompt_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    completion_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    request_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    __table_args__ = (UniqueConstraint("date", "provider", "model", name="uq_token_usage_daily"),)
 
 
 def run_migrations() -> None:

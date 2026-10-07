@@ -37,9 +37,23 @@ class Settings(BaseSettings):
     LOCAL_LLM_MODEL: str = "qwen2.5:7b"
     LOCAL_LLM_TIMEOUT_SECONDS: float = 60.0
 
-    # API server
-    API_HOST: str = "0.0.0.0"
+    # API server. Read by backend/run.py (Phase 8) - NOT by the raw
+    # `uvicorn app.main:app --host ... --port ...` CLI invocations still
+    # documented for local dev in README.md, which take their own
+    # explicit --host/--port instead. Default is localhost-only on
+    # purpose: widening this (e.g. to your Tailscale IP for phone
+    # access, or 0.0.0.0 for plain LAN) is an explicit opt-in the user
+    # makes in .env, never something that happens by default - see
+    # TAILSCALE.md.
+    API_HOST: str = "127.0.0.1"
     API_PORT: int = 8000
+    # Must list the exact origin(s) the frontend is actually served
+    # from - no wildcard ("*"), since that would let any website's
+    # script make authenticated requests here via a victim's browser.
+    # Add your Tailscale-reachable frontend origin (e.g.
+    # "http://100.x.y.z:5173" or your MagicDNS name) when following
+    # TAILSCALE.md - the localhost entries below are for local dev and
+    # can stay either way.
     CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     # Auth
@@ -56,6 +70,15 @@ class Settings(BaseSettings):
     # touch anything until the user explicitly opts a directory in.
     ALLOWED_DIRECTORIES: str = ""
     TERMINAL_TIMEOUT_SECONDS: float = 30.0
+
+    # Local file search (find_files tool, Phase 6) - comma-separated
+    # directories to search filenames under. Deliberately separate from
+    # ALLOWED_DIRECTORIES: find_files only ever returns path/filename/
+    # modified-date, never file content, so it's much lower risk and can
+    # default to something useful out of the box (the user's home
+    # directory) instead of being opt-in-only like ALLOWED_DIRECTORIES.
+    SEARCH_DIRECTORIES: str = ""
+    SEARCH_MAX_RESULTS: int = 50
 
     # Wake-on-LAN (project spec section 23). Purely informational on the
     # backend side - the backend/agent run ON this PC, so they can't send
@@ -80,7 +103,11 @@ class Settings(BaseSettings):
     # never used just because the cloud model might be "better".
     CLOUD_LLM_ENABLED: bool = False
     CLOUD_LLM_BASE_URL: str = "https://api.openai.com/v1"
-    CLOUD_LLM_MODEL: str = "gpt-4o-mini"
+    # User-specified default (Phase 7). Not a model name this codebase has
+    # verified against a live API call as of this writing - if OpenAI
+    # rejects it (404/"model not found"), change it here or in .env; no
+    # code change needed either way since it's just a config string.
+    CLOUD_LLM_MODEL: str = "gpt-5.6-luna"
     CLOUD_LLM_API_KEY: str = ""
     CLOUD_LLM_TIMEOUT_SECONDS: float = 30.0
 
@@ -109,6 +136,11 @@ class Settings(BaseSettings):
     @property
     def allowed_directories_list(self) -> List[str]:
         return [d.strip() for d in self.ALLOWED_DIRECTORIES.split(",") if d.strip()]
+
+    @property
+    def search_directories_list(self) -> List[str]:
+        dirs = [d.strip() for d in self.SEARCH_DIRECTORIES.split(",") if d.strip()]
+        return dirs or [str(Path.home())]
 
 
 @lru_cache

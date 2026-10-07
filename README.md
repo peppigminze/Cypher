@@ -49,6 +49,8 @@ Dieses Repository enthält die erste funktionierende Version (V1):
 18. [Wake-on-LAN](#18-wake-on-lan)
 19. [Autostart (Windows)](#19-autostart-windows)
 20. [Security-Hardening-Pass](#20-security-hardening-pass)
+21. [Voice Interface (Sprachein-/ausgabe)](#21-voice-interface-sprachein--ausgabe)
+22. [Handy-Zugriff über Tailscale](#22-handy-zugriff-über-tailscale)
 
 ---
 
@@ -610,3 +612,31 @@ einzuführen.
 - Mikrofon-Fehler (Zugriff verweigert, keine Sprache erkannt) werden
   als lesbare deutsche Meldung direkt über dem Chat-Eingabefeld
   angezeigt, nicht als rohe Browser-Fehlermeldung.
+
+## 22. Handy-Zugriff über Tailscale
+
+Cypher vom Handy aus erreichen, ohne das Backend dem offenen Internet
+oder dem normalen WLAN auszusetzen - über
+[Tailscale](https://tailscale.com) (privates WireGuard-Netzwerk
+zwischen den eigenen Geräten).
+
+Vollständige Anleitung inkl. Setup, Sicherheits-Trade-off-Begründung,
+PWA-Installation aufs Handy und Test-Checkliste (automatisiert vs.
+manuell): siehe **[TAILSCALE.md](TAILSCALE.md)**.
+
+Kurzfassung:
+```bash
+# 1. Status prüfen, eigene Tailscale-IP ermitteln
+powershell -File scripts\check_tailscale.ps1
+
+# 2. In .env: API_HOST=<tailscale-ip>, CORS_ORIGINS um diese IP:5173
+#    ergänzen, echte USER_TOKEN/AGENT_TOKEN setzen
+
+# 3. Backend darüber starten (liest API_HOST/API_PORT aus .env)
+cd backend
+python run.py
+```
+Danach auf dem Handy (im selben Tailnet) `http://<tailscale-ip>:5173`
+öffnen und als PWA installieren. Mikrofonfunktionen der Voice-UI
+brauchen zusätzlich HTTPS (Tailscale-Zertifikate) - siehe TAILSCALE.md
+Abschnitt 3b, alles andere funktioniert auch ohne.

@@ -10,6 +10,8 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg"],
       manifest: {
+        // All-caps is deliberate - matches the Sidebar/<title> brand
+        // style established in the Phase 0 rebrand, not an oversight.
         name: "CYPHER",
         short_name: "CYPHER",
         description: "Local-first personal AI agent",
@@ -27,6 +29,16 @@ export default defineConfig({
             src: "icon-512.png",
             sizes: "512x512",
             type: "image/png",
+          },
+          {
+            // Android adaptive-icon safe zone (content within the
+            // center ~80%) - the existing ring/orb artwork already
+            // sits comfortably inside that, so the same file works
+            // as-is without a dedicated maskable export.
+            src: "icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
           },
         ],
       },
