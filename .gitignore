@@ -39,3 +39,6 @@ logs/
 
 # --- Local model weights (large binaries - fetched on demand, not committed) ---
 /backend/models/
+
+# --- Local tool config ---
+.claude/
