@@ -183,6 +183,9 @@ class Tool(ABC):
     # Offered to the LLM by default (others need TOOLS_EXTRA in .env).
     exposed_by_default: ClassVar[bool] = False
     timeout_seconds: ClassVar[Optional[float]] = None
+    # Short sentence spoken while a slow tool runs ("Ich schaue nach."), so
+    # voice users don't sit in silence for seconds. None for fast tools.
+    spoken_progress: ClassVar[Optional[str]] = None
 
     _args_model_cache: ClassVar[Optional[Type[BaseModel]]] = None
 

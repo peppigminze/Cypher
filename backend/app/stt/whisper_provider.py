@@ -51,7 +51,9 @@ def _key(settings: Settings, size: str | None = None) -> tuple:
 def _load_model(model_size: str, device: str, compute_type: str, cpu_threads: int) -> WhisperModel:
     logger.info("Loading faster-whisper model (size=%s, device=%s, compute_type=%s, threads=%s)", model_size, device, compute_type, cpu_threads)
     started = time.perf_counter()
-    model = WhisperModel(model_size, device=device, compute_type=compute_type, cpu_threads=cpu_threads)
+    # Two workers: a discarded speculative transcription (app/voice/session.py)
+    # must not make the real one wait in CTranslate2's queue.
+    model = WhisperModel(model_size, device=device, compute_type=compute_type, cpu_threads=cpu_threads, num_workers=2)
     logger.info("faster-whisper %s loaded in %.1fs", model_size, time.perf_counter() - started)
     return model
 
@@ -81,7 +83,15 @@ def warm_up(settings: Settings | None = None) -> float:
     return time.perf_counter() - started
 
 
-def transcribe_audio(audio: AudioInput, settings: Settings | None = None, *, size: str | None = None, initial_prompt: str | None = None) -> TranscriptionResult:
+def transcribe_audio(
+    audio: AudioInput,
+    settings: Settings | None = None,
+    *,
+    size: str | None = None,
+    initial_prompt: str | None = None,
+    vad: bool = True,
+    beam_size: int | None = None,
+) -> TranscriptionResult:
     """Transcribe audio to text.
 
     `audio` is either encoded bytes in any format PyAV can decode (webm/opus
@@ -96,16 +106,18 @@ def transcribe_audio(audio: AudioInput, settings: Settings | None = None, *, siz
     segments, info = model.transcribe(
         source,
         language=settings.WHISPER_LANGUAGE or None,
-        beam_size=settings.WHISPER_BEAM_SIZE,
+        beam_size=beam_size or settings.WHISPER_BEAM_SIZE,
         initial_prompt=(initial_prompt if initial_prompt is not None else settings.WHISPER_INITIAL_PROMPT) or None,
         # Whisper hallucinates text on silence ("Untertitel im Auftrag des
         # ZDF ..."); the VAD filter drops non-speech before decoding.
-        vad_filter=True,
+        # Audio from the live voice session is already cut by the streaming
+        # VAD (vad=False there); uploads may contain long silences.
+        vad_filter=vad,
         vad_parameters={"min_silence_duration_ms": 500},
         condition_on_previous_text=False,
         without_timestamps=True,
     )
     text = "".join(segment.text for segment in segments).strip()
     elapsed = time.monotonic() - started
-    metrics.record("stt", elapsed)
+    metrics.record("stt" if size is None else "stt_wake", elapsed)
     return TranscriptionResult(text=text, language=info.language, audio_duration_seconds=info.duration, transcribe_time_seconds=elapsed)

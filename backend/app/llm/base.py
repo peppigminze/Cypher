@@ -156,6 +156,27 @@ async def collect(stream: AsyncIterator[LLMEvent]) -> LLMResponse:
     return out
 
 
+async def stream_events(llm: Any, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None) -> AsyncIterator["LLMEvent"]:
+    """Stream from any provider-like object: uses `stream_chat` if present,
+    otherwise adapts a one-shot `chat_with_tools` (simple test doubles and
+    third-party providers only implement that)."""
+    stream = getattr(llm, "stream_chat", None)
+    if stream is not None:
+        async for event in stream(messages, tools):
+            yield event
+        return
+    response = await llm.chat_with_tools(messages, tools or [])
+    content = response.message.get("content") or ""
+    if content:
+        yield TextDelta(content)
+    for tc in response.message.get("tool_calls") or []:
+        fn = tc.get("function", {})
+        args, raw = parse_tool_arguments(fn.get("arguments"))
+        yield ToolCallEvent(ToolCall(id=tc.get("id") or new_tool_call_id(), name=fn.get("name", ""), arguments=args, raw_arguments=raw))
+    usage = response.usage or {}
+    yield StreamDone(usage=Usage(usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0)) if usage else None)
+
+
 def new_tool_call_id() -> str:
     return f"call_{uuid.uuid4().hex[:12]}"
 

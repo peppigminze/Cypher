@@ -32,7 +32,7 @@ class ComponentWarmup:
 class Runtime:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self.model_manager = ModelManager(settings)
+        self.model_manager = ModelManager(settings, warmup_prompts=_warmup_prompts)
         self.stt = ComponentWarmup("stt", WarmupState.PENDING if settings.WHISPER_WARMUP_ON_START else WarmupState.DISABLED)
         self.tts = ComponentWarmup("tts", WarmupState.PENDING if settings.TTS_WARMUP_ON_START else WarmupState.DISABLED)
         self.started_at = time.time()
@@ -98,6 +98,17 @@ class Runtime:
             component.state = WarmupState.FAILED
             component.error = str(exc)
             logger.warning("%s warm-up failed: %s", component.name, exc)
+
+
+def _warmup_prompts() -> list:
+    """Prompt prefixes of real requests (voice first: that's where latency matters)."""
+    from app.persona import system_prompt  # noqa: PLC0415
+    from app.tools.catalog import build_registry, exposed_tool_names  # noqa: PLC0415
+    from app.tools.executor import to_openai_tools  # noqa: PLC0415
+
+    registry = build_registry()
+    tools = to_openai_tools(registry, exposed_tool_names(registry=registry))
+    return [([{"role": "system", "content": system_prompt(source)}, {"role": "user", "content": "Hallo"}], tools) for source in ("text", "voice")]
 
 
 _runtime: Optional[Runtime] = None

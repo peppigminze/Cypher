@@ -47,6 +47,7 @@ class GetWeatherTool(Tool):
     risk = RiskTier.READ_ONLY
     exposed_by_default = True
     timeout_seconds = 15.0
+    spoken_progress = "Ich schaue nach."
 
     async def execute(self, db=None, location: Optional[str] = None, day: str = "today", **_) -> ToolResult:
         place = (location or get_settings().WEATHER_DEFAULT_LOCATION or "").strip()

@@ -73,6 +73,7 @@ class DescribeScreenTool(Tool):
     untrusted_output = True
     exposed_by_default = True
     timeout_seconds = 90.0
+    spoken_progress = "Ich schaue mir den Bildschirm an."
 
     @classmethod
     def is_available(cls, settings: Any) -> bool:

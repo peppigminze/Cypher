@@ -178,6 +178,7 @@ class FetchUrlTool(Tool):
     untrusted_output = True
     exposed_by_default = True
     timeout_seconds = 40.0
+    spoken_progress = "Ich lese die Seite."
 
     async def execute(self, db=None, url: str = "", **_) -> ToolResult:
         # Fast, network-free refusal for obviously bad targets.
@@ -289,6 +290,7 @@ class WebSearchTool(Tool):
     untrusted_output = True
     exposed_by_default = True
     timeout_seconds = 20.0
+    spoken_progress = "Ich suche kurz."
 
     @classmethod
     def is_available(cls, settings: Settings) -> bool:

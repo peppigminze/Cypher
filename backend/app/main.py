@@ -22,6 +22,7 @@ from app.api import (
     tool_chat,
     transcribe,
     usage,
+    voice_ws,
 )
 from app.config import get_settings
 from app.core.errors import install_exception_handlers
@@ -123,6 +124,7 @@ app.include_router(transcribe.router)
 app.include_router(speak.router)
 app.include_router(usage.router)
 app.include_router(security_api.router)
+app.include_router(voice_ws.router)
 
 
 @app.get("/")

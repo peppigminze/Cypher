@@ -176,6 +176,40 @@ class Settings(BaseSettings):
     WHISPER_INITIAL_PROMPT: str = "Hey Cypher."
     WHISPER_WARMUP_ON_START: bool = True
 
+    # --- Voice session (M3) -----------------------------------------------
+    # wake = always listening for the wake word; auto = tap, stops on silence;
+    # ptt = push-to-talk (hold/tap to start and stop).
+    VOICE_DEFAULT_MODE: Literal["wake", "auto", "ptt"] = "auto"
+    WAKE_WORD_ENABLED: bool = True
+    WAKE_WORD_PHRASE: str = "Hey Cypher"
+    # Model for the wake check; the command itself uses WHISPER_MODEL_SIZE.
+    # "tiny" won the M3 test (6/7 detections, 0.19 s) - "small" transcribes too
+    # literally ("heiße Eifer") and takes 1.1 s.
+    WAKE_WORD_MODEL: str = "tiny"
+    # Fuzzy-match score (0..1) needed to accept the wake word.
+    # 0.85 accepts Whisper's usual mishearings ("Saifer" 0.91) but rejects
+    # near-misses like "super" (0.80) or the name "Seifert" (0.83).
+    WAKE_WORD_THRESHOLD: float = Field(0.85, ge=0.3, le=1.0)
+    # Only the start of an utterance is checked for the wake word.
+    WAKE_WORD_WINDOW_SECONDS: float = Field(2.5, ge=1.0, le=6.0)
+    VAD_THRESHOLD: float = Field(0.5, ge=0.1, le=0.95)
+    # Pause that ends an utterance. Shorter = faster answers, but cuts off slow speakers.
+    VAD_SILENCE_MS: int = Field(700, ge=200, le=3000)
+    # Start transcribing speculatively after this much silence; if the speaker
+    # continues, the result is discarded. Hides ~0.45 s of STT time. 0 = off.
+    VAD_EARLY_PAUSE_MS: int = Field(250, ge=0, le=2000)
+    VAD_MIN_SPEECH_MS: int = Field(250, ge=50, le=2000)
+    VAD_PREROLL_MS: int = Field(300, ge=0, le=1000)
+    VAD_MAX_UTTERANCE_SECONDS: float = Field(20.0, ge=3, le=120)
+    # After the wake word: how long to wait for the actual command.
+    LISTEN_TIMEOUT_SECONDS: float = Field(8.0, ge=2, le=60)
+    # aec_text: browser echo cancellation + ignore wake words that match what
+    #           Cypher is saying right now (barge-in by voice possible)
+    # mic_gate: ignore the microphone entirely while Cypher speaks (barge-in by tap only)
+    ECHO_GUARD: Literal["aec_text", "mic_gate"] = "aec_text"
+    # Short-term conversation memory handed to the LLM (rough token estimate).
+    HISTORY_MAX_TOKENS: int = Field(1500, ge=200, le=6000)
+
     # --- Text-to-speech (Piper voice via sherpa-onnx) --------------------
     PIPER_MODEL_DIR: str = "models/piper/de_DE-thorsten-medium"
     PIPER_NUM_THREADS: int = Field(2, ge=1, le=32)

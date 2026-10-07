@@ -73,6 +73,7 @@ class FindFilesTool(Tool):
     risk = RiskTier.READ_ONLY
     untrusted_output = True
     exposed_by_default = True
+    spoken_progress = "Ich suche."
 
     async def execute(self, db: Session | None = None, query: str = "", max_results: int = 10, **_) -> ToolResult:
         query = query.strip()
