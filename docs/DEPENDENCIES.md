@@ -64,3 +64,14 @@ Copyleft auf Dateiebene – betrifft nur Änderungen an deren eigenen Dateien, n
 | Meilenstein | Paket | Lizenz | Grund |
 |---|---|---|---|
 | M1 | tzdata 2026.5 | Apache-2.0 | IANA-Zeitzonen unter Windows (Einstellung `TIMEZONE`) |
+| M2 | pycaw 20260927 (+ comtypes 1.4.17) | MIT / MIT | Systemlautstärke über Windows Core Audio (`set_volume`, `get_volume`) |
+| M2 | winrt-runtime, winrt-Windows.Media.Control, -Foundation, -Foundation.Collections 3.2.1 | MIT | Windows-Mediensitzung: echtes Pause/Play statt Toggle, „Was läuft gerade?" |
+| M2 | Pillow 12.3.0 | MIT-CMU (HPND, permissiv) | Bildschirmfoto für `describe_screen` (lokales Vision-Modell) |
+
+Externe Dienste (keine Code-Abhängigkeit, ohne Account/Key):
+
+| Dienst | Bedingungen | Wofür |
+|---|---|---|
+| DuckDuckGo HTML-Suche | öffentlich, nutzerausgelöst, geringe Frequenz | `web_search` (Alternative: eigene SearXNG-Instanz) |
+| Open-Meteo | kostenlos für nicht-kommerzielle Nutzung, Daten CC BY 4.0 | `get_weather` |
+

@@ -39,61 +39,39 @@ class _FakeSettings:
         self.API_HOST = api_host
 
 
-def test_warns_on_placeholder_user_token(caplog):
+STRONG = "x" * 40
+
+
+def test_placeholder_tokens_are_only_reported_because_a_token_is_generated(caplog):
+    """M2: placeholders are never accepted as credentials (app/security/tokens.py
+    generates a random token instead), so even a remote bind is safe."""
     import logging
 
-    with caplog.at_level(logging.WARNING, logger="cypher.backend"):
-        _check_tokens(_FakeSettings("change-me-user-token", "real-token-xyz"))
+    with caplog.at_level(logging.INFO, logger="cypher.backend"):
+        _check_tokens(_FakeSettings("change-me-user-token", "change-me-agent-token", api_host="100.64.1.2"))
     assert any("placeholder" in r.message for r in caplog.records)
 
 
-def test_warns_on_placeholder_agent_token(caplog):
+def test_weak_token_on_localhost_only_warns(caplog):
     import logging
 
     with caplog.at_level(logging.WARNING, logger="cypher.backend"):
-        _check_tokens(_FakeSettings("real-token-xyz", "change-me-agent-token"))
-    assert any("placeholder" in r.message for r in caplog.records)
-
-
-def test_no_warning_for_real_tokens(caplog):
-    import logging
-
-    with caplog.at_level(logging.WARNING, logger="cypher.backend"):
-        _check_tokens(_FakeSettings("real-user-token-xyz", "real-agent-token-abc"))
-    assert not any("placeholder" in r.message for r in caplog.records)
-
-
-# ------------------------------------------------------- Phase 8: Tailscale/remote bind hardening
-
-
-def test_placeholder_tokens_localhost_only_still_just_warns(caplog):
-    """Unchanged from before Phase 8: API_HOST=127.0.0.1 (the default)
-    with placeholder tokens is low-stakes - still just a warning, not a
-    hard failure, so existing local-only setups aren't broken by this."""
-    import logging
-
-    with caplog.at_level(logging.WARNING, logger="cypher.backend"):
-        _check_tokens(_FakeSettings("change-me-user-token", "change-me-agent-token", api_host="127.0.0.1"))
-    assert any("placeholder" in r.message for r in caplog.records)
+        _check_tokens(_FakeSettings("short-token", STRONG))
+    assert any("weak" in r.message for r in caplog.records)
 
 
 @pytest.mark.parametrize("host", ["0.0.0.0", "100.64.1.2", "192.168.1.50"])
-def test_placeholder_tokens_beyond_localhost_refuses_to_start(host):
-    """The actual Phase 8 hardening: a placeholder token combined with a
-    bind address reachable beyond this machine (Tailscale IP, LAN, or a
-    wide-open 0.0.0.0) is refused outright instead of just logged,
-    since anyone who has ever seen this public repo's default token
-    value could otherwise authenticate."""
+def test_weak_token_beyond_localhost_refuses_to_start(host):
     with pytest.raises(RuntimeError, match="Refusing to start"):
-        _check_tokens(_FakeSettings("change-me-user-token", "real-token-xyz", api_host=host))
+        _check_tokens(_FakeSettings("short-token", STRONG, api_host=host))
 
 
-def test_real_tokens_beyond_localhost_do_not_raise(caplog):
+def test_strong_tokens_beyond_localhost_start_quietly(caplog):
     import logging
 
     with caplog.at_level(logging.WARNING, logger="cypher.backend"):
-        _check_tokens(_FakeSettings("real-user-token-xyz", "real-agent-token-abc", api_host="100.64.1.2"))
-    assert not any("placeholder" in r.message for r in caplog.records)
+        _check_tokens(_FakeSettings(STRONG, STRONG, api_host="100.64.1.2"))
+    assert not caplog.records
 
 
 def test_placeholder_set_matches_env_example():

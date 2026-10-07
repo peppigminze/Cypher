@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, Response
 
 from app.auth import require_user
 from app.core import errors
+from app.security.rate_limit import rate_limit
 from app.schemas import SpeakIn
 from app.tts.piper_provider import VoiceNotFoundError, synthesize_speech
 
@@ -31,7 +32,7 @@ logger = logging.getLogger("cypher.api.speak")
 router = APIRouter(tags=["speak"])
 
 
-@router.post("/speak")
+@router.post("/speak", dependencies=[Depends(rate_limit("audio"))])
 async def speak(
     payload: SpeakIn,
     _user=Depends(require_user),

@@ -42,6 +42,7 @@ class Runtime:
         s = self.settings
         if s.LLM_WARMUP_ON_START:
             self._spawn(self.model_manager.warm_up(), "llm-warmup")
+        self._spawn(self._approval_expiry_loop(), "approval-expiry")
         if s.LLM_MONITOR_INTERVAL_SECONDS > 0:
             self._spawn(self.model_manager.monitor(s.LLM_MONITOR_INTERVAL_SECONDS), "llm-monitor")
         if s.WHISPER_WARMUP_ON_START:
@@ -52,6 +53,25 @@ class Runtime:
             from app.tts import piper_provider  # noqa: PLC0415
 
             self._spawn(self._warm(self.tts, piper_provider.warm_up), "tts-warmup")
+
+    async def _approval_expiry_loop(self, interval: float = 30.0) -> None:
+        """Expired approvals vanish from memory silently - record them."""
+        from app.tools import pending_approvals  # noqa: PLC0415
+        from app.tools.audit import AuditRecord, get_audit_log  # noqa: PLC0415
+
+        while True:
+            await asyncio.sleep(interval)
+            try:
+                pending_approvals.list_pending()  # evicts expired entries
+                for item in pending_approvals.take_expired_unreported():
+                    await get_audit_log().write(
+                        AuditRecord(tool=item.tool_name, decision="expired", risk=item.risk, arguments=item.arguments,
+                                    summary=item.summary, approval_id=item.approval_id, source=item.source, provider=item.provider)
+                    )
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001
+                logger.exception("Approval expiry bookkeeping failed")
 
     async def stop(self) -> None:
         for task in self._tasks:

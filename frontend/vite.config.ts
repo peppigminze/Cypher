@@ -1,9 +1,28 @@
-import { defineConfig } from "vite";
+import { existsSync } from "node:fs";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
+/** Startup checks for two env pitfalls (printed by dev server and build):
+ *  - frontend/.env.local silently overrides frontend/.env
+ *  - VITE_USER_TOKEN is obsolete; a token must never be baked into the bundle */
+function warnAboutEnvPitfalls(mode: string): void {
+  const env = loadEnv(mode, process.cwd(), "VITE_");
+  if (existsSync(".env.local")) {
+    console.warn("[cypher] Hinweis: frontend/.env.local existiert und überschreibt Werte aus frontend/.env.");
+  }
+  if (env.VITE_USER_TOKEN) {
+    console.warn(
+      "[cypher] VITE_USER_TOKEN ist veraltet und wird ignoriert. Bitte aus frontend/.env entfernen - " +
+        "die Oberfläche holt den Token selbst (am PC) bzw. per Kopplungscode (Handy)."
+    );
+  }
+}
+
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  warnAboutEnvPitfalls(mode);
+  return {
   plugins: [
     react(),
     VitePWA({
@@ -47,4 +66,5 @@ export default defineConfig({
   server: {
     port: 5173,
   },
+  };
 });

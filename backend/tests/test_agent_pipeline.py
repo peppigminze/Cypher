@@ -130,7 +130,8 @@ async def test_pipeline_resumes_after_confirmation(db_session):
     created = await create_tool.execute(db=db_session, title="Wegwerfen")
     task_id = created.data["id"]
 
-    tool_result = await agent.execute_tools(db_session, tool, {"task_id": task_id})
+    # The human confirmed in the PWA -> the sync worker passes the action id as approval.
+    tool_result = await agent.execute_tools(db_session, tool, {"task_id": task_id}, approval_id="legacy-action-1")
     assert tool_result.success is True
 
     observations = [agent.build_observation("delete_task", {"task_id": task_id}, tool_result)]

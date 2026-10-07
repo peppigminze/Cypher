@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, File, UploadFile
 
 from app.auth import require_user
 from app.core import errors
+from app.security.rate_limit import rate_limit
 from app.stt.whisper_provider import transcribe_audio
 from app.schemas import TranscribeOut
 
@@ -31,7 +32,7 @@ MIN_AUDIO_BYTES = 100
 MAX_AUDIO_BYTES = 25 * 1024 * 1024  # 25 MB
 
 
-@router.post("/transcribe", response_model=TranscribeOut)
+@router.post("/transcribe", response_model=TranscribeOut, dependencies=[Depends(rate_limit("audio"))])
 async def transcribe(
     audio: UploadFile = File(...),
     _user=Depends(require_user),

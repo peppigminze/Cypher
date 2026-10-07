@@ -25,15 +25,16 @@ active - both speak the identical tool-calling interface.
 """
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.agent.native_tool_agent import NativeToolCallingAgent, ToolCallingResult
 from app.auth import require_user
 from app.core import errors
+from app.security.rate_limit import rate_limit
 from app.database.db import get_db
 from app.llm.base import LLMUnavailableError
 from app.llm.factory import get_provider_by_name
@@ -45,7 +46,9 @@ router = APIRouter(tags=["tool-chat"])
 
 
 class ToolChatIn(BaseModel):
-    message: str
+    message: str = Field(..., min_length=1, max_length=4000)
+    # "voice" when the request comes from the voice UI (audit log, reply length).
+    source: Literal["voice", "text"] = "text"
 
 
 class ToolChatConfirmIn(BaseModel):
@@ -65,6 +68,9 @@ class PendingConfirmationOut(BaseModel):
     approval_id: str
     tool_name: str
     arguments: dict
+    summary: str = ""
+    risk: str = "write"
+    expires_in_seconds: int = 0
 
 
 class ToolChatOut(BaseModel):
@@ -75,14 +81,14 @@ class ToolChatOut(BaseModel):
     provider: str
 
 
-def _build_agent(db: Session) -> tuple[NativeToolCallingAgent, str]:
+def _build_agent(db: Session, source: str = "text") -> tuple[NativeToolCallingAgent, str]:
     provider_name = get_active_provider(db)
     try:
         llm = get_provider_by_name(provider_name)
     except LLMUnavailableError as exc:
         raise errors.cloud_not_configured() from exc
     registry = build_default_registry()
-    agent = NativeToolCallingAgent(llm=llm, tools=registry, provider_name=provider_name)
+    agent = NativeToolCallingAgent(llm=llm, tools=registry, provider_name=provider_name, source=source)
     return agent, provider_name
 
 
@@ -99,6 +105,9 @@ def _to_response(result: ToolCallingResult, provider_name: str) -> ToolChatOut:
                 approval_id=result.pending_confirmation.approval_id,
                 tool_name=result.pending_confirmation.name,
                 arguments=result.pending_confirmation.arguments,
+                summary=result.pending_confirmation.summary,
+                risk=result.pending_confirmation.risk,
+                expires_in_seconds=result.pending_confirmation.expires_in_seconds,
             )
             if result.pending_confirmation
             else None
@@ -107,13 +116,13 @@ def _to_response(result: ToolCallingResult, provider_name: str) -> ToolChatOut:
     )
 
 
-@router.post("/api/tool-chat", response_model=ToolChatOut)
+@router.post("/api/tool-chat", response_model=ToolChatOut, dependencies=[Depends(rate_limit("chat"))])
 async def tool_chat(
     payload: ToolChatIn,
     db: Session = Depends(get_db),
     _user=Depends(require_user),
 ) -> ToolChatOut:
-    agent, provider_name = _build_agent(db)
+    agent, provider_name = _build_agent(db, payload.source)
 
     try:
         result = await agent.run(db, payload.message)
@@ -124,7 +133,7 @@ async def tool_chat(
     return _to_response(result, provider_name)
 
 
-@router.post("/api/tool-chat/confirm", response_model=ToolChatOut)
+@router.post("/api/tool-chat/confirm", response_model=ToolChatOut, dependencies=[Depends(rate_limit("approval"))])
 async def tool_chat_confirm(
     payload: ToolChatConfirmIn,
     db: Session = Depends(get_db),
@@ -137,7 +146,7 @@ async def tool_chat_confirm(
             detail="Unknown or expired approval_id - the confirmation may have already been resolved or timed out.",
         )
 
-    agent, provider_name = _build_agent(db)
+    agent, provider_name = _build_agent(db, approval.source)
 
     try:
         result = await agent.resume(db, approval, payload.approved)

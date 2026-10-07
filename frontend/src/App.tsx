@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import "./App.css";
 import { Sidebar, type View } from "./components/Sidebar";
 import { StatusBadge } from "./components/StatusBadge";
@@ -9,6 +9,8 @@ import { MemoryView } from "./components/MemoryView";
 import { ProjectsView } from "./components/ProjectsView";
 import { SettingsView } from "./components/SettingsView";
 import { CypherVoiceView } from "./components/CypherVoiceView";
+import { PairingView } from "./components/PairingView";
+import { AUTH_REQUIRED_EVENT, ensureToken, type AuthState } from "./services/auth";
 import { getStatus } from "./services/api";
 import { usePolling } from "./hooks/usePolling";
 import { useReminderNotifications } from "./hooks/useReminderNotifications";
@@ -25,6 +27,30 @@ const TITLES: Record<View, string> = {
 };
 
 export default function App() {
+  const [auth, setAuth] = useState<AuthState | "checking">("checking");
+
+  const checkAuth = useCallback(() => {
+    setAuth("checking");
+    void ensureToken().then(setAuth);
+  }, []);
+
+  useEffect(() => {
+    checkAuth();
+    const onAuthRequired = () => checkAuth();
+    window.addEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
+    return () => window.removeEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
+  }, [checkAuth]);
+
+  if (auth === "checking") {
+    return <main className="pairing" aria-busy="true" />;
+  }
+  if (auth !== "ready") {
+    return <PairingView offline={auth === "offline"} onPaired={() => setAuth("ready")} onRetry={checkAuth} />;
+  }
+  return <AuthenticatedApp />;
+}
+
+function AuthenticatedApp() {
   // "voice" is the new landing view (the full-screen orb). Every other
   // view is unchanged and still fully reachable - see the menu overlay
   // below - nothing about /api/messages or the existing views changed.

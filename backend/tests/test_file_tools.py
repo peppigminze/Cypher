@@ -46,7 +46,7 @@ async def test_read_file_outside_allowed_directory_is_refused(sandbox, tmp_path_
     outside.write_text("top secret")
     result = await ReadFileTool().execute(path=str(outside))
     assert result.success is False
-    assert "outside the allowed directories" in result.error
+    assert "außerhalb der freigegebenen Ordner" in result.error
 
 
 async def test_read_nonexistent_file(sandbox):

@@ -165,7 +165,7 @@ class SyncWorker:
 
         try:
             with session_scope() as db:
-                tool_result = await self.cypher.execute_tools(db, tool, arguments)
+                tool_result = await self.cypher.execute_tools(db, tool, arguments, approval_id=f"legacy-action-{action_id}")
                 observations = observations + [self.cypher.build_observation(tool_name, arguments, tool_result)]
                 await self.client.complete_action(action_id, result=tool_result.data if tool_result.success else {"error": tool_result.error})
 

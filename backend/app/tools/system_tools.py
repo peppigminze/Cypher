@@ -9,7 +9,7 @@ import psutil
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.tools.base import Tool, ToolResult, ToolSecurity
+from app.tools.base import RiskTier, Tool, ToolResult, register_tool
 
 
 _WEEKDAYS_DE = ("Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag")
@@ -34,11 +34,13 @@ def german_date(dt: datetime) -> str:
     return f"{_WEEKDAYS_DE[dt.weekday()]}, {dt.day}. {_MONTHS_DE[dt.month - 1]} {dt.year}"
 
 
+@register_tool
 class GetCurrentTimeTool(Tool):
     name = "get_current_time"
     description = "Aktuelle lokale Uhrzeit und Datum des Nutzers abfragen."
     parameters = {"type": "object", "properties": {}}
-    security = ToolSecurity.SAFE
+    risk = RiskTier.READ_ONLY
+    exposed_by_default = True
 
     async def execute(self, db: Session | None = None, **_) -> ToolResult:
         now = local_now()
@@ -54,11 +56,12 @@ class GetCurrentTimeTool(Tool):
         )
 
 
+@register_tool
 class GetSystemStatusTool(Tool):
     name = "get_system_status"
     description = "Get basic status info about the machine Cypher is running on."
     parameters = {"type": "object", "properties": {}}
-    security = ToolSecurity.SAFE
+    risk = RiskTier.READ_ONLY
 
     async def execute(self, db: Session | None = None, **_) -> ToolResult:
         data = {
@@ -69,11 +72,12 @@ class GetSystemStatusTool(Tool):
         return ToolResult(success=True, data=data)
 
 
+@register_tool
 class CpuUsageTool(Tool):
     name = "cpu_usage"
     description = "Get current CPU usage as a percentage."
     parameters = {"type": "object", "properties": {}}
-    security = ToolSecurity.SAFE
+    risk = RiskTier.READ_ONLY
 
     async def execute(self, db: Session | None = None, **_) -> ToolResult:
         # A short blocking sample gives a real reading instead of the
@@ -84,11 +88,12 @@ class CpuUsageTool(Tool):
         return ToolResult(success=True, data={"cpu_percent": percent, "cpu_count": psutil.cpu_count()})
 
 
+@register_tool
 class RamUsageTool(Tool):
     name = "ram_usage"
     description = "Get current RAM usage."
     parameters = {"type": "object", "properties": {}}
-    security = ToolSecurity.SAFE
+    risk = RiskTier.READ_ONLY
 
     async def execute(self, db: Session | None = None, **_) -> ToolResult:
         vm = psutil.virtual_memory()
@@ -102,11 +107,12 @@ class RamUsageTool(Tool):
         )
 
 
+@register_tool
 class DiskUsageTool(Tool):
     name = "disk_usage"
     description = "Get disk usage for a drive/path (defaults to the system drive)."
     parameters = {"type": "object", "properties": {"path": {"type": "string"}}}
-    security = ToolSecurity.SAFE
+    risk = RiskTier.READ_ONLY
 
     async def execute(self, db: Session | None = None, path: str = "C:\\", **_) -> ToolResult:
         try:
@@ -124,6 +130,7 @@ class DiskUsageTool(Tool):
         )
 
 
+@register_tool
 class GetSystemInfoTool(Tool):
     """Bundles get_current_time + cpu_usage + ram_usage into one call
     (Phase 6) - reuses GetCurrentTimeTool directly instead of
@@ -141,7 +148,8 @@ class GetSystemInfoTool(Tool):
         "requests."
     )
     parameters = {"type": "object", "properties": {}}
-    security = ToolSecurity.SAFE
+    risk = RiskTier.READ_ONLY
+    exposed_by_default = True
 
     async def execute(self, db: Session | None = None, **_) -> ToolResult:
         try:
@@ -168,11 +176,12 @@ class GetSystemInfoTool(Tool):
         )
 
 
+@register_tool
 class NetworkStatusTool(Tool):
     name = "network_status"
     description = "List which network interfaces are currently up."
     parameters = {"type": "object", "properties": {}}
-    security = ToolSecurity.SAFE
+    risk = RiskTier.READ_ONLY
 
     async def execute(self, db: Session | None = None, **_) -> ToolResult:
         stats = psutil.net_if_stats()

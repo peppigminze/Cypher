@@ -14,9 +14,10 @@ from app.database.models import (
     parse_due_at,
     utcnow,
 )
-from app.tools.base import Tool, ToolResult, ToolSecurity
+from app.tools.base import RiskTier, Tool, ToolResult, register_tool
 
 
+@register_tool
 class CreateTaskTool(Tool):
     name = "create_task"
     description = (
@@ -42,7 +43,7 @@ class CreateTaskTool(Tool):
         },
         "required": ["title"],
     }
-    security = ToolSecurity.SAFE
+    risk = RiskTier.CONTROL
 
     async def execute(
         self,
@@ -80,6 +81,7 @@ class CreateTaskTool(Tool):
             return ToolResult(success=False, error=str(exc))
 
 
+@register_tool
 class ListTasksTool(Tool):
     name = "list_tasks"
     description = "List tasks, optionally filtered by status (pending/completed/cancelled)."
@@ -87,7 +89,7 @@ class ListTasksTool(Tool):
         "type": "object",
         "properties": {"status": {"type": "string", "enum": ["pending", "completed", "cancelled"]}},
     }
-    security = ToolSecurity.SAFE
+    risk = RiskTier.READ_ONLY
 
     async def execute(self, db: Session, status: str | None = None, **_) -> ToolResult:
         stmt = select(Task).order_by(Task.created_at.desc())
@@ -110,11 +112,12 @@ class ListTasksTool(Tool):
         return ToolResult(success=True, data=data)
 
 
+@register_tool
 class CompleteTaskTool(Tool):
     name = "complete_task"
     description = "Mark a task as completed by its id."
     parameters = {"type": "object", "properties": {"task_id": {"type": "integer"}}, "required": ["task_id"]}
-    security = ToolSecurity.SAFE
+    risk = RiskTier.CONTROL
 
     async def execute(self, db: Session, task_id: int, **_) -> ToolResult:
         task = db.get(Task, task_id)
@@ -126,6 +129,7 @@ class CompleteTaskTool(Tool):
         return ToolResult(success=True, data={"id": task.id, "status": task.status.value})
 
 
+@register_tool
 class DeleteTaskTool(Tool):
     name = "delete_task"
     description = "Delete a task by its id."
@@ -135,7 +139,7 @@ class DeleteTaskTool(Tool):
     # directly through the authenticated REST endpoint / UI; this only
     # blocks the LLM-driven autonomous tool call until a confirmation
     # UI exists (see project spec section 30/14).
-    security = ToolSecurity.CONFIRM_REQUIRED
+    risk = RiskTier.DESTRUCTIVE
 
     async def execute(self, db: Session, task_id: int, **_) -> ToolResult:
         task = db.get(Task, task_id)

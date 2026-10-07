@@ -115,6 +115,32 @@ class Settings(BaseSettings):
     SEARCH_DIRECTORIES: str = ""
     SEARCH_MAX_RESULTS: int = Field(50, ge=1, le=1000)
 
+    # --- Tools -----------------------------------------------------------
+    TOOL_TIMEOUT_SECONDS: float = Field(30.0, gt=0, le=600)
+    # The LLM sees a curated default set; add more by name or hide some.
+    TOOLS_EXTRA: str = ""
+    TOOLS_DISABLED: str = ""
+    FILE_READ_MAX_BYTES: int = Field(200_000, ge=1_000, le=20_000_000)
+    FILE_WRITE_MAX_BYTES: int = Field(1_000_000, ge=1_000, le=50_000_000)
+    WEB_SEARCH_PROVIDER: Literal["duckduckgo", "searxng", "off"] = "duckduckgo"
+    SEARXNG_URL: str = ""
+    WEB_SEARCH_MAX_RESULTS: int = Field(5, ge=1, le=20)
+    # Characters of page text handed to the LLM (the context window is small).
+    FETCH_MAX_CHARS: int = Field(6000, ge=500, le=100_000)
+    # Apps open_app may start: name=target pairs. Target is an .exe name/path,
+    # a URI (spotify:, ms-settings:) or a URL. Nothing else can be launched.
+    APP_WHITELIST: str = (
+        "rechner=calc.exe,taschenrechner=calc.exe,editor=notepad.exe,notepad=notepad.exe,"
+        "explorer=explorer.exe,spotify=spotify:,browser=https://duckduckgo.com,einstellungen=ms-settings:"
+    )
+    WEATHER_DEFAULT_LOCATION: str = ""
+    # Screen description via the local vision model (qwen3.5 can see). Images
+    # never leave the PC: the tool refuses while the cloud provider is active.
+    VISION_ENABLED: bool = True
+    VOLUME_STEP_PERCENT: int = Field(10, ge=1, le=50)
+    # Empty = DATA_DIR/notes
+    NOTES_DIR: str = ""
+
     # --- Time ------------------------------------------------------------
     # IANA name like "Europe/Zurich". Empty = the PC's own local time zone.
     TIMEZONE: str = ""
@@ -220,6 +246,21 @@ class Settings(BaseSettings):
             return v
         raise ValueError(f"unbekannte Modellgröße - erlaubt sind z. B. {', '.join(sorted(['tiny', 'base', 'small', 'medium', 'large-v3', 'large-v3-turbo']))}")
 
+    @field_validator("APP_WHITELIST")
+    @classmethod
+    def _check_whitelist(cls, v: str) -> str:
+        for pair in [p for p in v.split(",") if p.strip()]:
+            if "=" not in pair or not pair.split("=", 1)[0].strip() or not pair.split("=", 1)[1].strip():
+                raise ValueError(f"Eintrag '{pair.strip()}' muss die Form name=ziel haben (z. B. rechner=calc.exe)")
+        return v
+
+    @field_validator("SEARXNG_URL")
+    @classmethod
+    def _check_searxng(cls, v: str) -> str:
+        if v and not re.match(r"^https?://[^\s/]+", v):
+            raise ValueError("muss mit http:// oder https:// beginnen")
+        return v.rstrip("/")
+
     @field_validator("TIMEZONE")
     @classmethod
     def _check_timezone(cls, v: str) -> str:
@@ -255,6 +296,28 @@ class Settings(BaseSettings):
     def search_directories_list(self) -> List[str]:
         dirs = [d.strip() for d in self.SEARCH_DIRECTORIES.split(",") if d.strip()]
         return dirs or [str(Path.home())]
+
+    @property
+    def tools_extra_list(self) -> List[str]:
+        return [t.strip() for t in self.TOOLS_EXTRA.split(",") if t.strip()]
+
+    @property
+    def tools_disabled_list(self) -> List[str]:
+        return [t.strip() for t in self.TOOLS_DISABLED.split(",") if t.strip()]
+
+    @property
+    def app_whitelist_map(self) -> dict[str, str]:
+        out: dict[str, str] = {}
+        for pair in self.APP_WHITELIST.split(","):
+            if "=" in pair:
+                name, target = pair.split("=", 1)
+                if name.strip() and target.strip():
+                    out[name.strip().lower()] = target.strip()
+        return out
+
+    @property
+    def notes_dir_path(self) -> Path:
+        return _resolve_project_path(self.NOTES_DIR) if self.NOTES_DIR.strip() else self.data_dir_path / "notes"
 
     @property
     def log_dir_path(self) -> Path:

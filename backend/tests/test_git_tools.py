@@ -109,7 +109,7 @@ async def test_git_outside_allowed_directory_is_refused(sandbox, tmp_path_factor
     outside = tmp_path_factory.mktemp("outside")
     result = await GitStatusTool().execute(path=str(outside))
     assert result.success is False
-    assert "outside the allowed directories" in result.error
+    assert "außerhalb der freigegebenen Ordner" in result.error
 
 
 async def test_git_status_on_non_git_directory_fails_cleanly(sandbox):

@@ -14,16 +14,38 @@ import type {
   UsageSummary,
 } from "../types";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-const USER_TOKEN = import.meta.env.VITE_USER_TOKEN || "";
+import { API_BASE_URL, AUTH_REQUIRED_EVENT, getStoredToken } from "./auth";
+
+const BASE_URL = API_BASE_URL;
 
 const QUEUE_KEY = "jarvis.offline_queue.v1";
 
+function bearer(): Record<string, string> {
+  const token = getStoredToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 function authHeaders(): HeadersInit {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${USER_TOKEN}`,
-  };
+  return { "Content-Type": "application/json", ...bearer() };
+}
+
+/** Prefer the backend's German error message ("detail") over raw status text. */
+async function errorFromResponse(resp: Response, fallback: string): Promise<Error> {
+  if (resp.status === 401) window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
+  const text = await resp.text().catch(() => "");
+  try {
+    const body = JSON.parse(text) as { detail?: string; error?: { message?: string; hint?: string } };
+    const message = body.error?.message ?? (typeof body.detail === "string" ? body.detail : null);
+    if (message) {
+      const err = new Error(message) as Error & { hint?: string; status?: number };
+      err.hint = body.error?.hint;
+      err.status = resp.status;
+      return err;
+    }
+  } catch {
+    // not JSON
+  }
+  return new Error(`${fallback} (${resp.status}): ${text || resp.statusText}`);
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -31,10 +53,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: { ...authHeaders(), ...(init?.headers || {}) },
   });
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => "");
-    throw new Error(`Request failed (${resp.status}): ${text || resp.statusText}`);
-  }
+  if (!resp.ok) throw await errorFromResponse(resp, "Anfrage fehlgeschlagen");
   if (resp.status === 204) return undefined as T;
   return (await resp.json()) as T;
 }
@@ -256,20 +275,17 @@ export async function transcribeAudio(audioBlob: Blob): Promise<TranscribeResult
 
   const resp = await fetch(`${BASE_URL}/transcribe`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${USER_TOKEN}` },
+    headers: bearer(),
     body: formData,
   });
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => "");
-    throw new Error(`Transkription fehlgeschlagen (${resp.status}): ${text || resp.statusText}`);
-  }
+  if (!resp.ok) throw await errorFromResponse(resp, "Transkription fehlgeschlagen");
   return (await resp.json()) as TranscribeResult;
 }
 
-export async function toolChat(message: string): Promise<ToolChatResult> {
+export async function toolChat(message: string, source: "voice" | "text" = "voice"): Promise<ToolChatResult> {
   return request<ToolChatResult>("/api/tool-chat", {
     method: "POST",
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, source }),
   });
 }
 
@@ -297,10 +313,7 @@ export async function speakText(text: string): Promise<SpeakResult> {
     headers: { ...authHeaders() },
     body: JSON.stringify({ text }),
   });
-  if (!resp.ok) {
-    const errText = await resp.text().catch(() => "");
-    throw new Error(`Sprachausgabe fehlgeschlagen (${resp.status}): ${errText || resp.statusText}`);
-  }
+  if (!resp.ok) throw await errorFromResponse(resp, "Sprachausgabe fehlgeschlagen");
   return {
     audioBlob: await resp.blob(),
     audioDurationSeconds: Number(resp.headers.get("X-Audio-Duration-Seconds") ?? 0),

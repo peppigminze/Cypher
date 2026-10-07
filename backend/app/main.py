@@ -14,6 +14,7 @@ from app.api import (
     memory,
     messages,
     projects,
+    security_api,
     settings as settings_api,
     speak,
     sync,
@@ -40,35 +41,33 @@ _PLACEHOLDER_TOKENS = {"change-me-user-token", "change-me-agent-token"}
 
 
 def _check_tokens(settings) -> None:
-    """.env.example ships obviously-fake placeholder tokens.
+    """Startup safety check for the configured tokens.
 
-    Reachable only from localhost, a placeholder token is low-stakes (an
-    attacker already needs code execution on this PC). Bound beyond
-    localhost (Tailscale, LAN - see TAILSCALE.md) it is a real credential
-    anyone who has seen this public repo could use, so that combination
-    refuses to start instead of logging an easy-to-miss warning.
+    Placeholder values from .env.example are never accepted as credentials
+    any more - app/security/tokens.py generates a random token instead - so
+    they are only reported. What remains dangerous is a *weak* token (short
+    value typed into .env) while the API is reachable beyond this PC
+    (Tailscale/LAN, see TAILSCALE.md): that combination refuses to start.
 
     Only sees the real bind address when started via run.py (which reads
     API_HOST); a hand-typed `uvicorn --host ...` bypasses this check.
     """
-    has_placeholder = settings.USER_TOKEN in _PLACEHOLDER_TOKENS or settings.AGENT_TOKEN in _PLACEHOLDER_TOKENS
-    if not has_placeholder:
-        return
+    from app.security.tokens import is_weak  # noqa: PLC0415
 
-    exposed_beyond_localhost = settings.API_HOST not in ("127.0.0.1", "localhost", "::1")
-    if exposed_beyond_localhost:
-        raise RuntimeError(
-            f"Refusing to start: API_HOST='{settings.API_HOST}' is reachable beyond localhost "
-            "(see TAILSCALE.md), but USER_TOKEN/AGENT_TOKEN are still the placeholder values "
-            "from .env.example. Set your own random tokens in .env before binding beyond "
-            "localhost."
-        )
-
-    logger.warning(
-        "SECURITY: USER_TOKEN and/or AGENT_TOKEN is still the placeholder value from "
-        ".env.example. Anyone who has seen that file can authenticate. Set your own "
-        "random tokens in .env before exposing this backend beyond localhost."
-    )
+    exposed = settings.API_HOST not in ("127.0.0.1", "localhost", "::1")
+    for name in ("USER_TOKEN", "AGENT_TOKEN"):
+        value = getattr(settings, name)
+        if value in _PLACEHOLDER_TOKENS or not value:
+            logger.info("%s is a placeholder in .env - using the generated token from the data directory instead.", name)
+            continue
+        if is_weak(value):
+            if exposed:
+                raise RuntimeError(
+                    f"Refusing to start: API_HOST='{settings.API_HOST}' is reachable beyond localhost, "
+                    f"but {name} is shorter than 24 characters. Use a long random token "
+                    "(or remove it from .env to get a generated one)."
+                )
+            logger.warning("SECURITY: %s is short (weak). Fine for localhost-only use, not for remote access.", name)
 
 
 @asynccontextmanager
@@ -123,6 +122,7 @@ app.include_router(tool_chat.router)
 app.include_router(transcribe.router)
 app.include_router(speak.router)
 app.include_router(usage.router)
+app.include_router(security_api.router)
 
 
 @app.get("/")

@@ -385,6 +385,35 @@ class TokenUsageDaily(Base):
     __table_args__ = (UniqueConstraint("date", "provider", "model", name="uq_token_usage_daily"),)
 
 
+class ToolAuditEntry(Base):
+    """One row per tool-call decision (M2): every automatic run, every
+    approval request, approval, rejection, expiry and refusal. Never
+    deleted automatically - this is the record of what Cypher did (or was
+    stopped from doing) on this PC. A new table - no migration risk."""
+
+    __tablename__ = "tool_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    pipeline_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    conversation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    provider: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    tool: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    risk: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # auto | approval_requested | approved | rejected | expired | blocked |
+    # invalid | unknown_tool | needs_approval | tainted_blocked | error
+    decision: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    approval_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    arguments_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    success: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    result_preview: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 def run_migrations() -> None:
     """Additive, idempotent column migrations for tables that predate a
     field (see ensure_columns() in app/database/db.py). Called from

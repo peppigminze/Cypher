@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database.models import CommandLog
-from app.tools.base import Tool, ToolResult, ToolSecurity
+from app.tools.base import RiskTier, Tool, ToolResult, register_tool
 from app.tools.command_safety import is_blocked_command
 from app.tools.paths import PathNotAllowedError, resolve_allowed_path
 
@@ -35,6 +35,7 @@ logger = logging.getLogger("cypher.tools.terminal")
 MAX_OUTPUT_CHARS = 20_000
 
 
+@register_tool
 class RunCommandTool(Tool):
     name = "run_command"
     description = (
@@ -51,7 +52,7 @@ class RunCommandTool(Tool):
         },
         "required": ["command"],
     }
-    security = ToolSecurity.CONFIRM_REQUIRED
+    risk = RiskTier.DESTRUCTIVE
 
     async def execute(self, db: Session, command: str, working_directory: str = ".", **_) -> ToolResult:
         blocked_reason = is_blocked_command(command)

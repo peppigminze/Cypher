@@ -27,6 +27,7 @@ class ToolRegistry:
         return [t.schema() for t in self._tools.values()]
 
     def is_executable_automatically(self, name: str) -> bool:
-        """SAFE tools may run without explicit human confirmation."""
+        """Read-only and control tools run without a confirmation question
+        (the per-call risk can still escalate - see Tool.risk_for)."""
         tool = self.get(name)
-        return tool is not None and tool.security == ToolSecurity.SAFE
+        return tool is not None and not tool.base_risk().needs_approval and tool.base_risk().value != "blocked"

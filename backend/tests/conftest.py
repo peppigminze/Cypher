@@ -74,3 +74,17 @@ def user_headers():
 @pytest.fixture()
 def agent_headers():
     return {"Authorization": f"Bearer {AGENT_TOKEN}"}
+
+
+@pytest.fixture(autouse=True)
+def _reset_security_state():
+    """Rate-limit buckets, auth lockouts and the token cache are process-wide;
+    without a reset, deliberate wrong-token tests would lock out later tests."""
+    from app.security import tokens
+    from app.security.rate_limit import limiter
+
+    limiter.reset()
+    tokens.reset_cache()
+    yield
+    limiter.reset()
+    tokens.reset_cache()

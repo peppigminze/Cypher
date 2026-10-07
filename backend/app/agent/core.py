@@ -249,15 +249,15 @@ class CypherAgent:
 
     # ---------------------------------------------------------- execute_tools
 
-    async def execute_tools(self, db: Session, tool: Tool, arguments: dict) -> ToolResult:
-        try:
-            return await tool.execute(db=db, **arguments)
-        except TypeError as exc:
-            logger.error("Tool '%s' called with bad arguments: %s", tool.name, exc)
-            return ToolResult(success=False, error=f"Invalid arguments for tool '{tool.name}'.")
-        except Exception:  # noqa: BLE001
-            logger.exception("Tool '%s' raised an unexpected error", tool.name)
-            return ToolResult(success=False, error="Die Aktion konnte nicht ausgeführt werden.")
+    async def execute_tools(self, db: Session, tool: Tool, arguments: dict, approval_id: Optional[str] = None) -> ToolResult:
+        """Runs through the shared ToolExecutor (validation, risk tiers,
+        timeout, audit log) - the old pipeline gets no private shortcut.
+        `approval_id` is set only for actions a human confirmed in the PWA."""
+        from app.tools.context import ToolContext  # noqa: PLC0415
+        from app.tools.executor import ToolExecutor  # noqa: PLC0415
+
+        ctx = ToolContext(db=db, source="legacy", provider="local")
+        return await ToolExecutor(self.tools).execute(tool.name, arguments, db=db, ctx=ctx, approval_id=approval_id)
 
     @staticmethod
     def _already_attempted(observations: List[dict], tool_name: str, arguments: dict) -> bool:

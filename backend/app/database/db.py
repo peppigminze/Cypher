@@ -14,6 +14,7 @@ from typing import Generator
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.config import get_settings
 
@@ -56,11 +57,16 @@ def _resolve_database_url(raw_url: str) -> str:
 settings = get_settings()
 
 connect_args = {}
+engine_kwargs: dict = {}
 if settings.DATABASE_URL.startswith("sqlite"):
     # allow usage across the FastAPI thread pool
     connect_args = {"check_same_thread": False}
+    if ":memory:" in settings.DATABASE_URL:
+        # One shared connection, otherwise every worker thread (audit log,
+        # scheduler) would see its own empty in-memory database.
+        engine_kwargs["poolclass"] = StaticPool
 
-engine = create_engine(_resolve_database_url(settings.DATABASE_URL), connect_args=connect_args, future=True)
+engine = create_engine(_resolve_database_url(settings.DATABASE_URL), connect_args=connect_args, future=True, **engine_kwargs)
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 

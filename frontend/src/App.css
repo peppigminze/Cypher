@@ -1406,3 +1406,49 @@
 .voice-view__confirm-btn:hover {
   filter: brightness(1.1);
 }
+
+/* ---------------------------------------------------------------- Pairing / auth gate (M2) */
+.pairing {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1rem;
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  color: #d7e3f4;
+}
+.pairing h1 {
+  font-size: 1.4rem;
+  letter-spacing: 0.04em;
+}
+.pairing__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.pairing__form input {
+  padding: 0.8rem;
+  border-radius: 0.6rem;
+  border: 1px solid #2a3a52;
+  background: #0b1220;
+  color: inherit;
+  font-size: 1rem;
+}
+.pairing__button {
+  min-height: 48px;
+  border-radius: 0.6rem;
+  border: 1px solid #39c6f0;
+  background: #0d2233;
+  color: #bff0ff;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.pairing__button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.pairing__error {
+  color: #ff9b9b;
+}

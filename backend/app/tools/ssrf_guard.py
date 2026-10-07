@@ -56,6 +56,9 @@ def _embedded_ipv4(addr: ipaddress.IPv6Address) -> ipaddress.IPv4Address | None:
 
 
 def is_private_ip(ip_str: str) -> bool:
+    """True for every address that is not plain public internet: private,
+    loopback, link-local, multicast, reserved - and the carrier-grade NAT
+    range 100.64.0.0/10, which Tailscale uses for the user's own devices."""
     try:
         addr = ipaddress.ip_address(ip_str)
     except ValueError:
@@ -64,7 +67,38 @@ def is_private_ip(ip_str: str) -> bool:
         embedded = _embedded_ipv4(addr)
         if embedded is not None:
             addr = embedded
-    return any(addr in net for net in _BLOCKED_CIDR)
+    return any(addr in net for net in _BLOCKED_CIDR) or not addr.is_global
+
+
+def resolve_public(url: str) -> tuple[str | None, list[str]]:
+    """Validate `url` and resolve its host ONCE.
+
+    Returns (reason_if_blocked, public_ips). The caller must connect to one
+    of the returned IPs (not re-resolve the name): otherwise an attacker's
+    DNS could answer with a public IP for this check and 127.0.0.1 for the
+    actual request a moment later (DNS rebinding).
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return f"Unsupported URL scheme '{parsed.scheme}' - only http/https are allowed.", []
+    hostname = parsed.hostname
+    if not hostname:
+        return "No hostname in URL.", []
+    if hostname in _BLOCKED_HOSTS:
+        return f"Blocked host: {hostname} (cloud metadata endpoint).", []
+    try:
+        ipaddress.ip_address(hostname)
+        candidates = [hostname]
+    except ValueError:
+        try:
+            infos = socket.getaddrinfo(hostname, parsed.port or (443 if parsed.scheme == "https" else 80), socket.AF_UNSPEC, socket.SOCK_STREAM)
+        except socket.gaierror:
+            return f"Could not resolve host '{hostname}'.", []
+        candidates = list(dict.fromkeys(info[4][0] for info in infos))
+    blocked = [ip for ip in candidates if is_private_ip(ip)]
+    if blocked:
+        return f"URL '{hostname}' resolves to a private/reserved IP: {blocked[0]}.", []
+    return None, candidates
 
 
 def check_ssrf(url: str) -> str | None:

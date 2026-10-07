@@ -32,7 +32,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.tools.base import Tool, ToolResult, ToolSecurity
+from app.tools.base import RiskTier, Tool, ToolResult, register_tool
 
 # Hard cap on how many files the walk will even inspect, independent of
 # how many actually match - bounds worst-case latency on a huge home
@@ -53,6 +53,7 @@ _SKIP_DIR_NAMES = {
 }
 
 
+@register_tool
 class FindFilesTool(Tool):
     name = "find_files"
     description = (
@@ -69,7 +70,9 @@ class FindFilesTool(Tool):
         },
         "required": ["query"],
     }
-    security = ToolSecurity.SAFE
+    risk = RiskTier.READ_ONLY
+    untrusted_output = True
+    exposed_by_default = True
 
     async def execute(self, db: Session | None = None, query: str = "", max_results: int = 10, **_) -> ToolResult:
         query = query.strip()

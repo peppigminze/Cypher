@@ -13,6 +13,14 @@ sherpa-onnx>=1.10.0
 numpy>=1.26
 # IANA time zone database - Windows has none built in (TIMEZONE setting).
 tzdata>=2025.2
+# Screenshots for describe_screen.
+pillow>=11.0
+# Windows-only PC control: master volume (Core Audio) and the system media
+# session (explicit play/pause, "what's playing").
+pycaw>=20240316; sys_platform == "win32"
+winrt-Windows.Media.Control>=3.0; sys_platform == "win32"
+winrt-Windows.Foundation>=3.0; sys_platform == "win32"
+winrt-Windows.Foundation.Collections>=3.0; sys_platform == "win32"
 
 # --- tests ---
 pytest>=8.3.3

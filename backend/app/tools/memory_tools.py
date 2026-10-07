@@ -4,9 +4,10 @@ from sqlalchemy.orm import Session
 
 from app.database.models import DEFAULT_MEMORY_TYPE, MEMORY_TYPES
 from app.memory.store import MemoryStore
-from app.tools.base import Tool, ToolResult, ToolSecurity
+from app.tools.base import RiskTier, Tool, ToolResult, register_tool
 
 
+@register_tool
 class SaveMemoryTool(Tool):
     name = "save_memory"
     description = (
@@ -25,7 +26,19 @@ class SaveMemoryTool(Tool):
         },
         "required": ["content"],
     }
-    security = ToolSecurity.SAFE
+    risk = RiskTier.WRITE
+    allow_when_tainted = False
+
+    def risk_for(self, args, ctx=None) -> RiskTier:
+        # Clear rule (M2/M4): saving runs without a confirmation question only
+        # when the user's own words asked for it ("merk dir ...") and no
+        # untrusted content is in play; anything else needs approval.
+        if ctx is not None and ctx.explicit_memory_request and not ctx.tainted:
+            return RiskTier.CONTROL
+        return self.base_risk()
+
+    def describe(self, args) -> str:
+        return f"Merken: „{str(args.get('content', ''))[:120]}“"
 
     async def execute(
         self,
@@ -42,6 +55,7 @@ class SaveMemoryTool(Tool):
         )
 
 
+@register_tool
 class SearchMemoryTool(Tool):
     name = "search_memory"
     description = "Search previously saved memories by keyword."
@@ -50,7 +64,7 @@ class SearchMemoryTool(Tool):
         "properties": {"query": {"type": "string"}, "limit": {"type": "integer"}},
         "required": ["query"],
     }
-    security = ToolSecurity.SAFE
+    risk = RiskTier.READ_ONLY
 
     async def execute(self, db: Session, query: str, limit: int = 5, **_) -> ToolResult:
         store = MemoryStore(db)
