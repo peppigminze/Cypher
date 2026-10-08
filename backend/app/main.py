@@ -7,9 +7,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import actions
-from app.api import agent as agent_api
 from app.api import (
+    chat,
     health,
     memory,
     messages,
@@ -17,7 +16,6 @@ from app.api import (
     security_api,
     settings as settings_api,
     speak,
-    sync,
     tasks,
     tool_chat,
     transcribe,
@@ -130,9 +128,7 @@ app.include_router(messages.router)
 app.include_router(tasks.router)
 app.include_router(memory.router)
 app.include_router(memory.conversations_router)
-app.include_router(sync.router)
-app.include_router(agent_api.router)
-app.include_router(actions.router)
+app.include_router(chat.router)
 app.include_router(settings_api.router)
 app.include_router(projects.router)
 app.include_router(tool_chat.router)

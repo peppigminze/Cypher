@@ -22,13 +22,13 @@ def test_tokens_match_rejects_different_length():
     assert _tokens_match("short", "a-much-longer-token") is False
 
 
-def test_valid_token_still_authenticates(client, agent_headers):
-    resp = client.get("/api/sync/pending", headers=agent_headers)
+def test_valid_token_still_authenticates(client, user_headers):
+    resp = client.get("/api/messages", headers=user_headers)
     assert resp.status_code == 200
 
 
 def test_wrong_token_still_rejected(client):
-    resp = client.get("/api/sync/pending", headers={"Authorization": "Bearer totally-wrong"})
+    resp = client.get("/api/messages", headers={"Authorization": "Bearer totally-wrong"})
     assert resp.status_code == 401
 
 

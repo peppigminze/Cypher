@@ -1656,6 +1656,86 @@
   color: var(--success);
 }
 
+/* ---------------------------------------------------------------- Text chat on the engine (M5) */
+.chat__toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 16px 0;
+}
+.chat-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: min(720px, 92%);
+}
+.chat-msg--user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+.chat-msg--cypher {
+  align-self: flex-start;
+}
+.chat-msg__bubble {
+  padding: 10px 14px;
+  border-radius: var(--radius-lg);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.chat-msg--user .chat-msg__bubble {
+  background: var(--accent-soft);
+  border: 1px solid var(--border-glow);
+  color: var(--text);
+}
+.chat-msg--cypher .chat-msg__bubble {
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  color: var(--text);
+}
+.chat-msg__cursor {
+  margin-left: 2px;
+  color: var(--accent);
+  animation: chat-blink 1s steps(2) infinite;
+}
+@keyframes chat-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.chat-msg__tools {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.chat-msg__tools .is-error {
+  color: var(--danger);
+}
+.chat-msg__error {
+  color: var(--danger);
+  font-size: 13.5px;
+}
+.chat-msg__hint {
+  display: block;
+  color: var(--text-dim);
+  font-size: 12.5px;
+}
+.btn-secondary {
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-msg__cursor {
+    animation: none;
+  }
+}
+
 /* ---------------------------------------------------------------- Pairing / auth gate (M2) */
 .pairing {
   min-height: 100dvh;

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import "./App.css";
 import { Sidebar, type View } from "./components/Sidebar";
 import { StatusBadge } from "./components/StatusBadge";
-import { ConfirmBar } from "./components/ConfirmBar";
 import { ChatView } from "./components/ChatView";
 import { TasksView } from "./components/TasksView";
 import { MemoryView } from "./components/MemoryView";
@@ -14,7 +13,6 @@ import { AUTH_REQUIRED_EVENT, ensureToken, type AuthState } from "./services/aut
 import { getStatus } from "./services/api";
 import { usePolling } from "./hooks/usePolling";
 import { useReminderNotifications } from "./hooks/useReminderNotifications";
-import { useMessageNotifications } from "./hooks/useMessageNotifications";
 import type { SystemStatus } from "./types";
 
 const TITLES: Record<View, string> = {
@@ -68,7 +66,6 @@ function AuthenticatedApp() {
 
   usePolling(refreshStatus, 10000, []);
   useReminderNotifications();
-  useMessageNotifications();
 
   const navigate = useCallback((v: View) => {
     setView(v);
@@ -98,7 +95,6 @@ function AuthenticatedApp() {
           <span className="topbar__title">{TITLES[view]}</span>
           <StatusBadge status={status} />
         </header>
-        <ConfirmBar onResolved={refreshStatus} />
         <div className={`panel ${view === "chat" ? "panel--flush" : ""}`}>
           {view === "chat" && <ChatView />}
           {view === "tasks" && <TasksView />}

@@ -1,10 +1,8 @@
 import type {
   ActiveProviderInfo,
-  ChatMessage,
   LlmProviderName,
   MemoryEntry,
   MemoryType,
-  PendingAction,
   Project,
   Settings,
   SystemStatus,
@@ -17,8 +15,6 @@ import type {
 import { API_BASE_URL, AUTH_REQUIRED_EVENT, getStoredToken } from "./auth";
 
 const BASE_URL = API_BASE_URL;
-
-const QUEUE_KEY = "jarvis.offline_queue.v1";
 
 function bearer(): Record<string, string> {
   const token = getStoredToken();
@@ -58,86 +54,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await resp.json()) as T;
 }
 
-function newClientId(): string {
-  if ("randomUUID" in crypto) return crypto.randomUUID();
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
 
-// ------------------------------------------------------------------ Offline queue
-// If the browser has no network (or the backend can't be reached),
-// outgoing chat messages are queued locally in localStorage with a
-// stable client_id. Once we're back online we flush the queue - the
-// backend's /api/messages endpoint is idempotent on client_id, so a
-// retried send never creates a duplicate message (see project spec
-// section 16).
-
-interface QueuedMessage {
-  client_id: string;
-  content: string;
-  queued_at: string;
-}
-
-function readQueue(): QueuedMessage[] {
-  try {
-    const raw = localStorage.getItem(QUEUE_KEY);
-    return raw ? (JSON.parse(raw) as QueuedMessage[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeQueue(queue: QueuedMessage[]): void {
-  localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
-}
-
-function enqueue(msg: QueuedMessage): void {
-  const queue = readQueue();
-  queue.push(msg);
-  writeQueue(queue);
-}
-
-function dequeue(clientId: string): void {
-  writeQueue(readQueue().filter((m) => m.client_id !== clientId));
-}
-
-export async function flushOfflineQueue(): Promise<void> {
-  const queue = readQueue();
-  for (const item of queue) {
-    try {
-      await request<ChatMessage>("/api/messages", {
-        method: "POST",
-        body: JSON.stringify({ content: item.content, client_id: item.client_id }),
-      });
-      dequeue(item.client_id);
-    } catch {
-      // Still offline / backend unreachable - stop, try again later.
-      break;
-    }
-  }
-}
-
-export function hasQueuedMessages(): boolean {
-  return readQueue().length > 0;
-}
-
-// ------------------------------------------------------------------ Messages
-
-export async function sendMessage(content: string): Promise<ChatMessage | { queued: true; client_id: string }> {
-  const client_id = newClientId();
-  try {
-    return await request<ChatMessage>("/api/messages", {
-      method: "POST",
-      body: JSON.stringify({ content, client_id }),
-    });
-  } catch {
-    enqueue({ client_id, content, queued_at: new Date().toISOString() });
-    return { queued: true, client_id };
-  }
-}
-
-export async function listMessages(): Promise<ChatMessage[]> {
-  return request<ChatMessage[]>("/api/messages");
-}
 
 // ------------------------------------------------------------------ Tasks
 
@@ -230,20 +147,6 @@ export async function deleteMemoryItem(item: MemoryItem): Promise<void> {
 
 export async function deleteConversationHistory(): Promise<{ deleted: number }> {
   return request<{ deleted: number }>("/api/conversations", { method: "DELETE" });
-}
-
-// ------------------------------------------------------------------ Pending actions (confirmation flow)
-
-export async function listPendingActions(): Promise<PendingAction[]> {
-  return request<PendingAction[]>("/api/actions?status=awaiting_confirmation");
-}
-
-export async function confirmAction(id: number): Promise<PendingAction> {
-  return request<PendingAction>(`/api/actions/${id}/confirm`, { method: "POST" });
-}
-
-export async function rejectAction(id: number): Promise<PendingAction> {
-  return request<PendingAction>(`/api/actions/${id}/reject`, { method: "POST" });
 }
 
 // ------------------------------------------------------------------ Status

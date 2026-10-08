@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { bubbleState, initialVoiceState, shouldStreamAudio, voiceReducer, type VoiceAction, type VoiceUiState } from "../voiceReducer";
-import { caption, plainText } from "../../components/CypherVoiceView";
+import { caption } from "../../components/CypherVoiceView";
+import { plainText } from "../../utils/plainText";
 
 function run(actions: VoiceAction[], start: VoiceUiState = initialVoiceState): VoiceUiState {
   return actions.reduce(voiceReducer, start);

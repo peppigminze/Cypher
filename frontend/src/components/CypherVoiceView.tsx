@@ -1,7 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { ApprovalCard } from "./ApprovalCard";
+import { plainText } from "../utils/plainText";
 import { CypherBubble } from "./CypherBubble";
 import { useVoiceSession } from "../hooks/useVoiceSession";
-import { bubbleState, type ApprovalCard, type VoiceMode, type VoiceUiState } from "../hooks/voiceReducer";
+import { bubbleState, type VoiceMode, type VoiceUiState } from "../hooks/voiceReducer";
 import { getActiveProvider } from "../services/api";
 import type { LlmProviderName, SystemStatus } from "../types";
 
@@ -9,12 +11,6 @@ interface Props {
   status: SystemStatus | null;
   onOpenMenu: () => void;
 }
-
-const RISK_LABEL: Record<string, string> = {
-  control: "Steuert etwas am PC",
-  write: "Speichert oder ändert Daten",
-  destructive: "Nicht rückgängig zu machen",
-};
 
 const MODE_LABEL: Record<VoiceMode, string> = { wake: "Hey Cypher", auto: "Tippen", ptt: "Funk" };
 const MODE_HINT: Record<VoiceMode, string> = {
@@ -57,46 +53,6 @@ function bubbleLabel(state: VoiceUiState): string {
     default:
       return state.micEnabled ? "Sprechen" : "Mikrofon einschalten und sprechen";
   }
-}
-
-function ApprovalPanel({ card, onDecide }: { card: ApprovalCard; onDecide: (approved: boolean) => void }) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-  const seconds = Math.max(0, Math.round((card.expiresAt - now) / 1000));
-  return (
-    <section className={`voice-view__confirm voice-view__confirm--${card.risk}`} role="alertdialog" aria-labelledby="approval-title" aria-describedby="approval-summary">
-      <p id="approval-title" className="voice-view__confirm-risk">
-        {RISK_LABEL[card.risk] ?? "Braucht deine Bestätigung"}
-      </p>
-      <p id="approval-summary" className="voice-view__confirm-summary">
-        {card.summary || card.toolName}
-      </p>
-      <div className="voice-view__confirm-actions">
-        <button type="button" autoFocus className="voice-view__confirm-btn voice-view__confirm-btn--yes" onClick={() => onDecide(true)}>
-          Ja <kbd>J</kbd>
-        </button>
-        <button type="button" className="voice-view__confirm-btn voice-view__confirm-btn--no" onClick={() => onDecide(false)}>
-          Nein <kbd>N</kbd>
-        </button>
-      </div>
-      <p className="voice-view__confirm-expiry">{seconds > 0 ? `Läuft in ${seconds} s ab` : "Abgelaufen"}</p>
-    </section>
-  );
-}
-
-/** Subtitles are read, not rendered: drop Markdown markers the model may
- * use ("**fett**", "* Punkt", "## Titel"). Speech gets the same cleanup on
- * the server (app/voice/speech_text.py). */
-export function plainText(text: string): string {
-  return text
-    .replace(/\*\*|__/g, "")
-    .replace(/(^|\s)[*•]\s+/g, "$1")
-    .replace(/^\s*-\s+/gm, "")
-    .replace(/(^|\s)#{1,6}\s+/g, "$1")
-    .replace(/`/g, "");
 }
 
 function isTyping(target: EventTarget | null): boolean {
@@ -182,7 +138,7 @@ export function CypherVoiceView({ status, onOpenMenu }: Props) {
           )}
         </div>
 
-        {state.approval && <ApprovalPanel card={state.approval} onDecide={voice.approve} />}
+        {state.approval && <ApprovalCard card={state.approval} onDecide={voice.approve} showKeys />}
 
         {(state.error || state.notice) && (
           <div className={`voice-view__alert ${state.error ? "is-error" : ""}`} role={state.error ? "alert" : "status"}>

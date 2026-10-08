@@ -44,3 +44,28 @@ def api_logs(
     level: str = Query("INFO", pattern="^(DEBUG|INFO|WARNING|ERROR)$"),
 ) -> dict:
     return {"entries": read_log_tail(get_runtime().settings, max_lines=limit, min_level=level)}
+
+
+@router.get("/api/status")
+async def api_status(_user=Depends(require_user)) -> dict:
+    """Compact status for the app's status line. Kept with its old shape
+    (pc_online, pending_messages, ...) - the PC-agent heartbeat it used to
+    read is gone (M5): the backend runs on the PC, so reaching it means the
+    PC is on. pending_messages now counts open approvals."""
+    from datetime import datetime, timezone  # noqa: PLC0415
+
+    from app.database.db import SessionLocal  # noqa: PLC0415
+    from app.settings_store import get_active_provider  # noqa: PLC0415
+    from app.tools import pending_approvals  # noqa: PLC0415
+
+    runtime = get_runtime()
+    llm = await runtime.model_manager.status(max_age=10.0)
+    with SessionLocal() as db:
+        provider = get_active_provider(db)
+    return {
+        "pc_online": True,
+        "last_seen": datetime.now(timezone.utc).isoformat(),
+        "pending_messages": len(pending_approvals.list_pending()),
+        "llm_provider": provider,
+        "llm_available": bool(llm.reachable and llm.installed),
+    }

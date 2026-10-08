@@ -1,4 +1,4 @@
-# Starts the JARVIS backend and local PC agent as hidden background
+# Starts the Cypher backend as a hidden background
 # processes. Used both for manual quick-start and as the action a
 # logon Scheduled Task runs (see scripts/autostart.py).
 #
@@ -27,13 +27,6 @@ Start-Process -FilePath $Python `
     -RedirectStandardOutput (Join-Path $LogDir 'backend.log') `
     -RedirectStandardError (Join-Path $LogDir 'backend.err.log')
 
-# Give the backend a moment to start listening before the agent's
-# first poll, purely to avoid a noisy "connection refused" in its log.
-Start-Sleep -Seconds 3
-
-Start-Process -FilePath $Python `
-    -ArgumentList '-m', 'agent.run_agent' `
-    -WorkingDirectory $RepoRoot `
-    -WindowStyle Hidden `
-    -RedirectStandardOutput (Join-Path $LogDir 'agent.log') `
-    -RedirectStandardError (Join-Path $LogDir 'agent.err.log')
+# The separate PC-agent process (agent/run_agent.py) was removed in M5:
+# the backend now answers chat messages itself. start_cypher.bat (M7)
+# replaces this script.

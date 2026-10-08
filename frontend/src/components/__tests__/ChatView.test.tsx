@@ -1,136 +1,68 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ChatView } from "../ChatView";
-import * as api from "../../services/api";
-import type { ChatMessage } from "../../types";
+import * as stream from "../../services/chatStream";
 
-vi.mock("../../services/api");
+vi.mock("../../services/chatStream", async (importOriginal) => {
+  const actual = await importOriginal<typeof stream>();
+  return { ...actual, streamChat: vi.fn(), streamApproval: vi.fn(), fetchChatHistory: vi.fn(async () => []) };
+});
 
-function makeMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
-  return {
-    id: 1,
-    client_id: null,
-    content: "hallo",
-    status: "completed",
-    response: "hi zurück",
-    error: null,
-    retry_count: 0,
-    processed_by: "local",
-    observations: [],
-    created_at: new Date().toISOString(),
-    processed_at: new Date().toISOString(),
-    ...overrides,
-  };
+async function* gen(events: stream.ChatEvent[]) {
+  for (const e of events) yield e;
 }
 
-describe("ChatView", () => {
-  beforeEach(() => {
-    vi.mocked(api.flushOfflineQueue).mockResolvedValue(undefined);
-  });
-
+describe("ChatView (engine chat)", () => {
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
+    localStorage.clear();
   });
 
-  it("shows the empty state when there are no messages", async () => {
-    vi.mocked(api.listMessages).mockResolvedValue([]);
+  it("sends a message and shows the streamed reply", async () => {
+    vi.mocked(stream.streamChat).mockResolvedValue(
+      gen([
+        { type: "conversation", conversation_id: "abcdefabcdefabcd" },
+        { type: "reply_delta", text: "Es ist " },
+        { type: "reply", text: "Es ist zwölf Uhr." },
+      ])
+    );
     render(<ChatView />);
-    expect(await screen.findByText(/Schreib Cypher eine Nachricht/)).toBeInTheDocument();
+    await userEvent.type(screen.getByRole("textbox", { name: "Nachricht an Cypher" }), "Wie spät ist es?{Enter}");
+    expect(await screen.findByText("Es ist zwölf Uhr.")).toBeInTheDocument();
+    expect(screen.getByText("Wie spät ist es?")).toBeInTheDocument();
+    expect(stream.streamChat).toHaveBeenCalledWith("Wie spät ist es?", null, expect.anything());
+    expect(localStorage.getItem("cypher.chat.conversation.v1")).toBe("abcdefabcdefabcd");
   });
 
-  it("renders an existing completed message and its response", async () => {
-    vi.mocked(api.listMessages).mockResolvedValue([makeMessage()]);
+  it("answers an approval card in the chat", async () => {
+    vi.mocked(stream.streamChat).mockResolvedValue(
+      gen([{ type: "approval", card: { approval_id: "ap1", tool_name: "save_note", summary: "Notiz speichern: „Brot“", risk: "write", expires_in_seconds: 300 } }])
+    );
+    vi.mocked(stream.streamApproval).mockResolvedValue(gen([{ type: "reply", text: "Notiz gespeichert." }]));
     render(<ChatView />);
-    expect(await screen.findByText("hallo")).toBeInTheDocument();
-    expect(await screen.findByText("hi zurück")).toBeInTheDocument();
+    await userEvent.type(screen.getByRole("textbox", { name: "Nachricht an Cypher" }), "Notiere Brot{Enter}");
+    expect(await screen.findByText("Notiz speichern: „Brot“")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Ja" }));
+    expect(await screen.findByText("Notiz gespeichert.")).toBeInTheDocument();
+    expect(stream.streamApproval).toHaveBeenCalledWith("ap1", true, expect.anything());
   });
 
-  it("shows a 🖥️ Lokal badge for a message answered locally", async () => {
-    vi.mocked(api.listMessages).mockResolvedValue([makeMessage({ processed_by: "local" })]);
+  it("shows a German message when the backend is unreachable", async () => {
+    vi.mocked(stream.streamChat).mockRejectedValue(new TypeError("Failed to fetch"));
     render(<ChatView />);
-    expect(await screen.findByText("🖥️ Lokal")).toBeInTheDocument();
+    await userEvent.type(screen.getByRole("textbox", { name: "Nachricht an Cypher" }), "Hallo{Enter}");
+    expect(await screen.findByRole("alert")).toHaveTextContent("nicht erreichbar");
   });
 
-  it("shows a ☁️ Cloud badge for a message answered via cloud fallback", async () => {
-    vi.mocked(api.listMessages).mockResolvedValue([makeMessage({ processed_by: "cloud" })]);
-    render(<ChatView />);
-    expect(await screen.findByText("☁️ Cloud")).toBeInTheDocument();
-  });
-
-  it("shows short tool-activity lines for a message that used tools", async () => {
-    vi.mocked(api.listMessages).mockResolvedValue([
-      makeMessage({
-        observations: [
-          { tool: "create_task", arguments: { title: "Test" }, result: { id: 1 } },
-          { tool: "run_command", arguments: { command: "git status" }, error: "timed out" },
-        ],
-      }),
+  it("restores the last conversation from the backend", async () => {
+    localStorage.setItem("cypher.chat.conversation.v1", "abcdefabcdefabcd");
+    vi.mocked(stream.fetchChatHistory).mockResolvedValue([
+      { role: "user", text: "Merk dir Tee." },
+      { role: "assistant", text: "Gemerkt." },
     ]);
     render(<ChatView />);
-    expect(await screen.findByText(/Aufgabe erstellt/)).toBeInTheDocument();
-    expect(await screen.findByText(/Befehl ausgeführt/)).toBeInTheDocument();
-    expect(screen.getByText("✓")).toBeInTheDocument();
-    expect(screen.getByText("✗")).toBeInTheDocument();
-  });
-
-  it("does not render a tool-activity block when no tools were used", async () => {
-    vi.mocked(api.listMessages).mockResolvedValue([makeMessage({ observations: [] })]);
-    const { container } = render(<ChatView />);
-    await screen.findByText("hallo");
-    expect(container.querySelector(".tool-activity")).not.toBeInTheDocument();
-  });
-
-  it("shows a failed message's error text", async () => {
-    vi.mocked(api.listMessages).mockResolvedValue([
-      makeMessage({ status: "failed", response: null, error: "Local LLM is unavailable." }),
-    ]);
-    render(<ChatView />);
-    expect(await screen.findByText("Local LLM is unavailable.")).toBeInTheDocument();
-    expect(screen.getByText("Fehlgeschlagen")).toBeInTheDocument();
-  });
-
-  it("sends a message and displays the result", async () => {
-    vi.mocked(api.listMessages).mockResolvedValue([]);
-    const sent = makeMessage({ id: 2, content: "neue nachricht", status: "pending", response: null });
-    vi.mocked(api.sendMessage).mockResolvedValue(sent);
-
-    const user = userEvent.setup();
-    render(<ChatView />);
-
-    const input = await screen.findByPlaceholderText("Nachricht an Cypher...");
-    await user.type(input, "neue nachricht");
-    await user.click(screen.getByRole("button", { name: "Senden" }));
-
-    expect(api.sendMessage).toHaveBeenCalledWith("neue nachricht");
-    expect(await screen.findByText("neue nachricht")).toBeInTheDocument();
-    expect(input).toHaveValue("");
-  });
-
-  it("shows a queued message when offline (sendMessage falls back to the local queue)", async () => {
-    vi.mocked(api.listMessages).mockResolvedValue([]);
-    vi.mocked(api.sendMessage).mockResolvedValue({ queued: true, client_id: "abc-123" });
-
-    const user = userEvent.setup();
-    render(<ChatView />);
-
-    const input = await screen.findByPlaceholderText("Nachricht an Cypher...");
-    await user.type(input, "offline nachricht");
-    await user.click(screen.getByRole("button", { name: "Senden" }));
-
-    await waitFor(() => expect(screen.getByText("offline nachricht")).toBeInTheDocument());
-    expect(screen.getByText("Gespeichert (offline)")).toBeInTheDocument();
-  });
-
-  it("does not send an empty or whitespace-only message", async () => {
-    vi.mocked(api.listMessages).mockResolvedValue([]);
-    const user = userEvent.setup();
-    render(<ChatView />);
-
-    const input = await screen.findByPlaceholderText("Nachricht an Cypher...");
-    await user.type(input, "   ");
-    const sendButton = screen.getByRole("button", { name: "Senden" });
-    expect(sendButton).toBeDisabled();
-    expect(api.sendMessage).not.toHaveBeenCalled();
+    expect(await screen.findByText("Gemerkt.")).toBeInTheDocument();
+    expect(stream.fetchChatHistory).toHaveBeenCalledWith("abcdefabcdefabcd");
   });
 });
