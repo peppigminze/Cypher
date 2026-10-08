@@ -35,7 +35,8 @@ export class PcmPlayer {
   constructor(context?: AudioContext) {
     this.context = context ?? new AudioContext({ latencyHint: "interactive" });
     this.analyser = this.context.createAnalyser();
-    this.analyser.fftSize = 256;
+    this.analyser.fftSize = 128;
+    this.analyser.smoothingTimeConstant = 0.6;
     this.analyser.connect(this.context.destination);
     this.levelData = new Uint8Array(this.analyser.fftSize);
   }

@@ -70,6 +70,8 @@ Copyleft auf Dateiebene – betrifft nur Änderungen an deren eigenen Dateien, n
 | M3 | esbuild 0.21.5 (Frontend, devDependency; war schon transitiv über vite installiert) | MIT | Test baut das Mikrofon-AudioWorklet wie `vite build` minifiziert und prüft, dass es eigenständig läuft |
 | M4 | – (keine neue Abhängigkeit) | – | Volltextsuche über SQLite FTS5 (in Pythons `sqlite3` enthalten, Public Domain) |
 | M5 | openai 3.26.1 (+ httpx2 2.13.1, httpcore2 2.13.1, truststore, jiter 0.17.0, sniffio 1.3.1) | Apache-2.0 (httpx2/httpcore2 BSD-3-Clause, truststore MIT, jiter MIT, sniffio MIT/Apache-2.0) | Offizielles SDK für die Cloud (Responses API), ersetzt eigenen httpx-Code |
+| M6 | eslint 10.11.0, @eslint/js 10.0.1, typescript-eslint 8.70.1, eslint-plugin-react-hooks 7.1.1, eslint-plugin-react-refresh 0.5.7, globals 17.12.0, prettier 3.9.9 (alle devDependencies) | MIT | Lint und Formatierung; Versionen bewusst ≥ 2 Wochen alt (Lieferketten-Vorsicht) |
+| M6 | @playwright/test 1.63.0 (devDependency) | Apache-2.0 | Smoke-Test im vorhandenen Microsoft Edge (`channel: msedge`, kein Browser-Download) |
 
 Externe Dienste (keine Code-Abhängigkeit, ohne Account/Key):
 

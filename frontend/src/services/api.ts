@@ -257,3 +257,77 @@ export async function speakText(text: string): Promise<SpeakResult> {
     generationTimeSeconds: Number(resp.headers.get("X-Generation-Time-Seconds") ?? 0),
   };
 }
+
+// ------------------------------------------------------------------ System (M6: diagnostics, audit, logs)
+
+export interface ComponentHealth {
+  status: "ok" | "degraded" | "error" | string;
+  message: string;
+  hint: string;
+}
+
+export interface HealthReport {
+  status: "ok" | "degraded" | "error" | string;
+  version: string;
+  uptime_seconds: number;
+  components: Record<string, ComponentHealth>;
+}
+
+export interface LatencyStat {
+  count: number;
+  last_ms: number;
+  p50_ms: number;
+  p90_ms: number;
+}
+
+export interface Diagnostics extends HealthReport {
+  latency: Record<string, LatencyStat>;
+  config: Record<string, unknown>;
+  system: Record<string, unknown>;
+  context_budget: { parts?: Record<string, number>; total?: number; window?: number; fits?: boolean; error?: string };
+}
+
+export interface AuditEntry {
+  id: number;
+  ts: string;
+  conversation_id: string | null;
+  source: string | null;
+  provider: string | null;
+  tool: string;
+  risk: string | null;
+  decision: string;
+  summary: string | null;
+  arguments: Record<string, unknown>;
+  success: boolean | null;
+  error: string | null;
+  duration_ms: number | null;
+}
+
+export interface LogEntry {
+  ts: string;
+  level: string;
+  logger: string;
+  msg: string;
+  request_id?: string;
+}
+
+/** Public, no token needed - the UI must be able to say "Ollama läuft nicht" before pairing. */
+export async function getHealth(signal?: AbortSignal): Promise<HealthReport> {
+  const resp = await fetch(`${BASE_URL}/api/health`, { signal });
+  if (!resp.ok && resp.status !== 503) throw new Error(`HTTP ${resp.status}`);
+  return (await resp.json()) as HealthReport;
+}
+
+export async function getDiagnostics(): Promise<Diagnostics> {
+  return request<Diagnostics>("/api/diagnostics");
+}
+
+export async function getAudit(limit = 100): Promise<AuditEntry[]> {
+  const data = await request<{ entries: AuditEntry[] }>(`/api/audit?limit=${limit}`);
+  return data.entries;
+}
+
+export async function getLogs(level = "INFO", limit = 300): Promise<LogEntry[]> {
+  const data = await request<{ entries: LogEntry[] }>(`/api/logs?limit=${limit}&level=${encodeURIComponent(level)}`);
+  return data.entries;
+}

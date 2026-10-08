@@ -27,6 +27,16 @@ export default defineConfig(({ mode }) => {
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      // The service worker caches only the app shell (HTML/JS/CSS/icons).
+      // API answers are never cached - stale health, memory or audit data
+      // would be worse than an honest "nicht erreichbar" - and navigations
+      // to backend paths (e.g. /api/docs) must reach the backend, not the
+      // cached index.html. Checked by e2e/pwa.spec.ts.
+      workbox: {
+        navigateFallbackDenylist: [/^\/api\//, /^\/health$/, /^\/speak$/, /^\/transcribe$/],
+        runtimeCaching: [],
+        cleanupOutdatedCaches: true,
+      },
       includeAssets: ["favicon.svg"],
       manifest: {
         // All-caps is deliberate - matches the Sidebar/<title> brand

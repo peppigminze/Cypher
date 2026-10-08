@@ -14,7 +14,8 @@ import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from "rea
 import { startMicCapture, type MicCapture } from "../audio/captureWorklet";
 import { PcmPlayer } from "../audio/pcmPlayer";
 import { VoiceClient } from "../services/voiceClient";
-import { initialVoiceState, shouldStreamAudio, voiceReducer, type VoiceMode } from "./voiceReducer";
+import { commandFor, isExpectedTransition, type UiInput } from "./voiceMachine";
+import { initialVoiceState, shouldStreamAudio, voiceReducer, type ServerVoiceState, type VoiceMode } from "./voiceReducer";
 
 export function micErrorMessage(err: unknown): string {
   if (typeof navigator !== "undefined" && !navigator.mediaDevices?.getUserMedia) {
@@ -65,6 +66,11 @@ export function useVoiceSession() {
           playerRef.current?.stop();
         } else if (message.type === "audio_end" && typeof message.turn_id === "number") {
           playerRef.current?.markEnd(message.turn_id);
+        }
+        if (message.type === "state" && import.meta.env.DEV) {
+          const from = stateRef.current.serverState;
+          const to = message.state as ServerVoiceState;
+          if (!isExpectedTransition(from, to)) console.warn(`[voice] unerwarteter Zustandswechsel ${from} → ${to}`);
         }
         dispatch({ type: "server", message, now: Date.now() });
       },
@@ -126,26 +132,43 @@ export function useVoiceSession() {
   }, []);
 
   /** The bubble: one control for everything, depending on the state. */
-  const tap = useCallback(async () => {
-    void ensurePlayer().resume();
-    if (!(await enableMic())) return;
-    const current = stateRef.current;
-    switch (current.serverState) {
-      case "thinking":
-      case "speaking":
-        interrupt();
-        break;
-      case "listening":
-        pttHeldRef.current = false;
-        clientRef.current?.send({ type: "stop" });
-        break;
-      case "confirming":
-        break; // answer by voice or with the buttons
-      default:
-        pttHeldRef.current = current.mode === "ptt";
-        clientRef.current?.send({ type: "start" });
-    }
-  }, [enableMic, ensurePlayer, interrupt]);
+  const approve = useCallback((approved: boolean) => {
+    const card = stateRef.current.approval;
+    if (card) clientRef.current?.send({ type: "approval", approval_id: card.approvalId, approved });
+  }, []);
+
+  /** Bubble tap, Space, Escape, J/N - what they do per state is the
+   * transition table in voiceMachine.ts. */
+  const input = useCallback(
+    async (event: UiInput) => {
+      const current = stateRef.current;
+      const command = commandFor(current.serverState, event);
+      switch (command) {
+        case "start":
+          void ensurePlayer().resume();
+          if (!(await enableMic())) return;
+          pttHeldRef.current = stateRef.current.mode === "ptt";
+          clientRef.current?.send({ type: "start" });
+          break;
+        case "stop":
+          pttHeldRef.current = false;
+          clientRef.current?.send({ type: "stop" });
+          break;
+        case "interrupt":
+          interrupt();
+          break;
+        case "approve":
+        case "reject":
+          approve(command === "approve");
+          break;
+        case "none":
+          break;
+      }
+    },
+    [approve, enableMic, ensurePlayer, interrupt]
+  );
+
+  const tap = useCallback(() => input("TAP"), [input]);
 
   const setMode = useCallback(
     (mode: VoiceMode) => {
@@ -157,11 +180,6 @@ export function useVoiceSession() {
     },
     [enableMic, ensurePlayer]
   );
-
-  const approve = useCallback((approved: boolean) => {
-    const card = stateRef.current.approval;
-    if (card) clientRef.current?.send({ type: "approval", approval_id: card.approvalId, approved });
-  }, []);
 
   const sendText = useCallback(
     (text: string) => {
@@ -181,6 +199,19 @@ export function useVoiceSession() {
     return micRef.current ? micLevelRef.current : 0;
   }, []);
 
+  /** Fills `bins` with the current spectrum (Cypher's voice while it speaks,
+   * else the mic) and returns the loudness 0..1. All zeros when silent. */
+  const getSpectrum = useCallback((bins: Uint8Array<ArrayBuffer>): number => {
+    const speaking = stateRef.current.serverState === "speaking";
+    const analyser = speaking ? (playerRef.current?.playing ? playerRef.current.analyser : null) : (micRef.current?.analyser ?? null);
+    if (!analyser) {
+      bins.fill(0);
+      return 0;
+    }
+    analyser.getByteFrequencyData(bins);
+    return speaking ? (playerRef.current?.level() ?? 0) : micLevelRef.current;
+  }, []);
+
   const dismissError = useCallback(() => dispatch({ type: "dismiss_error" }), []);
 
   /** Forget the short-term context (memory facts stay). */
@@ -191,5 +222,19 @@ export function useVoiceSession() {
     dispatch({ type: "server", message: { type: "conversation_reset" }, now: Date.now() });
   }, []);
 
-  return { state, tap, interrupt, setMode, approve, sendText, enableMic, disableMic, getLevel, dismissError, newConversation };
+  return {
+    state,
+    tap,
+    input,
+    interrupt,
+    setMode,
+    approve,
+    sendText,
+    enableMic,
+    disableMic,
+    getLevel,
+    getSpectrum,
+    dismissError,
+    newConversation,
+  };
 }

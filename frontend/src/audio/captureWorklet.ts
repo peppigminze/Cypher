@@ -63,6 +63,8 @@ export interface CaptureChunk {
 export interface MicCapture {
   stream: MediaStream;
   context: AudioContext;
+  /** Frequency data of the microphone, for the audio-reactive bubble. */
+  analyser: AnalyserNode;
   stop: () => Promise<void>;
 }
 
@@ -88,12 +90,18 @@ export async function startMicCapture(onChunk: (chunk: CaptureChunk) => void): P
     });
     node.port.onmessage = (event: MessageEvent<CaptureChunk>) => onChunk(event.data);
     source.connect(node);
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 128;
+    analyser.smoothingTimeConstant = 0.6;
+    source.connect(analyser);
     if (context.state === "suspended") await context.resume();
     return {
       stream,
       context,
+      analyser,
       stop: async () => {
         node.port.onmessage = null;
+        analyser.disconnect();
         source.disconnect();
         node.disconnect();
         stream.getTracks().forEach((track) => track.stop());

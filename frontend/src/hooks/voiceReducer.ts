@@ -10,6 +10,7 @@
  * connection, microphone, live subtitles.
  */
 import type { ConnectionStatus, ServerMessage } from "../services/voiceClient";
+import { micStreams } from "./voiceMachine";
 
 export type ServerVoiceState = "idle" | "wake_listening" | "listening" | "thinking" | "speaking" | "confirming";
 export type VoiceMode = "wake" | "auto" | "ptt";
@@ -239,7 +240,5 @@ export function bubbleState(state: VoiceUiState): BubbleState {
  * is actually listening - nothing leaves the browser in between. */
 export function shouldStreamAudio(state: VoiceUiState, pttHeld: boolean): boolean {
   if (!state.micEnabled || state.connection !== "open") return false;
-  if (state.mode === "wake") return true;
-  if (state.mode === "ptt") return pttHeld || state.serverState === "confirming";
-  return state.serverState === "listening" || state.serverState === "confirming";
+  return micStreams(state.serverState, state.mode, pttHeld);
 }

@@ -95,7 +95,11 @@ def install_dry_run() -> None:
             return ToolResult(success=False, error=plan.error)
         return ToolResult(success=True, data=FAKE_RESULTS.get(name, {"ok": True}), untrusted=name in UNTRUSTED)
 
+    async def record_decision(self, *args, **kwargs):  # noqa: ANN001 - keep the real audit log clean
+        return None
+
     ToolExecutor.execute = execute  # type: ignore[method-assign]
+    ToolExecutor.record_decision = record_decision  # type: ignore[method-assign]
 
 
 def _value_ok(got: Any, accepted: List[Any]) -> bool:
