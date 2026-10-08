@@ -5,11 +5,19 @@ import { HealthBanner } from "../HealthBanner";
 import { problemsOf } from "../../hooks/useHealth";
 import { SystemMenu } from "../system/SystemMenu";
 import { AuditPanel } from "../system/AuditPanel";
+import { DevicesPanel } from "../system/DevicesPanel";
 import * as api from "../../services/api";
 
 vi.mock("../../services/api", async (importOriginal) => {
   const actual = await importOriginal<typeof api>();
-  return { ...actual, getAudit: vi.fn(), getDiagnostics: vi.fn(), getLogs: vi.fn(), getMemoryOverview: vi.fn(() => new Promise(() => {})) };
+  return {
+    ...actual,
+    getAudit: vi.fn(),
+    getDiagnostics: vi.fn(),
+    getLogs: vi.fn(),
+    getPairing: vi.fn(),
+    getMemoryOverview: vi.fn(() => new Promise(() => {})),
+  };
 });
 
 const report = (components: Record<string, { status: string; message: string; hint: string }>): api.HealthReport => ({
@@ -122,5 +130,41 @@ describe("AuditPanel", () => {
     await userEvent.click(screen.getByRole("radio", { name: "Verweigert" }));
     expect(screen.queryByText("Leiser")).not.toBeInTheDocument();
     expect(screen.getByText("verweigert (fremder Inhalt)")).toBeInTheDocument();
+  });
+});
+
+describe("phone pairing panel", () => {
+  const info = (over: Partial<api.PairingInfo> = {}): api.PairingInfo => ({
+    token: "tok_abcdefghijklmnopqrstuvwxyz",
+    links: [{ url: "https://pc.tail1234.ts.net/#pair=tok_abcdefghijklmnopqrstuvwxyz", kind: "tailscale", microphone: true }],
+    qr: "data:image/svg+xml;charset=utf-8,%3Csvg%3E%3C%2Fsvg%3E",
+    tailscale: { installed: true, url: "https://pc.tail1234.ts.net" },
+    serve_command: "tailscale serve --bg 8000",
+    note: "",
+    ...over,
+  });
+
+  it("shows the QR code and the address without the secret", async () => {
+    vi.mocked(api.getPairing).mockResolvedValue(info());
+    render(<DevicesPanel />);
+    expect(await screen.findByAltText("QR-Code mit dem Kopplungslink")).toBeInTheDocument();
+    expect(screen.getByText("https://pc.tail1234.ts.net/")).toBeInTheDocument();
+    // the code is hidden until asked for
+    expect(screen.getByLabelText("Kopplungscode")).not.toHaveTextContent("tok_abc");
+    await userEvent.click(screen.getByRole("button", { name: "Anzeigen" }));
+    expect(screen.getByLabelText("Kopplungscode")).toHaveTextContent("tok_abcdefghijklmnopqrstuvwxyz");
+  });
+
+  it("explains tailscale serve when there is no link yet", async () => {
+    vi.mocked(api.getPairing).mockResolvedValue(info({ links: [], qr: null, tailscale: { installed: false, url: null } }));
+    render(<DevicesPanel />);
+    expect(await screen.findByText("tailscale serve --bg 8000")).toBeInTheDocument();
+    expect(screen.queryByAltText("QR-Code mit dem Kopplungslink")).not.toBeInTheDocument();
+  });
+
+  it("on the phone itself it only says the device is paired", async () => {
+    vi.mocked(api.getPairing).mockRejectedValue(Object.assign(new Error("Nur direkt am PC"), { status: 403 }));
+    render(<DevicesPanel />);
+    expect(await screen.findByText("Dieses Gerät ist mit Cypher gekoppelt.")).toBeInTheDocument();
   });
 });

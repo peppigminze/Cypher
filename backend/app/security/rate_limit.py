@@ -15,6 +15,8 @@ from typing import Dict, Tuple
 
 from fastapi import HTTPException, Request, status
 
+from app.security.origin import is_loopback
+
 
 @dataclass(frozen=True)
 class Limit:
@@ -86,7 +88,15 @@ limiter = RateLimiter()
 
 
 def client_key(request: Request) -> str:
-    return request.client.host if request.client else "unknown"
+    """Who to count against. Behind `tailscale serve` every request arrives
+    from 127.0.0.1, so the real device comes from X-Forwarded-For - trusted
+    only from loopback (just a program on this PC can set it there).
+    Without this, wrong tokens from a tailnet device would lock out the PC."""
+    peer = request.client.host if request.client else "unknown"
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded and is_loopback(peer):
+        return "fwd:" + forwarded.split(",")[0].strip()
+    return peer
 
 
 def too_many(retry_after: float, message: str = "Zu viele Anfragen – kurz warten und nochmal versuchen.") -> HTTPException:

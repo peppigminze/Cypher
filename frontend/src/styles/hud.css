@@ -768,3 +768,49 @@
     animation: none !important;
   }
 }
+
+/* ---------------------------------------------------------------- Devices (pairing) */
+.devices__pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: flex-start;
+}
+.devices__qr {
+  width: 225px;
+  height: 225px;
+  max-width: 100%;
+  border-radius: 8px;
+  background: #ffffff; /* the code needs a light quiet zone in dark mode too */
+  image-rendering: pixelated;
+}
+.devices__steps {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.devices__steps ol {
+  margin: 0 0 10px;
+  padding-left: 20px;
+  display: grid;
+  gap: 4px;
+}
+.devices__link,
+.devices__cmd,
+.devices__code code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.devices__cmd {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  white-space: pre-wrap;
+}
+.devices__code {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}

@@ -21,6 +21,11 @@ from urllib.parse import urlparse
 from app.config import Settings
 
 _LOCAL_HOSTNAMES = {"localhost", "127.0.0.1", "::1", "[::1]"}
+# A local reverse proxy (tailscale serve) connects from 127.0.0.1 on behalf of
+# another device. It keeps the original Host (then the check above already
+# fails), but these headers also give it away - a browser on this PC never
+# sends them.
+_PROXY_HEADERS = ("x-forwarded-for", "x-forwarded-host", "forwarded", "tailscale-user-login")
 
 
 def is_loopback(host: Optional[str]) -> bool:
@@ -32,6 +37,12 @@ def is_loopback(host: Optional[str]) -> bool:
         return ipaddress.ip_address(host).is_loopback
     except ValueError:
         return host == "localhost"
+
+
+def is_direct_local_request(peer_host: Optional[str], headers: Mapping[str, str]) -> bool:
+    """From a program on this PC - not relayed by a local proxy (tailscale
+    serve connects from 127.0.0.1 on behalf of the phone)."""
+    return is_loopback(peer_host) and not any(name in headers for name in _PROXY_HEADERS)
 
 
 def _hostname(value: str) -> str:
@@ -67,7 +78,7 @@ def is_trusted_local_browser_request(peer_host: Optional[str], headers: Mapping[
     same-site fetch from an allowed origin. Browsers set Sec-Fetch-Site
     themselves; page scripts cannot forge it.
     """
-    if not is_loopback(peer_host) or not host_header_is_local(headers):
+    if not is_direct_local_request(peer_host, headers) or not host_header_is_local(headers):
         return False
     fetch_site = headers.get("sec-fetch-site")
     if fetch_site is not None and fetch_site not in ("same-origin", "same-site", "none"):

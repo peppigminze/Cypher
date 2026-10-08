@@ -7,6 +7,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api import frontend as frontend_api
+from app.api import system as system_api
 from app.api import (
     chat,
     health,
@@ -46,7 +48,7 @@ def _check_tokens(settings) -> None:
     any more - app/security/tokens.py generates a random token instead - so
     they are only reported. What remains dangerous is a *weak* token (short
     value typed into .env) while the API is reachable beyond this PC
-    (Tailscale/LAN, see TAILSCALE.md): that combination refuses to start.
+    (Tailscale/LAN, see docs/MOBILE.md): that combination refuses to start.
 
     Only sees the real bind address when started via run.py (which reads
     API_HOST); a hand-typed `uvicorn --host ...` bypasses this check.
@@ -137,8 +139,16 @@ app.include_router(speak.router)
 app.include_router(usage.router)
 app.include_router(security_api.router)
 app.include_router(voice_ws.router)
+app.include_router(system_api.router)
 
+# Last: the web app catches every remaining GET path (single-page app),
+# including "/" - http://127.0.0.1:8000 opens Cypher. Without a built
+# frontend, "/" just says the backend is running.
+_frontend = frontend_api.build_router(settings)
+if _frontend is not None:
+    app.include_router(_frontend)
+else:
 
-@app.get("/")
-def root() -> dict:
-    return {"name": "Cypher Backend", "status": "running", "version": APP_VERSION}
+    @app.get("/")
+    def root() -> dict:
+        return {"name": "Cypher Backend", "status": "running", "version": APP_VERSION}

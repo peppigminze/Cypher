@@ -5,6 +5,11 @@ def test_health(client):
 
 
 def test_root(client):
+    from app import main
+
     resp = client.get("/")
     assert resp.status_code == 200
-    assert resp.json()["status"] == "running"
+    if main._frontend is None:  # frontend not built: backend info
+        assert resp.json()["status"] == "running"
+    else:  # built: "/" is the web app
+        assert "text/html" in resp.headers["content-type"]

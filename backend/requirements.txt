@@ -25,6 +25,9 @@ winrt-Windows.Foundation.Collections>=3.0; sys_platform == "win32"
 # Cloud LLM (OpenAI Responses API, optional - only used when CLOUD_LLM_ENABLED=true)
 openai>=3.26,<4
 
+# QR code for pairing the phone ("Handy koppeln" panel) - pure Python, BSD-3-Clause
+segno>=1.6,<2
+
 # --- tests ---
 pytest>=8.3.3
 pytest-asyncio>=0.24.0

@@ -14,10 +14,12 @@ from __future__ import annotations
 
 from typing import Optional
 
+import segno
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from app.auth import require_user
 from app.config import get_settings
+from app.ops import tailscale
 from app.security.origin import is_trusted_local_browser_request
 from app.security.rate_limit import rate_limit
 from app.security.tokens import get_tokens
@@ -48,15 +50,31 @@ def auth_session(request: Request) -> dict:
 
 @router.get("/api/auth/pairing", dependencies=[Depends(rate_limit("auth_session"))])
 def auth_pairing(request: Request) -> dict:
+    """Everything the PC's "Handy koppeln" panel shows. The phone opens the
+    link (or scans its QR code) once; the token then stays on the phone."""
     _require_local(request)
     settings = get_settings()
     token = get_tokens().user_token
-    hosts = [] if settings.is_localhost_only else [settings.API_HOST]
+    https_url = tailscale.serve_url(settings.API_PORT)
+    links = []
+    if https_url:
+        links.append({"url": f"{https_url}/#pair={token}", "kind": "tailscale", "microphone": True})
+    if not settings.is_localhost_only:
+        links.append({"url": f"http://{settings.API_HOST}:{settings.API_PORT}/#pair={token}", "kind": "direct", "microphone": False})
     return {
         "token": token,
-        "links": [f"http://{h}:{settings.API_PORT}/#pair={token}" for h in hosts],
-        "note": "Für Mikrofonzugriff auf dem Handy wird HTTPS benötigt (siehe docs/MOBILE.md).",
+        "links": links,
+        "qr": _qr_data_uri(links[0]["url"]) if links else None,
+        "tailscale": {"installed": tailscale.cli_path() is not None, "url": https_url},
+        "serve_command": f"tailscale serve --bg {settings.API_PORT}",
+        "note": "Fürs Mikrofon braucht das Handy HTTPS - am einfachsten mit 'tailscale serve' (docs/MOBILE.md).",
     }
+
+
+def _qr_data_uri(text: str) -> str:
+    # Dark modules on white with a quiet zone: phone cameras need the contrast,
+    # whatever colour scheme the UI uses.
+    return segno.make(text, error="m").svg_data_uri(scale=5, border=4, dark="#000000", light="#ffffff")
 
 
 @router.get("/api/auth/check")

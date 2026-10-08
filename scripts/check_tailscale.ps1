@@ -1,4 +1,4 @@
-# Diagnostic check for the Tailscale setup described in TAILSCALE.md -
+# Diagnostic check for the Tailscale setup described in docs/MOBILE.md -
 # does NOT install or configure anything, only reports the current
 # state so you know what (if anything) is still missing:
 #   1. is the Tailscale client installed on this machine
@@ -57,13 +57,8 @@ if ([string]::IsNullOrWhiteSpace($ip4)) {
 
 Write-Output "[OK] This machine's Tailscale IPv4 address: $ip4"
 Write-Output ""
-Write-Output "Next steps (see TAILSCALE.md for details):"
-Write-Output "  1. In the project's .env, set:"
-Write-Output "       API_HOST=$ip4"
-Write-Output "  2. Add this machine's frontend origin to CORS_ORIGINS in .env,"
-Write-Output "     e.g. http://$ip4:5173"
-Write-Output "  3. Make sure USER_TOKEN/AGENT_TOKEN are real random values, not"
-Write-Output "     the .env.example placeholders - the backend refuses to start"
-Write-Output "     otherwise once API_HOST is set to a non-localhost address."
-Write-Output "  4. Start the backend with: python run.py   (from backend/)"
-Write-Output "  5. On your phone (same tailnet), open http://$ip4:5173 and install the PWA."
+Write-Output "Next steps (see docs/MOBILE.md for details):"
+Write-Output "  1. Tailscale admin console -> DNS: enable MagicDNS and HTTPS Certificates."
+Write-Output "  2. Run once:  tailscale serve --bg 8000"
+Write-Output "  3. Start Cypher (start_cypher.bat), open the menu (M) -> Handy and scan the QR code."
+Write-Output "  The backend stays on 127.0.0.1 - no API_HOST/CORS changes needed."

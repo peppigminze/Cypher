@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryView } from "../MemoryView";
+import { memoryExport } from "../../utils/memoryExport";
 import * as api from "../../services/api";
 
 vi.mock("../../services/api");
@@ -59,5 +60,25 @@ describe("MemoryView (memory editor)", () => {
     await screen.findByText("Silvan hat freitags Berufsschule.");
     await userEvent.type(screen.getByRole("textbox", { name: "Neuer Eintrag" }), "Noch ein Fakt{Enter}");
     expect(await screen.findByRole("alert")).toHaveTextContent("Das Kern-Gedächtnis ist voll.");
+  });
+});
+
+describe("memory export", () => {
+  it("writes both layers as plain text lists with a dated file name", () => {
+    const { name, json } = memoryExport(
+      {
+        core: [{ layer: "core", id: "c1", text: "Ich heisse Silvan" }],
+        archive: [{ layer: "archive", id: "7", text: "Lieblingsessen: Pizza" }],
+        core_used_tokens: 5,
+        core_max_tokens: 400,
+      },
+      new Date("2026-10-08T12:00:00Z")
+    );
+    expect(name).toBe("cypher-gedaechtnis-2026-10-08.json");
+    expect(JSON.parse(json)).toEqual({
+      exported_at: "2026-10-08T12:00:00.000Z",
+      core: ["Ich heisse Silvan"],
+      archive: ["Lieblingsessen: Pizza"],
+    });
   });
 });

@@ -5,6 +5,7 @@ import { ProjectsView } from "../ProjectsView";
 import { SettingsView } from "../SettingsView";
 import { TasksView } from "../TasksView";
 import { AuditPanel } from "./AuditPanel";
+import { DevicesPanel } from "./DevicesPanel";
 import { DiagnosticsPanel } from "./DiagnosticsPanel";
 import { LogsPanel } from "./LogsPanel";
 import { MENU_SECTIONS, type MenuSection } from "./menuSections";
@@ -19,6 +20,8 @@ function content(section: MenuSection): ReactNode {
       return <TasksView />;
     case "projects":
       return <ProjectsView />;
+    case "devices":
+      return <DevicesPanel />;
     case "diagnostics":
       return <DiagnosticsPanel />;
     case "audit":

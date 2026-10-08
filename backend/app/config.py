@@ -104,11 +104,6 @@ class Settings(BaseSettings):
     USER_TOKEN: str = "change-me-user-token"
     AGENT_TOKEN: str = "change-me-agent-token"
 
-    # --- Legacy PC agent process (agent/run_agent.py) ---------------------
-    BACKEND_BASE_URL: str = "http://localhost:8000"
-    AGENT_POLL_INTERVAL_SECONDS: float = Field(5.0, gt=0)
-    AGENT_HEARTBEAT_INTERVAL_SECONDS: float = Field(15.0, gt=0)
-
     # --- PC control tools -----------------------------------------------
     ALLOWED_DIRECTORIES: str = ""
     TERMINAL_TIMEOUT_SECONDS: float = Field(30.0, gt=0, le=600)
@@ -241,6 +236,14 @@ class Settings(BaseSettings):
 
     # --- Local data (memory, notes, secrets, backups) --------------------
     DATA_DIR: str = "data"
+    # Where backup_cypher.bat writes its zip files (relative = project root).
+    BACKUP_DIR: str = "backups"
+
+    # --- Web app served by the backend (M7) ---------------------------------
+    # One address for everything: the built frontend (npm run build) is
+    # served at / next to the API. Off = API only (e.g. Vite dev server).
+    SERVE_FRONTEND: bool = True
+    FRONTEND_DIST: str = "frontend/dist"
 
     # --- Memory (M4) -----------------------------------------------------
     # Core memory (data/core_memory.json) is always in the system prompt:
@@ -263,7 +266,7 @@ class Settings(BaseSettings):
             raise ValueError("muss eine SQLAlchemy-URL sein, z. B. sqlite:///./jarvis.db")
         return v
 
-    @field_validator("LOCAL_LLM_BASE_URL", "CLOUD_LLM_BASE_URL", "BACKEND_BASE_URL")
+    @field_validator("LOCAL_LLM_BASE_URL", "CLOUD_LLM_BASE_URL")
     @classmethod
     def _check_http_url(cls, v: str) -> str:
         if not re.match(r"^https?://[^\s/]+", v):
@@ -386,6 +389,14 @@ class Settings(BaseSettings):
     @property
     def data_dir_path(self) -> Path:
         return _resolve_project_path(self.DATA_DIR)
+
+    @property
+    def backup_dir_path(self) -> Path:
+        return _resolve_project_path(self.BACKUP_DIR)
+
+    @property
+    def frontend_dist_path(self) -> Path:
+        return _resolve_project_path(self.FRONTEND_DIST)
 
     @property
     def is_localhost_only(self) -> bool:

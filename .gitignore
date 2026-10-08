@@ -45,3 +45,6 @@ logs/
 
 # --- Local runtime data (memory, notes, secrets, backups) ---
 /data/
+
+# --- Backups (contain memory, notes and the access token) ---
+/backups/

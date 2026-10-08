@@ -331,3 +331,29 @@ export async function getLogs(level = "INFO", limit = 300): Promise<LogEntry[]> 
   const data = await request<{ entries: LogEntry[] }>(`/api/logs?limit=${limit}&level=${encodeURIComponent(level)}`);
   return data.entries;
 }
+
+// ------------------------------------------------------------------ Pairing (phone)
+
+export interface PairingLink {
+  url: string;
+  /** "tailscale" = https via `tailscale serve`, "direct" = http to API_HOST */
+  kind: "tailscale" | "direct";
+  /** Browsers only allow the microphone over HTTPS. */
+  microphone: boolean;
+}
+
+export interface PairingInfo {
+  token: string;
+  links: PairingLink[];
+  /** QR code of the first link as an SVG data URI (null without a link). */
+  qr: string | null;
+  tailscale: { installed: boolean; url: string | null };
+  /** e.g. "tailscale serve --bg 8000" */
+  serve_command: string;
+  note: string;
+}
+
+/** Only answers on the PC itself (403 elsewhere, e.g. on the phone). */
+export async function getPairing(): Promise<PairingInfo> {
+  return request<PairingInfo>("/api/auth/pairing");
+}

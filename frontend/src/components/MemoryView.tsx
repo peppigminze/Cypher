@@ -9,6 +9,7 @@ import {
   type MemoryLayer,
   type MemoryOverview,
 } from "../services/api";
+import { memoryExport } from "../utils/memoryExport";
 
 /**
  * Memory editor (M4): everything Cypher remembers, editable and deletable.
@@ -20,6 +21,17 @@ import {
  *
  * Moving an entry between the two is "anpinnen" / "ins Archiv".
  */
+
+function downloadMemory(data: MemoryOverview): void {
+  const { name, json } = memoryExport(data);
+  const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export function MemoryView() {
   const [data, setData] = useState<MemoryOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -232,6 +244,16 @@ export function MemoryView() {
               }}
             >
               Verlauf löschen
+            </button>
+          </section>
+
+          <section className="memory-section">
+            <h2>Exportieren</h2>
+            <p className="memory-section__hint">
+              Alles, was Cypher über dich weiss, als Datei. Ein komplettes Backup (inkl. Notizen und Verlauf) macht backup_cypher.bat.
+            </p>
+            <button type="button" className="icon-btn" onClick={() => downloadMemory(data)}>
+              Als JSON herunterladen
             </button>
           </section>
         </>
