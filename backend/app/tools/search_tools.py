@@ -57,10 +57,9 @@ _SKIP_DIR_NAMES = {
 class FindFilesTool(Tool):
     name = "find_files"
     description = (
-        "Search for files by filename (case-insensitive substring match) across the "
-        "configured search directories (SEARCH_DIRECTORIES in .env, defaults to the "
-        "user's home directory). Read-only: returns path/filename/last-modified only, "
-        "never file content."
+        "Dateien auf dem PC nach einem Wort im Dateinamen suchen (z. B. 'Bewerbung', "
+        "'Präsentation'). Für 'wo ist meine ...', 'such meine ...', 'ich finde ... nicht'. "
+        "Liefert nur Pfad, Name und Änderungsdatum, nie den Inhalt."
     )
     parameters = {
         "type": "object",

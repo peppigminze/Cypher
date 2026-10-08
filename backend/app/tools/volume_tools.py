@@ -75,7 +75,8 @@ class SetVolumeTool(Tool):
     name = "set_volume"
     description = (
         "Systemlautstärke ändern: absolut in Prozent (level), relativ lauter/leiser (direction up/down) "
-        "oder stumm schalten (mute). Für 'mach die Musik leiser' ist das das richtige Tool."
+        "oder stumm schalten (mute). Für 'mach die Musik leiser' ist das das richtige Tool, "
+        "auch bei 'das ist zu laut' (direction down) oder 'ich hör nichts' (direction up)."
     )
     Args = SetVolumeArgs
     risk = RiskTier.CONTROL

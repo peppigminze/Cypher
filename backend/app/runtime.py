@@ -108,7 +108,8 @@ def _warmup_prompts() -> list:
 
     registry = build_registry()
     tools = to_openai_tools(registry, exposed_tool_names(registry=registry))
-    return [([{"role": "system", "content": system_prompt(source)}, {"role": "user", "content": "Hallo"}], tools) for source in ("text", "voice")]
+    prompts = dict.fromkeys(system_prompt(source) for source in ("voice", "text"))  # identical today -> one warm-up
+    return [([{"role": "system", "content": prompt}, {"role": "user", "content": "Hallo"}], tools) for prompt in prompts]
 
 
 _runtime: Optional[Runtime] = None

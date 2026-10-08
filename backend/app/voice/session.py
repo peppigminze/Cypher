@@ -123,6 +123,11 @@ class VoiceSession:
         self._queued_notices: List[str] = []
         # Speculative work started at a short pause: (voiced_frames, task).
         self._speculative: Optional[tuple] = None
+        # What the user really heard of the current answer (audio sent), for
+        # an honest history on barge-in; progress phrases are not part of it.
+        self._turn_engine: Optional[ConversationEngine] = None
+        self._heard: List[str] = []
+        self._progress_texts: set[str] = set()
         # One lock for all outbound frames: an audio header and its binary
         # frame must arrive back to back.
         self._send_lock = asyncio.Lock()
@@ -349,7 +354,9 @@ class VoiceSession:
         result = await self.wake.detect(event.audio)
         if not result.detected:
             return
-        if self._is_echo(result.transcript):
+        # Compare what follows the wake phrase: "Hey Cypher, stopp" must
+        # interrupt even if Cypher itself just said "Hey Cypher".
+        if self._is_echo(result.remainder or result.transcript):
             logger.info("Ignored wake word that echoes Cypher's own speech: %r", result.transcript)
             return
         await self.interrupt("wake_word", quiet=True)
@@ -369,7 +376,9 @@ class VoiceSession:
             return False
         for _, spoken in self._spoken_recently:
             said = _norm(spoken)
-            if heard in said or SequenceMatcher(None, heard, said).find_longest_match(0, len(heard), 0, len(said)).size >= max(8, int(len(heard) * 0.6)):
+            # Very short answers ("ja") are never treated as echo: they would
+            # match inside almost any sentence Cypher just said.
+            if (len(heard) >= 6 and heard in said) or SequenceMatcher(None, heard, said).find_longest_match(0, len(heard), 0, len(said)).size >= max(8, int(len(heard) * 0.6)):
                 return True
         return False
 
@@ -431,13 +440,14 @@ class VoiceSession:
         await self._send({"type": "transcript", "text": text, "turn_id": self.turn_id, "stt_ms": int((stt_seconds or 0) * 1000)})
         await self._set_state("thinking")
         engine = self.engine_factory()
+        self._turn_engine, self._heard = engine, []
         self._turn_task = asyncio.create_task(self._run_engine(engine.run_turn(self.conversation_id, text, source="voice")))
 
     async def _run_engine(self, events) -> None:
         pipeline_id_var.set(f"{self.session_id}-{self.turn_id}")
         turn = self.turn_id
         self._sentences = asyncio.Queue()
-        self._tts_task = asyncio.create_task(self._tts_worker(turn, self._sentences))
+        self._tts_task = asyncio.create_task(self._tts_worker(turn, self._sentences, record_heard=True))
         approval_pending = False
         try:
             async for event in events:
@@ -446,6 +456,8 @@ class VoiceSession:
                 if isinstance(event, TextDelta):
                     await self._send({"type": "reply_delta", "text": event.text, "turn_id": turn})
                 elif isinstance(event, Sentence):
+                    if event.index < 0:
+                        self._progress_texts.add(event.text)
                     if self._t0 is not None and "first_sentence" not in self._turn_metrics:
                         self._turn_metrics["first_sentence"] = round(time.perf_counter() - self._t0, 3)
                     await self._sentences.put(event.text)
@@ -475,12 +487,15 @@ class VoiceSession:
             await self._send({"type": "error", "turn_id": turn, **err.to_dict()})
             await self._sentences.put(err.spoken)
         finally:
+            # Close the engine's generator NOW (also on barge-in/cancel), so it
+            # records the interrupted answer in the history immediately.
+            await events.aclose()
             await self._sentences.put(None)
         await self._tts_task
         if turn == self.turn_id:
             await self._finish_turn(turn, confirming=approval_pending)
 
-    async def _tts_worker(self, turn: int, queue: "asyncio.Queue[Optional[str]]") -> None:
+    async def _tts_worker(self, turn: int, queue: "asyncio.Queue[Optional[str]]", record_heard: bool = False) -> None:
         seq = 0
         while True:
             sentence = await queue.get()
@@ -503,6 +518,8 @@ class VoiceSession:
                     await self._set_state("speaking")
             self._spoken_recently.append((time.monotonic(), sentence))
             await self._send({"type": "audio", "turn_id": turn, "seq": seq, "sample_rate": audio.sample_rate, "bytes": len(audio.pcm16), "text": sentence}, binary=audio.pcm16)
+            if record_heard and sentence not in self._progress_texts:
+                self._heard.append(sentence)
             seq += 1
             self._audio_out_seconds += audio.seconds
             self._playback_expected_until = max(self._playback_expected_until, time.monotonic()) + audio.seconds
@@ -528,9 +545,12 @@ class VoiceSession:
         if self.state not in ("thinking", "speaking", "confirming") and self._turn_task is None:
             return
         logger.info("Interrupt (%s) in state %s", reason, self.state)
-        old_turn = self.turn_id
+        old_turn, was = self.turn_id, self.state
         self.turn_id += 1  # stale events/audio of the old turn are dropped
         await self._cancel_turn()
+        if self._turn_engine is not None and was in ("thinking", "speaking"):
+            self._turn_engine.store.get(self.conversation_id).mark_interrupted(" ".join(self._heard))
+        self._turn_engine = None
         self._pending_approval = None
         await self._send({"type": "audio_stop", "turn_id": old_turn, "reason": reason})
         self.endpointer.reset()
@@ -567,6 +587,7 @@ class VoiceSession:
         await self._send({"type": "approval_resolved", "approval_id": approval_id, "approved": approved, "via": via})
         await self._set_state("thinking")
         engine = self.engine_factory()
+        self._turn_engine, self._heard = engine, []
         self._turn_task = asyncio.create_task(self._run_engine(engine.resume(approval, approved)))
 
     # ================================================================ background

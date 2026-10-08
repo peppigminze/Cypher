@@ -24,6 +24,9 @@ Design points:
     number of LLM steps per turn is capped (AGENT_MAX_STEPS).
   * Date/time travels with the user message, so the system prompt stays
     byte-identical and Ollama's prompt cache keeps hitting.
+  * Short media/volume commands ("Pause.", "Leiser.") skip the LLM
+    (app/agent/quick_commands.py); "claimed but not done" answers are caught
+    by app/agent/action_guard.py.
 """
 from __future__ import annotations
 
@@ -31,9 +34,12 @@ import json
 import logging
 import time
 import uuid
+from contextlib import aclosing
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
+from app.agent.action_guard import NOT_DONE_REPLY, RETRY_HINT, claims_action, looks_like_action_request
+from app.agent.quick_commands import QuickCommand, match_quick_command
 from app.config import Settings, get_settings
 from app.core import errors
 from app.core.context import pipeline_id_var
@@ -55,6 +61,7 @@ logger = logging.getLogger("cypher.agent.engine")
 REJECTED_REPLY = "Okay, ich habe es nicht ausgeführt."
 STEP_LIMIT_REPLY = "Ich konnte die Anfrage nicht innerhalb des Schritt-Limits abschließen."
 INTERRUPTED_MARK = " … [vom Nutzer unterbrochen]"
+_INTERRUPTED_BEFORE_ANSWER = "[vom Nutzer unterbrochen, bevor ich antworten konnte]"
 _HISTORY_TOOL_RESULT_CHARS = 600
 
 
@@ -147,6 +154,18 @@ class Conversation:
                 start = i
         return self.messages[start:]
 
+    def mark_interrupted(self, heard: str) -> None:
+        """Barge-in while Cypher was speaking: the history should hold what
+        the user actually heard, not the whole generated answer - otherwise
+        the next turn assumes they know things they never heard."""
+        if not self.messages:
+            return
+        last = self.messages[-1]
+        if last["role"] != "assistant" or last.get("tool_calls"):
+            return
+        heard = heard.strip()
+        self.messages[-1] = {"role": "assistant", "content": (heard + INTERRUPTED_MARK) if heard else _INTERRUPTED_BEFORE_ANSWER}
+
     def compact_tool_results(self) -> None:
         """Long tool results (web pages, files) are only needed in the turn
         that fetched them; keep a short version in the history."""
@@ -228,11 +247,21 @@ class ConversationEngine:
         self._spoke_this_turn = False
         conv = self.store.get(conversation_id)
         user_msg = {"role": "user", "content": f"{time_context()}\n{user_text.strip()}"}
+        ctx = ToolContext(db=db, provider=self.provider_name, source=source, conversation_id=conversation_id, user_message=user_text)
+        quick = self._quick_command(user_text, ctx)
+        if quick is not None:
+            async for event in self._run_quick(conv, user_msg, quick, ctx):
+                yield event
+            return
         messages = [{"role": "system", "content": system_prompt(source)}] + conv.window(self.settings.HISTORY_MAX_TOKENS) + [user_msg]
         new_messages: List[Dict[str, Any]] = [user_msg]
-        ctx = ToolContext(db=db, provider=self.provider_name, source=source, conversation_id=conversation_id, user_message=user_text)
-        async for event in self._loop(conv, messages, new_messages, ctx, start_step=1, seen_calls=set()):
-            yield event
+        guard = looks_like_action_request(user_text)
+        # aclosing: if the caller stops early (barge-in), the inner loop's
+        # finally block - which writes the interrupted turn to the history -
+        # runs right now, not whenever the garbage collector gets to it.
+        async with aclosing(self._loop(conv, messages, new_messages, ctx, start_step=1, seen_calls=set(), guard=guard)) as events:
+            async for event in events:
+                yield event
 
     async def resume(self, approval: pending_approvals.PendingApproval, approved: bool, *, db: Any = None) -> AsyncIterator[EngineEvent]:
         conv = self.store.get(approval.conversation_id or f"oneshot-{approval.approval_id}")
@@ -259,42 +288,86 @@ class ConversationEngine:
         seen = {(approval.tool_name, json.dumps(approval.arguments, sort_keys=True))}
         if approval.remaining_calls:
             calls = [ToolCall(c["id"], c["name"], c["arguments"], c.get("raw")) for c in approval.remaining_calls]
-            async for event in self._run_calls(conv, messages, new_messages, ctx, calls, approval.steps_used, seen):
-                if isinstance(event, ApprovalRequired):
+            async with aclosing(self._run_calls(conv, messages, new_messages, ctx, calls, approval.steps_used, seen)) as events:
+                async for event in events:
                     yield event
-                    return
+                    if isinstance(event, ApprovalRequired):
+                        return
+        async with aclosing(self._loop(conv, messages, new_messages, ctx, start_step=approval.steps_used + 1, seen_calls=seen)) as events:
+            async for event in events:
                 yield event
-        async for event in self._loop(conv, messages, new_messages, ctx, start_step=approval.steps_used + 1, seen_calls=seen):
-            yield event
+
+    # -------------------------------------------------------------- quick commands
+    def _quick_command(self, user_text: str, ctx: ToolContext) -> Optional[QuickCommand]:
+        quick = match_quick_command(user_text)
+        if quick is None or quick.tool not in self.tool_names:
+            return None
+        plan = self.executor.plan(quick.tool, quick.arguments, ctx)
+        if plan.error or plan.needs_approval:
+            return None  # let the LLM path (with approval card) handle it
+        return quick
+
+    async def _run_quick(self, conv: Conversation, user_msg: Dict[str, Any], quick: QuickCommand, ctx: ToolContext) -> AsyncIterator[EngineEvent]:
+        started = time.perf_counter()
+        plan = self.executor.plan(quick.tool, quick.arguments, ctx)
+        yield ToolStarted(quick.tool, plan.summary or quick.tool)
+        result = await self.executor.execute(quick.tool, quick.arguments, ctx=ctx)
+        yield ToolFinished(quick.tool, plan.arguments, result.success, plan.summary or quick.tool, result.data, result.error)
+        reply = quick.reply if result.success else f"Hat nicht geklappt: {result.error}"
+        elapsed = round(time.perf_counter() - started, 3)
+        yield TextDelta(reply)
+        yield Sentence(reply, 0)
+        self._commit(conv, [user_msg], partial_reply=reply)
+        yield TurnDone(reply=reply, steps_used=0, metrics={"quick_command": 1.0, "first_sentence": elapsed, "total": elapsed})
 
     # -------------------------------------------------------------- internals
-    async def _loop(self, conv: Conversation, messages, new_messages, ctx: ToolContext, *, start_step: int, seen_calls: set) -> AsyncIterator[EngineEvent]:
+    async def _loop(self, conv: Conversation, messages, new_messages, ctx: ToolContext, *, start_step: int, seen_calls: set, guard: bool = False) -> AsyncIterator[EngineEvent]:
+        """`guard`: the user asked for an action - hold the first answer back
+        until it is clear whether the model called a tool (action_guard.py)."""
         tools = to_openai_tools(self.registry, self.tool_names)
         started = time.perf_counter()
         turn_metrics: Dict[str, float] = {}
         sentence_index = 0
         spoken_parts: List[str] = []
         committed = False
+        hinted = False
+
+        def emit(kind: str, text: str) -> EngineEvent:
+            nonlocal sentence_index
+            if kind == "delta":
+                return TextDelta(text)
+            if "first_sentence" not in turn_metrics:
+                turn_metrics["first_sentence"] = round(time.perf_counter() - started, 3)
+            spoken_parts.append(text)
+            self._spoke_this_turn = True
+            event = Sentence(text, sentence_index)
+            sentence_index += 1
+            return event
+
         try:
             for step in range(start_step, self.settings.AGENT_MAX_STEPS + 1):
                 splitter = SentenceSplitter()
                 text_parts: List[str] = []
                 calls: List[ToolCall] = []
+                held: List[tuple] = []
+                call_messages = messages
+                if hinted:
+                    # The hint only goes into this one request, never into the history.
+                    last = messages[-1]
+                    call_messages = messages[:-1] + [{**last, "content": f"{last['content']}\n{RETRY_HINT}"}]
                 call_started = time.perf_counter()
                 try:
-                    async for event in stream_events(self.llm, messages, tools):
+                    async for event in stream_events(self.llm, call_messages, tools):
                         if isinstance(event, LLMTextDelta):
                             if "llm_first_token" not in turn_metrics:
                                 turn_metrics["llm_first_token"] = round(time.perf_counter() - started, 3)
                             text_parts.append(event.text)
-                            yield TextDelta(event.text)
-                            for sentence in splitter.push(event.text):
-                                if "first_sentence" not in turn_metrics:
-                                    turn_metrics["first_sentence"] = round(time.perf_counter() - started, 3)
-                                spoken_parts.append(sentence)
-                                self._spoke_this_turn = True
-                                yield Sentence(sentence, sentence_index)
-                                sentence_index += 1
+                            pieces = [("delta", event.text)] + [("sentence", s) for s in splitter.push(event.text)]
+                            if guard:
+                                held.extend(pieces)
+                            else:
+                                for kind, text in pieces:
+                                    yield emit(kind, text)
                         elif isinstance(event, ToolCallEvent):
                             calls.append(event.call)
                         elif isinstance(event, StreamDone):
@@ -309,13 +382,29 @@ class ConversationEngine:
                 turn_metrics.setdefault("llm_calls", 0)
                 turn_metrics["llm_calls"] += 1
                 turn_metrics[f"llm_call_{step}"] = round(time.perf_counter() - call_started, 3)
-                for sentence in splitter.flush():
-                    if "first_sentence" not in turn_metrics:
-                        turn_metrics["first_sentence"] = round(time.perf_counter() - started, 3)
-                    spoken_parts.append(sentence)
-                    self._spoke_this_turn = True
-                    yield Sentence(sentence, sentence_index)
-                    sentence_index += 1
+                tail = [("sentence", s) for s in splitter.flush()]
+                if guard:
+                    held.extend(tail)
+                    if not calls and claims_action("".join(text_parts)):
+                        # "Notiz gespeichert." without save_note: held back, never spoken.
+                        logger.warning("Model claimed an action without calling a tool%s: %r", " (again)" if hinted else "", "".join(text_parts)[:160])
+                        turn_metrics["guard_retries"] = turn_metrics.get("guard_retries", 0) + 1
+                        if not hinted:
+                            hinted = True
+                            continue
+                        self._commit(conv, new_messages, partial_reply=NOT_DONE_REPLY, text_only=self._text_only_turn)
+                        committed = True
+                        yield emit("delta", NOT_DONE_REPLY)
+                        yield emit("sentence", NOT_DONE_REPLY)
+                        turn_metrics["total"] = round(time.perf_counter() - started, 3)
+                        yield TurnDone(reply=NOT_DONE_REPLY, steps_used=step, metrics=turn_metrics)
+                        return
+                    guard = False
+                    for kind, text in held:
+                        yield emit(kind, text)
+                else:
+                    for kind, text in tail:
+                        yield emit(kind, text)
 
                 assistant_msg: Dict[str, Any] = {"role": "assistant", "content": "".join(text_parts)}
                 if calls:
@@ -331,16 +420,17 @@ class ConversationEngine:
                     yield TurnDone(reply=reply, steps_used=step, metrics=turn_metrics)
                     return
 
-                async for event in self._run_calls(conv, messages, new_messages, ctx, calls, step, seen_calls):
-                    if isinstance(event, ApprovalRequired):
-                        committed = True
+                async with aclosing(self._run_calls(conv, messages, new_messages, ctx, calls, step, seen_calls)) as call_events:
+                    async for event in call_events:
+                        if isinstance(event, ApprovalRequired):
+                            committed = True
+                            yield event
+                            return
                         yield event
-                        return
-                    yield event
 
             self._commit(conv, new_messages, partial_reply=STEP_LIMIT_REPLY, text_only=self._text_only_turn)
             committed = True
-            yield Sentence(STEP_LIMIT_REPLY, sentence_index)
+            yield emit("sentence", STEP_LIMIT_REPLY)
             yield TurnDone(reply=STEP_LIMIT_REPLY, steps_used=self.settings.AGENT_MAX_STEPS, metrics=turn_metrics)
         finally:
             if not committed:
@@ -421,7 +511,7 @@ class ConversationEngine:
             else:
                 msgs.append({"role": "assistant", "content": partial_reply})
         if interrupted and msgs and msgs[-1]["role"] == "user":
-            msgs.append({"role": "assistant", "content": "[vom Nutzer unterbrochen, bevor ich antworten konnte]"})
+            msgs.append({"role": "assistant", "content": _INTERRUPTED_BEFORE_ANSWER})
         conv.messages.extend(msgs)
         conv.compact_tool_results()
         conv.updated_at = time.time()

@@ -83,7 +83,10 @@ class SentenceSplitter:
             if token.isdigit():
                 # "1. Oktober" / "3. Platz": an ordinal, not the end of a sentence.
                 after = buf[punct_index + 1 :].lstrip()
-                return bool(after) and (after[0].isdigit() or after[0].islower() or after.split(" ")[0] in _MONTHS)
+                first_word = after.split(" ")[0]
+                if " " not in after and any(month.startswith(first_word) for month in _MONTHS):
+                    return True  # "1. Okt" while streaming: wait for the whole word
+                return bool(after) and (after[0].isdigit() or after[0].islower() or first_word in _MONTHS)
         return False
 
 

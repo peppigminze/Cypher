@@ -124,7 +124,10 @@ class CancelTimerArgs(ArgsModel):
 @register_tool
 class CancelTimerTool(Tool):
     name = "cancel_timer"
-    description = "Einen laufenden Timer abbrechen (per ID oder Bezeichnung; ohne Angabe: alle Timer)."
+    description = (
+        "Laufende Timer/Erinnerungen abbrechen. Ohne Argumente werden alle laufenden Timer abgebrochen - "
+        "einfach aufrufen, das Tool weiss selbst, welche Timer laufen."
+    )
     Args = CancelTimerArgs
     risk = RiskTier.CONTROL
     exposed_by_default = True

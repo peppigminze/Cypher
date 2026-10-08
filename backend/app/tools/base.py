@@ -147,7 +147,9 @@ def _clean_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
             return [strip(x) for x in node]
         if not isinstance(node, dict):
             return node
-        node = {k: strip(v) for k, v in node.items() if k != "title"}
+        # "title" is pydantic's annotation - except inside "properties", where
+        # it can be a real argument name (save_note's "title" vanished once).
+        node = {k: ({name: strip(sub) for name, sub in v.items()} if k == "properties" and isinstance(v, dict) else strip(v)) for k, v in node.items() if k != "title"}
         any_of = node.get("anyOf")
         if isinstance(any_of, list):
             non_null = [x for x in any_of if not (isinstance(x, dict) and x.get("type") == "null")]
