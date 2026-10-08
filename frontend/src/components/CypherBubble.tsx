@@ -1,85 +1,65 @@
 import { useEffect, useRef } from "react";
-import type { CypherVoiceState } from "../hooks/useCypherVoiceState";
+import type { BubbleState } from "../hooks/voiceReducer";
 
 interface Props {
-  state: CypherVoiceState;
-  micStream: MediaStream | null;
+  state: BubbleState;
+  /** 0..1 loudness, polled every animation frame (mic or Cypher's voice). */
+  getLevel: () => number;
   onClick: () => void;
+  label: string;
   disabled?: boolean;
 }
 
 const BAR_COUNT = 28;
 const BAR_INDICES = Array.from({ length: BAR_COUNT }, (_, i) => i);
+const REACTIVE: BubbleState[] = ["listening", "wake", "speaking", "confirming"];
 
 /**
- * The large, full-screen focal point of the voice UI (see
- * CypherVoiceView.tsx). Deliberately a new component rather than an
- * extension of VoiceOrb.tsx (the small mic button in ChatView's
- * composer) - different size, an extra "thinking" state, and a live
- * microphone waveform this component owns end to end. Keeping them
- * separate means this can't affect the existing chat composer's voice
- * button.
+ * The full-screen focal point of the voice UI. Audio-reactive: the level
+ * comes from the voice session (mic while listening, Cypher's own voice
+ * while speaking) and is applied by direct DOM writes in a
+ * requestAnimationFrame loop - React state at 60 fps would re-render the
+ * whole view every frame for nothing.
  *
- * The listening-state waveform bars are updated via direct DOM
- * mutation in a requestAnimationFrame loop (not React state) - at
- * ~60fps that would otherwise mean 28 state updates/re-renders per
- * frame for no visual benefit.
- *
- * "confirming" (a paused write_file approval - see
- * useCypherVoiceState.ts) gets its own amber pulse, distinct from
- * thinking's tight cyan spin and speaking's slow purple pulse, so a
- * pending confirmation is readable at a glance. Tapping the bubble in
- * this state starts a new recording for a spoken "ja"/"nein" answer;
- * the visible Ja/Nein buttons (CypherVoiceView.tsx) are the other way
- * to answer it.
+ * With prefers-reduced-motion the loop doesn't run at all; states stay
+ * distinguishable by colour and label.
  */
-export function CypherBubble({ state, micStream, onClick, disabled }: Props) {
+export function CypherBubble({ state, getLevel, onClick, label, disabled }: Props) {
+  const rootRef = useRef<HTMLButtonElement | null>(null);
   const barRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const reactive = REACTIVE.includes(state);
 
   useEffect(() => {
-    if (state !== "listening" || !micStream) return;
-
-    const AudioCtxCtor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const audioCtx = new AudioCtxCtor();
-    const source = audioCtx.createMediaStreamSource(micStream);
-    const analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 64;
-    analyser.smoothingTimeConstant = 0.7;
-    source.connect(analyser);
-    const data = new Uint8Array(analyser.frequencyBinCount);
-
-    let rafId: number;
+    const root = rootRef.current;
+    if (!reactive || !root) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    let smoothed = 0;
+    let rafId = 0;
+    let frame = 0;
     const tick = () => {
-      analyser.getByteFrequencyData(data);
+      frame += 1;
+      smoothed = smoothed * 0.7 + getLevel() * 0.3;
+      root.style.setProperty("--level", smoothed.toFixed(3));
       barRefs.current.forEach((bar, i) => {
         if (!bar) return;
-        const value = data[i % data.length] / 255;
-        bar.style.height = `${8 + value * 32}px`;
-        bar.style.opacity = `${0.35 + value * 0.65}`;
+        // A travelling ripple around the ring, scaled by the loudness.
+        const wave = 0.55 + 0.45 * Math.sin(frame / 6 + i * 0.9);
+        const value = smoothed * wave;
+        bar.style.height = `${6 + value * 34}px`;
+        bar.style.opacity = `${0.3 + value * 0.7}`;
       });
       rafId = requestAnimationFrame(tick);
     };
-    tick();
-
+    rafId = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(rafId);
-      source.disconnect();
-      analyser.disconnect();
-      void audioCtx.close();
+      root.style.removeProperty("--level");
     };
-  }, [state, micStream]);
-
-  const label =
-    state === "listening"
-      ? "Aufnahme stoppen"
-      : state === "idle"
-        ? "Sprachaufnahme starten"
-        : state === "confirming"
-          ? 'Antworte "ja" oder "nein", oder nutze die Buttons'
-          : "Cypher ist beschäftigt";
+  }, [reactive, getLevel]);
 
   return (
     <button
+      ref={rootRef}
       type="button"
       className={`cypher-bubble cypher-bubble--${state}`}
       onClick={onClick}
@@ -96,7 +76,7 @@ export function CypherBubble({ state, micStream, onClick, disabled }: Props) {
         <circle className="cypher-bubble__core" cx="50" cy="50" r="25" />
       </svg>
 
-      {state === "listening" && (
+      {reactive && (
         <div className="cypher-bubble__waveform" aria-hidden="true">
           {BAR_INDICES.map((i) => {
             const angle = (360 / BAR_COUNT) * i;

@@ -264,7 +264,7 @@ export async function deleteProject(id: number): Promise<void> {
 }
 
 // ------------------------------------------------------------------ Voice (local STT/TTS + native tool-calling)
-// Powers useCypherVoiceState.ts (frontend/src/components/CypherVoiceView.tsx).
+// Used by the text chat (ChatView); the voice view streams over /api/voice/ws.
 // These three endpoints are separate from /api/messages (see backend
 // app/api/tool_chat.py, transcribe.py, speak.py) - none of them touch the
 // production chat pipeline above.

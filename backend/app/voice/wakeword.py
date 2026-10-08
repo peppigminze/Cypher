@@ -91,6 +91,12 @@ def match_wake_phrase(transcript: str, phrase: str, threshold: float) -> WakeRes
             score = _similarity(candidate, full)
             if score > best_score:
                 best_score, best_end = score, words[width - 1][1]
+    if best_score < threshold and len(words) == 2 and len(words[0][0]) <= 5:
+        # The utterance is just "<short word> Cypher": a misheard "Hey"
+        # ("Karl Cypher.", "Ey Cypher") - but not "Karl Cypher kommt morgen".
+        score = _similarity(phonetic(words[1][0]), core)
+        if score >= threshold:
+            best_score, best_end = score, words[1][1]
     detected = best_score >= threshold
     remainder = transcript[best_end:].strip(" ,.!?;:-–—") if detected else ""
     return WakeResult(detected=detected, score=round(best_score, 3), transcript=transcript, remainder=remainder)

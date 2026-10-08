@@ -31,7 +31,7 @@ from typing import Any, Dict, List, Optional
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from app.agent.action_guard import claims_action  # noqa: E402
+from app.agent.action_guard import NOT_DONE_REPLY, claims_action  # noqa: E402
 from app.agent.engine import ApprovalRequired, ConversationEngine, ConversationStore, Sentence, ToolFinished, ToolStarted, TurnDone, TurnFailed  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.core.log import setup_logging  # noqa: E402
@@ -118,7 +118,8 @@ def evaluate(case: Dict[str, Any], run: CaseRun, registry) -> None:  # noqa: ANN
         # A look-up first is fine ("list_timers" before "cancel_timer").
         hit = next((i for i, name in enumerate(run.tools) if name in accepted), None)
         run.tool_ok = hit is not None
-        run.hallucinated = not run.tools and claims_action(run.reply)
+        # The guard's honest "nicht ausgeführt" is a miss, not a false claim.
+        run.hallucinated = not run.tools and run.reply != NOT_DONE_REPLY and claims_action(run.reply)
         if hit is not None and hit < len(run.call_args):
             run.arguments = run.call_args[hit]
     if run.tool_ok and run.tools and case.get("args"):

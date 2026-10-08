@@ -372,6 +372,15 @@ class ConversationEngine:
                             calls.append(event.call)
                         elif isinstance(event, StreamDone):
                             self._record_usage(ctx, event)
+                            # Backend's own view of this call: model (re)load,
+                            # prompt processing and how much of the prompt was
+                            # NOT served from the prompt cache.
+                            if "load" in event.timings and event.timings["load"] > 0.05:
+                                turn_metrics[f"llm_{step}_load"] = round(event.timings["load"], 3)
+                            if "prompt_eval" in event.timings:
+                                turn_metrics[f"llm_{step}_prefill"] = round(event.timings["prompt_eval"], 3)
+                            if event.usage is not None:
+                                turn_metrics[f"llm_{step}_uncached_tokens"] = event.usage.prompt_tokens - event.usage.cached_prompt_tokens
                 except LLMUnavailableError as exc:
                     err = errors.from_exception(exc)
                     logger.warning("LLM failed in turn: %s", exc)

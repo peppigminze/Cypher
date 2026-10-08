@@ -133,7 +133,7 @@ export interface ToolChatResult {
   pending_confirmation?: PendingConfirmationInfo | null;
   // Which provider actually answered this request (Phase 7) - always
   // present, so the UI can show a Lokal/Cloud indicator without a
-  // separate round-trip. See useCypherVoiceState.ts/CypherVoiceView.tsx.
+  // separate round-trip.
   provider: LlmProviderName;
 }
 

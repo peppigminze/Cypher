@@ -47,7 +47,7 @@ _CLAIM = re.compile(
     r"gespeichert|notiert|aufgeschrieben|vermerkt|gemerkt|vergessen|"
     r"gestellt|eingestellt|gestartet|gesetzt|läuft|"
     r"pausiert|angehalten|gestoppt|fortgesetzt|übersprungen|abgebrochen|"
-    r"leiser|lauter|stumm|reduziert|erhöht|gesenkt|"
+    r"leiser|lauter|stumm|reduziert|erhöht|gesenkt|\w*gedreht|"
     r"kopiert|eingefügt|geöffnet|geschlossen|"
     r"gefunden|nachgesehen|nachgeschaut|geprüft|überprüft|erledigt|gemacht|ausgeführt|mach\s+ich"
     r")\b"

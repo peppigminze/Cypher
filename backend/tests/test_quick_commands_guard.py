@@ -57,7 +57,7 @@ def test_questions_and_chat_do_not_arm_the_guard(text):
 @pytest.mark.parametrize(
     "reply",
     ["Notiz gespeichert: Brot kaufen.", "Timer läuft, zehn Minuten.", "Leiser gestellt.", "Erledigt.", "Text kopiert.", "Ich stell die Lautstärke runter.",
-     "Ich habe keine laufenden Timer gefunden."],
+     "Ich habe keine laufenden Timer gefunden.", "Die Lautstärke wird heruntergedreht."],
 )
 def test_short_success_claims_are_detected(reply):
     assert claims_action(reply)
