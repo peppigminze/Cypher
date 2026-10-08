@@ -1,134 +1,238 @@
 """
-Cloud LLM provider - OpenAI's chat-completions API by default (Phase
-0's automatic-fallback scaffold, project spec sections 8/9), and since
-Phase 7 also the manually-selected provider for the native tool-calling
-pipeline (app/agent/native_tool_agent.py, app/api/tool_chat.py - see
-app/settings_store.py for the runtime local/cloud toggle).
+Cloud LLM provider - OpenAI Responses API via the official SDK (M5).
 
-Speaks the OpenAI-compatible chat-completions format, so it works with
-the real OpenAI API as well as any compatible provider by pointing
-CLOUD_LLM_BASE_URL elsewhere. The API key always comes from
-configuration (.env), never hardcoded, and is never logged - every
-error path below logs only the exception/response, never self.api_key
-or self._headers().
+Checked against the official docs (developers.openai.com, 2026-10-08):
+  * Responses API, not Chat Completions: OpenAI recommends it, and Chat
+    Completions does NOT support function calling with GPT-6 Astra or
+    GPT-6.1 Sol - with Responses every current model can use Cypher's tools.
+  * Tools: {"type": "function", "name", "description", "parameters"}.
+    strict=False because Cypher's schemas have optional parameters
+    (strict mode requires every property to be required).
+  * Tool round trip: the model's {"type": "function_call", call_id, name,
+    arguments} goes back together with {"type": "function_call_output",
+    call_id, output}. For reasoning models the reasoning items of that
+    response must be sent back too.
+  * store=False: OpenAI keeps nothing of Cypher's conversations. Reasoning
+    items are then requested as include=["reasoning.encrypted_content"]
+    and kept here (in memory, per call_id) until the tool result goes back.
+  * Streaming events used: response.output_text.delta, response.output_item.done
+    (function_call / reasoning items), response.completed (usage:
+    input_tokens, input_tokens_details.cached_tokens, output_tokens),
+    response.failed / response.incomplete / error.
+  * reasoning={"effort": ...}: GPT-6 Luna supports "none"; Cypher's default
+    "low" keeps voice answers quick (CLOUD_LLM_REASONING_EFFORT).
+  * No temperature: the reasoning models don't take it.
 
-chat_with_tools() is a thin adapter, not a translation layer: OpenAI's
-API accepts the exact same `tools`/`tool_choice` request shape and
-returns the same `tool_calls` response shape Ollama's OpenAI-compat
-endpoint already uses (see LocalLLMProvider.chat_with_tools) - there is
-no per-provider format difference to bridge here. A provider whose
-native tool-calling format actually differs (e.g. Anthropic's
-content-block `tool_use`) would need a real translation layer instead
-of this pattern.
+The engine keeps its history in the OpenAI chat-message format (role/content,
+tool_calls, role=tool); translate_messages() maps that to Responses input
+items, so nothing else in Cypher knows which API is behind "cloud".
+
+Privacy: everything in the prompt (conversation, memory, tool results)
+leaves the PC when the cloud is used - that's why it is never used without
+an explicit choice (Settings toggle, or "ja" to the fallback question).
 """
 from __future__ import annotations
 
+import json
 import logging
-from typing import Any, Dict, List
+from collections import OrderedDict
+from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 
-import httpx
+import openai
 
-from app.llm.base import ChatMessage, ChatWithToolsResponse, LLMProvider, LLMUnavailableError
+from app.llm.base import (
+    LLMEvent,
+    LLMProvider,
+    LLMResponseError,
+    LLMTimeoutError,
+    LLMUnavailableError,
+    StreamDone,
+    TextDelta,
+    ToolCall,
+    ToolCallEvent,
+    Usage,
+    collect,
+    parse_tool_arguments,
+)
 
 logger = logging.getLogger("cypher.llm.cloud")
+
+# Reasoning items to send back with a tool result, by call_id (bounded).
+_REASONING_FOR_CALL: "OrderedDict[str, List[Dict[str, Any]]]" = OrderedDict()
+_MAX_REMEMBERED_CALLS = 256
+
+
+class CloudNotConfigured(LLMUnavailableError):
+    """Cloud selected, but no API key in .env."""
+
+
+class CloudAuthError(LLMUnavailableError):
+    """The API key was rejected."""
+
+
+class CloudRateLimitError(LLMUnavailableError):
+    """Rate limit or exhausted quota at the cloud provider."""
+
+
+class CloudBudgetExceeded(LLMUnavailableError):
+    """CLOUD_MONTHLY_BUDGET_USD is used up (app/llm/pricing.py)."""
+
+    def __init__(self, spent_usd: float, budget_usd: float) -> None:
+        super().__init__("Monthly cloud budget exceeded.", provider="cloud")
+        self.spent_usd = spent_usd
+        self.budget_usd = budget_usd
+
+
+def _remember_reasoning(call_id: str, items: List[Dict[str, Any]]) -> None:
+    if not items:
+        return
+    _REASONING_FOR_CALL[call_id] = items
+    while len(_REASONING_FOR_CALL) > _MAX_REMEMBERED_CALLS:
+        _REASONING_FOR_CALL.popitem(last=False)
+
+
+def translate_tools(tools: Optional[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    out = []
+    for tool in tools or []:
+        fn = tool.get("function", tool)
+        out.append({
+            "type": "function",
+            "name": fn["name"],
+            "description": fn.get("description", ""),
+            "parameters": fn.get("parameters") or {"type": "object", "properties": {}},
+            "strict": False,
+        })
+    return out
+
+
+def translate_messages(messages: List[Dict[str, Any]]) -> Tuple[str, List[Dict[str, Any]]]:
+    """Chat-format history -> (instructions, Responses input items)."""
+    instructions: List[str] = []
+    items: List[Dict[str, Any]] = []
+    for msg in messages:
+        role = msg.get("role")
+        content = msg.get("content") or ""
+        if role == "system":
+            instructions.append(content)
+        elif role == "user":
+            items.append({"role": "user", "content": content})
+        elif role == "assistant":
+            if content:
+                items.append({"role": "assistant", "content": content})
+            for call in msg.get("tool_calls") or []:
+                fn = call.get("function", {})
+                arguments = fn.get("arguments")
+                if not isinstance(arguments, str):
+                    arguments = json.dumps(arguments or {}, ensure_ascii=False)
+                items.extend(_REASONING_FOR_CALL.get(call.get("id", ""), []))
+                items.append({"type": "function_call", "call_id": call.get("id", ""), "name": fn.get("name", ""), "arguments": arguments})
+        elif role == "tool":
+            items.append({"type": "function_call_output", "call_id": msg.get("tool_call_id", ""), "output": content})
+    return "\n\n".join(instructions), items
 
 
 class CloudLLMProvider(LLMProvider):
     name = "cloud"
 
-    def __init__(self, base_url: str, model: str, api_key: str, timeout_seconds: float = 30.0):
+    def __init__(
+        self,
+        base_url: str,
+        model: str,
+        api_key: str,
+        timeout_seconds: float = 30.0,
+        reasoning_effort: Optional[str] = "low",
+        client: Optional[Any] = None,
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
-        self.api_key = api_key
+        self.reasoning_effort = reasoning_effort
         self.timeout_seconds = timeout_seconds
+        # The key lives only inside the SDK client; it is never logged.
+        self._client = client or openai.AsyncOpenAI(api_key=api_key, base_url=self.base_url, timeout=timeout_seconds, max_retries=1)
 
-    def _headers(self) -> dict:
-        return {"Authorization": f"Bearer {self.api_key}"}
-
-    async def chat(self, messages: List[ChatMessage], temperature: float = 0.3) -> str:
-        url = f"{self.base_url}/chat/completions"
-        payload = {"model": self.model, "messages": messages, "temperature": temperature, "stream": False}
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-                resp = await client.post(url, json=payload, headers=self._headers())
-                resp.raise_for_status()
-                data = resp.json()
-        except httpx.ConnectError as exc:
-            raise LLMUnavailableError("Cloud LLM is unavailable.", provider="cloud") from exc
-        except httpx.TimeoutException as exc:
-            raise LLMUnavailableError("Cloud LLM is unavailable.", provider="cloud") from exc
-        except httpx.HTTPStatusError as exc:
-            logger.error("Cloud LLM returned an error status: %s", exc)
-            raise LLMUnavailableError("Cloud LLM is unavailable.", provider="cloud") from exc
-
-        try:
-            return data["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError) as exc:
-            logger.error("Unexpected cloud LLM response shape: %s", data)
-            raise LLMUnavailableError("Cloud LLM returned an unexpected response.", provider="cloud") from exc
-
-    async def chat_with_tools(
+    async def stream_chat(
         self,
         messages: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
-        temperature: float = 0.2,
-    ) -> ChatWithToolsResponse:
-        """Thin adapter, not a translation layer - see the module
-        docstring for why OpenAI needs no format bridging here. Mirrors
-        LocalLLMProvider.chat_with_tools() almost exactly; the only
-        differences are the URL (no "/v1" suffix - CLOUD_LLM_BASE_URL
-        already includes it) and the Authorization header.
-        """
-        url = f"{self.base_url}/chat/completions"
-        payload = {
+        tools: Optional[List[Dict[str, Any]]] = None,
+        *,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+    ) -> AsyncIterator[LLMEvent]:
+        instructions, items = translate_messages(messages)
+        params: Dict[str, Any] = {
             "model": self.model,
-            "messages": messages,
-            "temperature": temperature,
-            "stream": False,
-            "tools": tools,
-            "tool_choice": "auto",
+            "input": items,
+            "stream": True,
+            "store": False,
+            "include": ["reasoning.encrypted_content"],
         }
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-                resp = await client.post(url, json=payload, headers=self._headers())
-                resp.raise_for_status()
-                data = resp.json()
-        except httpx.ConnectError as exc:
-            logger.error("Cloud LLM connection failed: %s", exc)
-            raise LLMUnavailableError("Cloud LLM is unavailable.", provider="cloud") from exc
-        except httpx.TimeoutException as exc:
-            logger.error("Cloud LLM request timed out: %s", exc)
-            raise LLMUnavailableError("Cloud LLM is unavailable.", provider="cloud") from exc
-        except httpx.HTTPStatusError as exc:
-            # exc's default __str__ is "<method> <url> ... <status>" -
-            # no headers, so the API key is never at risk of landing in
-            # this log line.
-            logger.error("Cloud LLM returned an error status: %s", exc)
-            raise LLMUnavailableError("Cloud LLM is unavailable.", provider="cloud") from exc
+        if instructions:
+            params["instructions"] = instructions
+        if tools:
+            params["tools"] = translate_tools(tools)
+        if self.reasoning_effort:
+            params["reasoning"] = {"effort": self.reasoning_effort}
+        if max_tokens:
+            params["max_output_tokens"] = max_tokens
 
-        usage = data.get("usage")
-        if usage:
-            logger.info(
-                "TOKEN USAGE -> provider=cloud model=%s prompt=%s completion=%s total=%s",
-                self.model,
-                usage.get("prompt_tokens"),
-                usage.get("completion_tokens"),
-                usage.get("total_tokens"),
-            )
-
+        reasoning_items: List[Dict[str, Any]] = []
         try:
-            return ChatWithToolsResponse(message=data["choices"][0]["message"], usage=usage)
-        except (KeyError, IndexError, TypeError) as exc:
-            logger.error("Unexpected cloud LLM response shape: %s", data)
-            raise LLMUnavailableError("Cloud LLM returned an unexpected response.", provider="cloud") from exc
+            stream = await self._client.responses.create(**params)
+            async for event in stream:
+                kind = getattr(event, "type", "")
+                if kind == "response.output_text.delta":
+                    if event.delta:
+                        yield TextDelta(event.delta)
+                elif kind == "response.output_item.done":
+                    item = event.item
+                    if item.type == "reasoning":
+                        reasoning_items.append(item.model_dump(exclude_none=True))
+                    elif item.type == "function_call":
+                        args, raw = parse_tool_arguments(item.arguments)
+                        # Reasoning that led to this call must accompany its result.
+                        _remember_reasoning(item.call_id, reasoning_items)
+                        reasoning_items = []
+                        yield ToolCallEvent(ToolCall(id=item.call_id, name=item.name, arguments=args, raw_arguments=raw))
+                elif kind == "response.completed":
+                    yield StreamDone(usage=_usage(event.response), done_reason="stop")
+                elif kind == "response.incomplete":
+                    reason = getattr(getattr(event.response, "incomplete_details", None), "reason", None) or "incomplete"
+                    yield StreamDone(usage=_usage(event.response), done_reason=str(reason))
+                elif kind == "response.failed":
+                    error = getattr(event.response, "error", None)
+                    raise LLMResponseError(f"Cloud response failed: {getattr(error, 'message', 'unknown error')}", provider="cloud")
+                elif kind == "error":
+                    raise LLMResponseError(f"Cloud stream error: {getattr(event, 'message', '')}", provider="cloud")
+        except openai.AuthenticationError as exc:
+            raise CloudAuthError("Cloud API key was rejected.", provider="cloud", base_url=self.base_url) from exc
+        except openai.RateLimitError as exc:
+            raise CloudRateLimitError("Cloud rate limit or quota reached.", provider="cloud", base_url=self.base_url) from exc
+        except openai.APITimeoutError as exc:
+            raise LLMTimeoutError(self.timeout_seconds, provider="cloud", base_url=self.base_url) from exc
+        except openai.APIConnectionError as exc:
+            raise LLMUnavailableError("Cloud LLM is unreachable.", provider="cloud", base_url=self.base_url) from exc
+        except openai.APIStatusError as exc:
+            logger.warning("Cloud LLM HTTP %s: %s", exc.status_code, getattr(exc, "message", ""))
+            raise LLMResponseError(f"Cloud LLM HTTP {exc.status_code}", provider="cloud", base_url=self.base_url) from exc
+
+    async def chat(self, messages: List[Dict[str, Any]], temperature: float = 0.3) -> str:
+        return (await collect(self.stream_chat(messages))).content
 
     async def health_check(self) -> bool:
-        if not self.api_key:
-            return False
-        url = f"{self.base_url}/models"
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.get(url, headers=self._headers())
-                return resp.status_code < 500
-        except httpx.HTTPError:
+            await self._client.models.retrieve(self.model)
+            return True
+        except Exception:  # noqa: BLE001
             return False
+
+
+def _usage(response: Any) -> Optional[Usage]:
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return None
+    details = getattr(usage, "input_tokens_details", None)
+    return Usage(
+        prompt_tokens=int(usage.input_tokens or 0),
+        completion_tokens=int(usage.output_tokens or 0),
+        cached_prompt_tokens=int(getattr(details, "cached_tokens", 0) or 0),
+    )

@@ -9,7 +9,7 @@ from typing import Any, Dict, List
 import pytest
 
 from app.agent.native_tool_agent import NativeToolCallingAgent
-from app.llm.base import ChatWithToolsResponse, LLMProvider
+from tests.llm_doubles import ChatWithToolsResponse, OneShotLLM
 from app.security.untrusted import END_MARK, neutralize, tool_result_message_content
 from app.tools import pending_approvals
 from app.tools.base import RiskTier, Tool, ToolResult
@@ -58,7 +58,7 @@ class Recorder(Tool):
         return ToolResult(success=True, data="done")
 
 
-class ObedientLLM(LLMProvider):
+class ObedientLLM(OneShotLLM):
     """Turn 1: fetch the page. Turn 2+: do whatever the injection says."""
 
     name = "local"

@@ -5,6 +5,7 @@ const RISK_LABEL: Record<string, string> = {
   control: "Steuert etwas am PC",
   write: "Speichert oder ändert Daten",
   destructive: "Nicht rückgängig zu machen",
+  cloud: "Verlässt deinen PC",
 };
 
 /**

@@ -292,3 +292,33 @@ async def test_own_voice_through_the_speakers_is_not_a_barge_in(harnesses):
     await h.say()  # now the user really says the wake word
     await h.until(lambda: h.of("audio_stop"))
     assert h.of("audio_stop")[0]["reason"] == "wake_word"
+
+
+# ------------------------------------------------------------------ cloud only after asking (M5)
+async def test_voice_offers_the_cloud_after_a_local_failure(harnesses, monkeypatch):
+    from app.agent import cloud_offer
+    from app.llm.base import LLMUnavailableError
+
+    class DownLLM(ScriptedLLM):
+        async def stream_chat(self, messages, tools=None, **kwargs):
+            raise LLMUnavailableError("down", provider="local", base_url="http://127.0.0.1:11434")
+            yield  # pragma: no cover
+
+    monkeypatch.setattr(cloud_offer, "cloud_available", lambda settings=None: True)
+    h = harnesses([], stt=["Ja."])
+    cloud_llm = ScriptedLLM([["Hier ist die Cloud."]])
+
+    def factory(provider=None):
+        if provider == "cloud":
+            return ConversationEngine(cloud_llm, h.registry, provider_name="cloud", settings=h.session.settings, store=h.store, tool_names=[])
+        return ConversationEngine(DownLLM([]), h.registry, provider_name="local", settings=h.session.settings, store=h.store, tool_names=[])
+
+    h.session.engine_factory = factory
+    await h.session.start()
+    await h.text(type="text", text="Erklär mir Ebbe und Flut")
+    await h.until(lambda: h.session.state == "confirming")
+    assert h.of("approval")[0]["card"]["risk"] == "cloud"
+    assert cloud_offer.SPOKEN_QUESTION in h.tts.spoken and cloud_llm.calls == []
+    await h.say(300)  # "Ja."
+    await h.until(lambda: [r for r in h.of("reply") if r["text"] == "Hier ist die Cloud."])
+    assert [m["role"] for m in cloud_llm.calls[0][1:]] == ["user"]

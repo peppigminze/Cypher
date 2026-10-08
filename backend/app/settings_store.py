@@ -69,6 +69,13 @@ def record_token_usage(db: Session, provider: str, model: str, usage: Optional[D
     prompt = int(usage.get("prompt_tokens") or 0)
     completion = int(usage.get("completion_tokens") or 0)
     total = int(usage.get("total_tokens") or (prompt + completion))
+    cached = int(usage.get("cached_prompt_tokens") or 0)
+    cost = 0.0
+    if provider == "cloud":
+        from app.config import get_settings  # noqa: PLC0415
+        from app.llm.pricing import cost_usd  # noqa: PLC0415
+
+        cost = cost_usd(model, prompt, cached, completion, get_settings()) or 0.0
 
     today = _today_utc()
     row = db.query(TokenUsageDaily).filter_by(date=today, provider=provider, model=model).one_or_none()
@@ -80,12 +87,15 @@ def record_token_usage(db: Session, provider: str, model: str, usage: Optional[D
         row = TokenUsageDaily(
             date=today, provider=provider, model=model,
             prompt_tokens=0, completion_tokens=0, total_tokens=0, request_count=0,
+            cached_prompt_tokens=0, cost_usd=0.0,
         )
         db.add(row)
     row.prompt_tokens += prompt
     row.completion_tokens += completion
     row.total_tokens += total
     row.request_count += 1
+    row.cached_prompt_tokens = (row.cached_prompt_tokens or 0) + cached
+    row.cost_usd = (row.cost_usd or 0.0) + cost
     db.commit()
 
 
@@ -95,19 +105,28 @@ def _sum_rows(rows) -> dict:
         "completion_tokens": sum(r.completion_tokens for r in rows),
         "total_tokens": sum(r.total_tokens for r in rows),
         "request_count": sum(r.request_count for r in rows),
+        "cost_usd": round(sum(r.cost_usd or 0.0 for r in rows), 6),
     }
+
+
+def month_cost_usd(db: Session, provider: str = "cloud") -> float:
+    """What the cloud cost this calendar month (UTC) - for the budget cap."""
+    prefix = _today_utc()[:7]
+    rows = db.query(TokenUsageDaily).filter(TokenUsageDaily.date.like(f"{prefix}%"), TokenUsageDaily.provider == provider).all()
+    return sum(r.cost_usd or 0.0 for r in rows)
 
 
 def _by_provider(rows) -> Dict[str, dict]:
     out: Dict[str, dict] = {}
     for r in rows:
         bucket = out.setdefault(
-            r.provider, {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "request_count": 0}
+            r.provider, {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "request_count": 0, "cost_usd": 0.0}
         )
         bucket["prompt_tokens"] += r.prompt_tokens
         bucket["completion_tokens"] += r.completion_tokens
         bucket["total_tokens"] += r.total_tokens
         bucket["request_count"] += r.request_count
+        bucket["cost_usd"] = round(bucket["cost_usd"] + (r.cost_usd or 0.0), 6)
     return out
 
 

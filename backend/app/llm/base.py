@@ -8,10 +8,12 @@ Two layers live here:
    (TextDelta / ToolCallEvent / StreamDone). Streaming is the default
    because voice output starts speaking at the first sentence boundary.
 
-2. The legacy convenience methods `chat()` and `chat_with_tools()` that
-   the older pipelines were written against. They are thin collectors
-   over `stream_chat` in new providers, so there is only one real code
-   path per backend.
+2. `chat()` - a convenience collector over `stream_chat` for one-off
+   text answers (e.g. describing a screenshot).
+
+Providers (M5): OllamaProvider (local, app/llm/ollama.py) and
+CloudLLMProvider (OpenAI Responses API, app/llm/cloud_provider.py).
+A new backend only has to implement `stream_chat`.
 
 Messages use one canonical (OpenAI-style) shape inside Cypher:
 
@@ -27,7 +29,7 @@ import json
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Dict, List, NamedTuple, Optional, TypedDict, Union
+from typing import Any, AsyncIterator, Dict, List, Optional, TypedDict, Union
 
 
 class ChatMessage(TypedDict):
@@ -99,7 +101,7 @@ class Usage:
         return self.prompt_tokens + self.completion_tokens
 
     def as_openai_dict(self) -> Dict[str, int]:
-        return {"prompt_tokens": self.prompt_tokens, "completion_tokens": self.completion_tokens, "total_tokens": self.total_tokens}
+        return {"prompt_tokens": self.prompt_tokens, "completion_tokens": self.completion_tokens, "total_tokens": self.total_tokens, "cached_prompt_tokens": self.cached_prompt_tokens}
 
 
 @dataclass
@@ -157,24 +159,10 @@ async def collect(stream: AsyncIterator[LLMEvent]) -> LLMResponse:
 
 
 async def stream_events(llm: Any, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None) -> AsyncIterator["LLMEvent"]:
-    """Stream from any provider-like object: uses `stream_chat` if present,
-    otherwise adapts a one-shot `chat_with_tools` (simple test doubles and
-    third-party providers only implement that)."""
-    stream = getattr(llm, "stream_chat", None)
-    if stream is not None:
-        async for event in stream(messages, tools):
-            yield event
-        return
-    response = await llm.chat_with_tools(messages, tools or [])
-    content = response.message.get("content") or ""
-    if content:
-        yield TextDelta(content)
-    for tc in response.message.get("tool_calls") or []:
-        fn = tc.get("function", {})
-        args, raw = parse_tool_arguments(fn.get("arguments"))
-        yield ToolCallEvent(ToolCall(id=tc.get("id") or new_tool_call_id(), name=fn.get("name", ""), arguments=args, raw_arguments=raw))
-    usage = response.usage or {}
-    yield StreamDone(usage=Usage(usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0)) if usage else None)
+    """Stream one model call from a provider (kept as the engine's single
+    entry point, so instrumentation can hook in here)."""
+    async for event in llm.stream_chat(messages, tools):
+        yield event
 
 
 def new_tool_call_id() -> str:
@@ -202,43 +190,18 @@ def parse_tool_arguments(raw: Any) -> tuple[Dict[str, Any], Optional[str]]:
     return {}, json.dumps(raw, default=str)
 
 
-# ---------------------------------------------------------------- legacy return type
-class ChatWithToolsResponse(NamedTuple):
-    """Return shape of the legacy `chat_with_tools()`.
-
-    `message` is an OpenAI-format assistant message (tool-call arguments
-    as JSON strings), `usage` the {"prompt_tokens", "completion_tokens",
-    "total_tokens"} dict or None if the backend didn't report it.
-    """
-
-    message: Dict[str, Any]
-    usage: Optional[Dict[str, int]]
-
-
 class LLMProvider(ABC):
-    """Base class for chat backends.
+    """The one interface the engine talks to.
 
-    Every provider exposes `model: str` and `name: str` ("local"/"cloud").
-    `chat()` and `health_check()` are abstract for historical reasons
-    (test doubles of the old pipeline implement only those).
+    Implement `stream_chat`; everything else has a default. Every provider
+    exposes `model: str` and `name: str` ("local" / "cloud").
     """
 
     name: str = "local"
     model: str = ""
 
     @abstractmethod
-    async def chat(self, messages: List[ChatMessage], temperature: float = 0.3) -> str:
-        raise NotImplementedError
-
-    async def chat_with_tools(
-        self,
-        messages: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
-        temperature: float = 0.2,
-    ) -> ChatWithToolsResponse:
-        raise NotImplementedError(f"{type(self).__name__} does not support tool-calling.")
-
-    async def stream_chat(
+    def stream_chat(
         self,
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
@@ -246,19 +209,12 @@ class LLMProvider(ABC):
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
     ) -> AsyncIterator[LLMEvent]:
-        """Default for providers that only implement chat_with_tools():
-        one non-streamed call, re-emitted as events."""
-        response = await self.chat_with_tools(messages, tools or [], temperature=temperature if temperature is not None else 0.2)
-        content = response.message.get("content") or ""
-        if content:
-            yield TextDelta(content)
-        for tc in response.message.get("tool_calls") or []:
-            fn = tc.get("function", {})
-            args, raw = parse_tool_arguments(fn.get("arguments"))
-            yield ToolCallEvent(ToolCall(id=tc.get("id") or new_tool_call_id(), name=fn.get("name", ""), arguments=args, raw_arguments=raw))
-        usage = response.usage or {}
-        yield StreamDone(usage=Usage(usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0)) if usage else None)
-
-    @abstractmethod
-    async def health_check(self) -> bool:
+        """Stream one model call: TextDelta / ToolCallEvent events, then
+        exactly one StreamDone. Raises LLMUnavailableError subclasses."""
         raise NotImplementedError
+
+    async def chat(self, messages: List[Dict[str, Any]], temperature: float = 0.3) -> str:
+        return (await collect(self.stream_chat(list(messages), None, temperature=temperature))).content
+
+    async def health_check(self) -> bool:
+        return True

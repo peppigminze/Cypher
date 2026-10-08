@@ -109,6 +109,34 @@ def cloud_unavailable() -> CypherError:
     )
 
 
+def cloud_auth_failed() -> CypherError:
+    return CypherError(
+        code="cloud_auth_failed",
+        message="Der Cloud-Anbieter hat den API-Schlüssel abgelehnt.",
+        hint="Prüfe CLOUD_LLM_API_KEY in der .env (ohne Leerzeichen) und starte Cypher neu.",
+        http_status=401,
+    )
+
+
+def cloud_rate_limited() -> CypherError:
+    return CypherError(
+        code="cloud_rate_limited",
+        message="Beim Cloud-Anbieter ist das Limit erreicht.",
+        hint="Kurz warten oder Guthaben/Limits im Konto des Anbieters prüfen. Lokal geht es weiter.",
+        http_status=429,
+        retryable=True,
+    )
+
+
+def cloud_budget_exceeded(spent_usd: float, budget_usd: float) -> CypherError:
+    return CypherError(
+        code="cloud_budget_exceeded",
+        message=f"Das Cloud-Budget für diesen Monat ist aufgebraucht ({spent_usd:.2f} von {budget_usd:.2f} USD).",
+        hint="Erhöhe CLOUD_MONTHLY_BUDGET_USD in der .env oder bleib beim lokalen Modell.",
+        http_status=402,
+    )
+
+
 def audio_invalid(reason: str) -> CypherError:
     return CypherError(code="audio_invalid", message="Die Aufnahme war leer oder unlesbar.", hint=reason, http_status=400)
 
@@ -165,6 +193,16 @@ def from_exception(exc: BaseException) -> CypherError:
         ModelNotFoundError,
     )
 
+    from app.llm.cloud_provider import CloudAuthError, CloudBudgetExceeded, CloudNotConfigured, CloudRateLimitError  # noqa: PLC0415
+
+    if isinstance(exc, CloudNotConfigured):
+        return cloud_not_configured()
+    if isinstance(exc, CloudAuthError):
+        return cloud_auth_failed()
+    if isinstance(exc, CloudRateLimitError):
+        return cloud_rate_limited()
+    if isinstance(exc, CloudBudgetExceeded):
+        return cloud_budget_exceeded(exc.spent_usd, exc.budget_usd)
     if isinstance(exc, ModelNotFoundError):
         return model_missing(exc.model)
     if isinstance(exc, LLMTimeoutError):

@@ -3,6 +3,12 @@ import type { ActiveProviderInfo, LlmProviderName, Settings, UsageSummary } from
 import { getActiveProvider, getSettingsOverview, getUsageSummary, setActiveProvider } from "../services/api";
 import { usePolling } from "../hooks/usePolling";
 
+/** "0,0123 $" - small cloud costs need more than two decimals. */
+export function formatUsd(value: number): string {
+  const digits = value > 0 && value < 0.1 ? 4 : 2;
+  return `${value.toLocaleString("de-DE", { minimumFractionDigits: digits, maximumFractionDigits: digits })} $`;
+}
+
 /** Rough "might be on a phone/PWA" signal for the Phase 7 cloud hint -
  * deliberately just a suggestion shown next to the toggle, never used
  * to switch anything automatically (that's an explicit non-goal: "Kosten
@@ -93,16 +99,14 @@ export function SettingsView() {
           <dd>{settings.local_llm_model}</dd>
           <dt>Lokale URL</dt>
           <dd>{settings.local_llm_base_url}</dd>
-          <dt>Cloud-Fallback</dt>
+          <dt>Cloud</dt>
           <dd>
             {settings.cloud_llm_enabled ? (
-              <span className="pill status-completed">Aktiv ({settings.cloud_llm_model})</span>
+              <span className="pill status-completed">Erlaubt ({settings.cloud_llm_model}) - nur auf Wunsch oder nach Rückfrage</span>
             ) : (
-              <span className="pill status-pending">Deaktiviert</span>
+              <span className="pill status-pending">Ausgeschaltet (CLOUD_LLM_ENABLED)</span>
             )}
           </dd>
-          <dt>Max. Wiederholungen</dt>
-          <dd>{settings.message_max_retries}</dd>
         </dl>
       </section>
 
@@ -130,7 +134,7 @@ export function SettingsView() {
                 className={`settings__provider-btn ${activeProvider.provider === "cloud" ? "is-active" : ""}`}
                 onClick={() => handleProviderChange("cloud")}
                 disabled={providerBusy || activeProvider.provider === "cloud" || !activeProvider.cloud_configured}
-                title={!activeProvider.cloud_configured ? "CLOUD_LLM_API_KEY ist nicht in .env gesetzt" : undefined}
+                title={!activeProvider.cloud_configured ? "Cloud ist nicht eingerichtet (.env)" : undefined}
               >
                 ☁ Cloud
               </button>
@@ -138,7 +142,15 @@ export function SettingsView() {
 
             {!activeProvider.cloud_configured && (
               <p className="settings__hint">
-                Cloud ist nicht verfügbar - <code>CLOUD_LLM_API_KEY</code> fehlt in <code>.env</code>.
+                {activeProvider.cloud_status === "disabled" ? (
+                  <>
+                    Cloud ist ausgeschaltet - <code>CLOUD_LLM_ENABLED=true</code> in <code>.env</code> setzen.
+                  </>
+                ) : (
+                  <>
+                    Cloud ist nicht verfügbar - <code>CLOUD_LLM_API_KEY</code> fehlt in <code>.env</code>.
+                  </>
+                )}
               </p>
             )}
             {providerError && <p className="settings__hint settings__hint--error">{providerError}</p>}
@@ -160,6 +172,13 @@ export function SettingsView() {
             <dd>{usage.today.total.total_tokens.toLocaleString("de-DE")}</dd>
             <dt>Token-Nutzung diesen Monat</dt>
             <dd>{usage.month.total.total_tokens.toLocaleString("de-DE")}</dd>
+            <dt>Cloud-Kosten heute</dt>
+            <dd>{formatUsd(usage.today.by_provider.cloud?.cost_usd ?? 0)}</dd>
+            <dt>Cloud-Kosten diesen Monat</dt>
+            <dd>
+              {formatUsd(usage.month.by_provider.cloud?.cost_usd ?? 0)}
+              {usage.cloud_monthly_budget_usd ? ` von ${formatUsd(usage.cloud_monthly_budget_usd)} Budget` : " (kein Budget gesetzt)"}
+            </dd>
           </dl>
         )}
       </section>

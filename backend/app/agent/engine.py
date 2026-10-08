@@ -347,10 +347,14 @@ class ConversationEngine:
         self._spoke_this_turn = False
 
     # -------------------------------------------------------------- public API
-    async def run_turn(self, conversation_id: str, user_text: str, *, source: str = "voice", db: Any = None) -> AsyncIterator[EngineEvent]:
+    async def run_turn(self, conversation_id: str, user_text: str, *, source: str = "voice", db: Any = None, retry: bool = False) -> AsyncIterator[EngineEvent]:
+        """`retry`: the same request again after a failed turn (e.g. via the
+        cloud) - the unanswered copy of the question is dropped first."""
         self._text_only_turn = False
         self._spoke_this_turn = False
         conv = self.store.get(conversation_id)
+        if retry and conv.messages and conv.messages[-1]["role"] == "user":
+            conv.messages.pop()
         user_msg = {"role": "user", "content": f"{time_context()}\n{user_text.strip()}"}
         ctx = ToolContext(db=db, provider=self.provider_name, source=source, conversation_id=conversation_id, user_message=user_text)
         quick = self._quick_command(user_text, ctx)

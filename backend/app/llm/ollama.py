@@ -26,7 +26,6 @@ import httpx
 from app.core.metrics import metrics
 from app.llm.base import (
     ChatMessage,
-    ChatWithToolsResponse,
     LLMEvent,
     LLMProvider,
     LLMResponseError,
@@ -217,20 +216,10 @@ class OllamaProvider(LLMProvider):
                 out[key.removesuffix("_duration")] = chunk[key] / 1e9
         return out
 
-    # ------------------------------------------------------------ legacy API
+    # ------------------------------------------------------------ convenience
     async def chat(self, messages: List[ChatMessage], temperature: float = 0.3) -> str:
         response = await collect(self.stream_chat(list(messages), None, temperature=temperature))
         return response.content
-
-    async def chat_with_tools(
-        self,
-        messages: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
-        temperature: float = 0.2,
-    ) -> ChatWithToolsResponse:
-        response = await collect(self.stream_chat(messages, tools, temperature=temperature))
-        usage = response.usage.as_openai_dict() if response.usage else None
-        return ChatWithToolsResponse(message=response.to_openai_message(), usage=usage)
 
     async def health_check(self) -> bool:
         try:

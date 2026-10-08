@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 import pytest
 
 from app.agent.native_tool_agent import NativeToolCallingAgent
-from app.llm.base import ChatWithToolsResponse, LLMProvider
+from tests.llm_doubles import ChatWithToolsResponse, OneShotLLM
 from app.tools import pending_approvals
 from app.tools.base import Tool, ToolResult, ToolSecurity
 from app.tools.registry import ToolRegistry
@@ -31,7 +31,7 @@ class RecordingTool(Tool):
         return ToolResult(success=True, data={"echo": kwargs})
 
 
-class ScriptedLLM(LLMProvider):
+class ScriptedLLM(OneShotLLM):
     """Returns pre-baked assistant messages in order."""
 
     name = "local"

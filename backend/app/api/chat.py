@@ -29,6 +29,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from app.agent import cloud_offer
 from app.agent.engine import (
     ApprovalRequired,
     ConversationEngine,
@@ -82,7 +83,9 @@ def _engine() -> ConversationEngine:
     return ConversationEngine(llm, build_registry(), provider_name=provider_name, settings=get_settings(), store=conversations)
 
 
-async def _stream(events: AsyncIterator[Any], conversation_id: str) -> AsyncIterator[str]:
+async def _stream(events: AsyncIterator[Any], conversation_id: str, offer: Optional[Dict[str, Any]] = None) -> AsyncIterator[str]:
+    """`offer`: {"provider", "text"} - if the local model fails, the stream
+    ends with a card asking whether to try the cloud (cloud_offer.py)."""
     yield _sse({"type": "conversation", "conversation_id": conversation_id})
     try:
         async for event in events:
@@ -100,6 +103,10 @@ async def _stream(events: AsyncIterator[Any], conversation_id: str) -> AsyncIter
                 yield _sse({"type": "reply", "text": event.reply, "metrics": event.metrics})
             elif isinstance(event, TurnFailed):
                 yield _sse({"type": "error", **event.error.to_dict()})
+                settings = get_settings()
+                if offer and cloud_offer.should_offer(event.error, offer["provider"], settings):
+                    created = cloud_offer.create(conversation_id, offer["text"], "text")
+                    yield _sse({"type": "approval", "card": cloud_offer.card(created, settings.CLOUD_LLM_MODEL)})
     except Exception as exc:  # noqa: BLE001 - the stream must end with a readable error
         logger.exception("Chat turn crashed")
         yield _sse({"type": "error", **errors.from_exception(exc).to_dict()})
@@ -129,7 +136,7 @@ async def chat(payload: ChatIn, _user=Depends(require_user)) -> StreamingRespons
 
     async def body() -> AsyncIterator[str]:
         try:
-            async for chunk in _stream(engine.run_turn(cid, payload.message, source="text", db=db), cid):
+            async for chunk in _stream(engine.run_turn(cid, payload.message, source="text", db=db), cid, {"provider": engine.provider_name, "text": payload.message}):
                 yield chunk
         finally:
             db.close()
@@ -139,6 +146,8 @@ async def chat(payload: ChatIn, _user=Depends(require_user)) -> StreamingRespons
 
 @router.post("/approval", dependencies=[Depends(rate_limit("approval"))])
 async def resolve_approval(payload: ApprovalIn, _user=Depends(require_user)) -> StreamingResponse:
+    if cloud_offer.is_offer_id(payload.approval_id):
+        return _resolve_cloud_offer(payload)
     approval = pending_approvals.pop(payload.approval_id)
     if approval is None:
         raise HTTPException(status_code=404, detail="Diese Bestätigung ist abgelaufen oder wurde schon beantwortet.")
@@ -148,6 +157,39 @@ async def resolve_approval(payload: ApprovalIn, _user=Depends(require_user)) -> 
     async def body() -> AsyncIterator[str]:
         try:
             async for chunk in _stream(engine.resume(approval, payload.approved, db=db), approval.conversation_id or ""):
+                yield chunk
+        finally:
+            db.close()
+
+    return _event_stream(body())
+
+
+def _resolve_cloud_offer(payload: ApprovalIn) -> StreamingResponse:
+    offer = cloud_offer.pop(payload.approval_id)
+    if offer is None:
+        raise HTTPException(status_code=404, detail="Das Angebot ist abgelaufen oder wurde schon beantwortet.")
+
+    async def declined() -> AsyncIterator[str]:
+        yield _sse({"type": "conversation", "conversation_id": offer.conversation_id})
+        yield _sse({"type": "reply", "text": "Okay, dann nicht.", "metrics": {}})
+
+    if not payload.approved:
+        return _event_stream(declined())
+    try:
+        engine = ConversationEngine(get_provider_by_name("cloud"), build_registry(), provider_name="cloud", settings=get_settings(), store=conversations)
+    except LLMUnavailableError as exc:
+        err = errors.from_exception(exc)
+
+        async def failed() -> AsyncIterator[str]:
+            yield _sse({"type": "conversation", "conversation_id": offer.conversation_id})
+            yield _sse({"type": "error", **err.to_dict()})
+
+        return _event_stream(failed())
+    db = SessionLocal()
+
+    async def body() -> AsyncIterator[str]:
+        try:
+            async for chunk in _stream(engine.run_turn(offer.conversation_id, offer.text, source="text", db=db, retry=True), offer.conversation_id):
                 yield chunk
         finally:
             db.close()

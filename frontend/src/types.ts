@@ -149,6 +149,9 @@ export interface TranscribeResult {
 export interface ActiveProviderInfo {
   provider: LlmProviderName;
   cloud_configured: boolean;
+  /** "ok" | "disabled" (CLOUD_LLM_ENABLED=false) | "no_key" */
+  cloud_status?: "ok" | "disabled" | "no_key";
+  cloud_model?: string;
 }
 
 export interface UsageTotals {
@@ -156,6 +159,8 @@ export interface UsageTotals {
   completion_tokens: number;
   total_tokens: number;
   request_count: number;
+  /** USD - cloud only, local is free */
+  cost_usd?: number;
 }
 
 export interface UsagePeriod {
@@ -166,4 +171,6 @@ export interface UsagePeriod {
 export interface UsageSummary {
   today: UsagePeriod;
   month: UsagePeriod;
+  cloud_monthly_budget_usd?: number;
+  cloud_model?: string;
 }

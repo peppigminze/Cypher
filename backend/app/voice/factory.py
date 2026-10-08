@@ -35,10 +35,11 @@ def make_wake_word(settings: Settings) -> Optional[WhisperWakeWord]:
 def make_engine_factory(settings: Settings, provider_name_fn):
     registry = build_registry()
 
-    def factory() -> ConversationEngine:
+    def factory(provider: Optional[str] = None) -> ConversationEngine:
         # Provider is looked up per turn: the local/cloud toggle takes effect
-        # immediately, also in an already open voice session.
-        name = provider_name_fn()
+        # immediately, also in an already open voice session. `provider`
+        # forces one (the user said "ja" to asking the cloud once).
+        name = provider or provider_name_fn()
         return ConversationEngine(get_provider_by_name(name, settings), registry, provider_name=name, settings=settings)
 
     return factory

@@ -157,9 +157,22 @@ class Settings(BaseSettings):
     # --- Cloud LLM (optional, never automatic) ---------------------------
     CLOUD_LLM_ENABLED: bool = False
     CLOUD_LLM_BASE_URL: str = "https://api.openai.com/v1"
-    CLOUD_LLM_MODEL: str = "gpt-5.6-luna"
+    # Checked against developers.openai.com on 2026-10-08: gpt-6-luna is the
+    # recommended model for cost-sensitive, high-volume use (see app/llm/pricing.py).
+    CLOUD_LLM_MODEL: str = "gpt-6-luna"
     CLOUD_LLM_API_KEY: str = ""
     CLOUD_LLM_TIMEOUT_SECONDS: float = Field(30.0, gt=0, le=600)
+    # Responses API reasoning effort. "low" keeps voice answers quick; "none"
+    # is fastest (GPT-6 Luna supports it, GPT-6 Astra does not).
+    CLOUD_LLM_REASONING_EFFORT: Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"] = "low"
+    # Spending cap per calendar month in USD (0 = no cap). Once reached, the
+    # cloud refuses with a clear message - local keeps working.
+    CLOUD_MONTHLY_BUDGET_USD: float = Field(5.0, ge=0)
+    # Override/extend the built-in price table: "input,cached_input,output"
+    # in USD per 1M tokens for CLOUD_LLM_MODEL.
+    CLOUD_PRICE_PER_1M: str = ""
+    # When the local model fails, offer (never use without asking) the cloud.
+    CLOUD_FALLBACK_OFFER: bool = True
 
     # --- Speech-to-text (faster-whisper, CPU) ----------------------------
     # "small" won the M0 benchmark (WER ~13-19 % vs ~37 % for "base", +0.7 s).

@@ -138,21 +138,6 @@ async def test_error_chunk_mid_stream_is_an_error():
         await collect(provider_with(handler).stream_chat([{"role": "user", "content": "x"}]))
 
 
-async def test_legacy_chat_with_tools_returns_openai_shape():
-    def handler(request):
-        return httpx.Response(200, content=ndjson(
-            {"message": {"tool_calls": [{"function": {"name": "get_current_time", "arguments": {}}}]}, "done": False},
-            {"message": {}, "done": True, "prompt_eval_count": 5, "eval_count": 2},
-        ))
-
-    resp = await provider_with(handler).chat_with_tools([{"role": "user", "content": "Zeit?"}], tools=[])
-    call = resp.message["tool_calls"][0]
-    assert call["type"] == "function"
-    assert call["function"]["name"] == "get_current_time"
-    assert json.loads(call["function"]["arguments"]) == {}
-    assert resp.usage == {"prompt_tokens": 5, "completion_tokens": 2, "total_tokens": 7}
-
-
 def test_openai_style_history_is_converted_to_ollama_format():
     history = [
         {"role": "system", "content": "sys"},

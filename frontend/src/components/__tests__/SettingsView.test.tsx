@@ -92,4 +92,28 @@ describe("SettingsView - provider toggle", () => {
 
     expect(await screen.findByText(/boom/)).toBeInTheDocument();
   });
+
+  it("shows the cloud cost counter with the monthly budget", async () => {
+    vi.mocked(api.getSettingsOverview).mockResolvedValue(makeSettings());
+    vi.mocked(api.getActiveProvider).mockResolvedValue({ provider: "local", cloud_configured: true });
+    const cloud = { prompt_tokens: 120000, completion_tokens: 3000, total_tokens: 123000, request_count: 40, cost_usd: 0.0123 };
+    vi.mocked(api.getUsageSummary).mockResolvedValue({
+      today: { total: cloud, by_provider: { cloud } },
+      month: { total: cloud, by_provider: { cloud } },
+      cloud_monthly_budget_usd: 5,
+    });
+    render(<SettingsView />);
+    expect(await screen.findByText("0,0123 $ von 5,00 $ Budget")).toBeInTheDocument();
+  });
+
+  it("says when the cloud is switched off", async () => {
+    vi.mocked(api.getSettingsOverview).mockResolvedValue(makeSettings());
+    vi.mocked(api.getActiveProvider).mockResolvedValue({ provider: "local", cloud_configured: false, cloud_status: "disabled" });
+    vi.mocked(api.getUsageSummary).mockResolvedValue({
+      today: { total: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, request_count: 0 }, by_provider: {} },
+      month: { total: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, request_count: 0 }, by_provider: {} },
+    });
+    render(<SettingsView />);
+    expect(await screen.findByText("CLOUD_LLM_ENABLED=true")).toBeInTheDocument();
+  });
 });

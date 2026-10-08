@@ -12,7 +12,7 @@ import enum
 import json
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.db import Base, ensure_columns
@@ -381,6 +381,10 @@ class TokenUsageDaily(Base):
     completion_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     total_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     request_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # M5 (additive migration, see run_migrations): prompt tokens served from
+    # the provider's cache, and the cost in USD (cloud only, app/llm/pricing.py).
+    cached_prompt_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    cost_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.0, server_default="0")
 
     __table_args__ = (UniqueConstraint("date", "provider", "model", name="uq_token_usage_daily"),)
 
@@ -449,6 +453,10 @@ def run_migrations() -> None:
             "recurrence": f"VARCHAR(16) NOT NULL DEFAULT '{DEFAULT_RECURRENCE}'",
             "last_notified_at": "DATETIME",
         },
+    )
+    ensure_columns(
+        "token_usage_daily",
+        {"cached_prompt_tokens": "INTEGER NOT NULL DEFAULT 0", "cost_usd": "REAL NOT NULL DEFAULT 0"},
     )
     ensure_columns(
         "messages",

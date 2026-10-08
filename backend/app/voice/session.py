@@ -47,6 +47,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 
+from app.agent import cloud_offer
 from app.agent.engine import (
     ApprovalRequired,
     ConversationEngine,
@@ -64,6 +65,7 @@ from app.core import errors
 from app.core.context import pipeline_id_var
 from app.core.events import bus
 from app.core.metrics import metrics
+from app.llm.base import LLMUnavailableError
 from app.tools import pending_approvals
 from app.voice.protocols import SAMPLE_RATE, SpeechToText, TextToSpeech, WakeWordDetector
 from app.voice.segmenter import Endpointer, SpeechEnd, SpeechPause, SpeechStart
@@ -123,6 +125,7 @@ class VoiceSession:
         self._first_audio_sent = False
         self._closed = False
         self._queued_notices: List[str] = []
+        self._turn_text = ""
         # Speculative work started at a short pause: (voiced_frames, task).
         self._speculative: Optional[tuple] = None
         # What the user really heard of the current answer (audio sent), for
@@ -446,9 +449,21 @@ class VoiceSession:
             self._turn_metrics = {}
         await self._send({"type": "transcript", "text": text, "turn_id": self.turn_id, "stt_ms": int((stt_seconds or 0) * 1000)})
         await self._set_state("thinking")
-        engine = self.engine_factory()
+        self._turn_text = text
+        engine = self._make_engine()
+        if engine is None:
+            return
         self._turn_engine, self._heard = engine, []
         self._turn_task = asyncio.create_task(self._run_engine(engine.run_turn(self.conversation_id, text, source="voice")))
+
+    def _make_engine(self, provider: Optional[str] = None) -> Optional[ConversationEngine]:
+        """Engine for this turn - None (after telling the user why) if the
+        selected provider can't be used (e.g. cloud without key / budget)."""
+        try:
+            return self.engine_factory(provider) if provider else self.engine_factory()
+        except LLMUnavailableError as exc:
+            self._spawn(self._fail(errors.from_exception(exc)))
+            return None
 
     async def _run_engine(self, events) -> None:
         pipeline_id_var.set(f"{self.session_id}-{self.turn_id}")
@@ -485,7 +500,17 @@ class VoiceSession:
                     await self._send({"type": "reply", "text": event.reply, "turn_id": turn})
                 elif isinstance(event, TurnFailed):
                     await self._send({"type": "error", "turn_id": turn, **event.error.to_dict()})
-                    await self._sentences.put(event.error.spoken)
+                    engine = self._turn_engine
+                    if engine is not None and cloud_offer.should_offer(event.error, engine.provider_name, self.settings):
+                        # Never use the cloud silently: ask, like an approval.
+                        offer = cloud_offer.create(self.conversation_id, self._turn_text, "voice")
+                        card = cloud_offer.card(offer, self.settings.CLOUD_LLM_MODEL)
+                        self._pending_approval = ApprovalRequired(offer.offer_id, "cloud_fallback", {}, str(card["summary"]), "cloud", cloud_offer.OFFER_TTL_SECONDS, cloud_offer.SPOKEN_QUESTION, 0)
+                        approval_pending = True
+                        await self._send({"type": "approval", "turn_id": turn, "card": card})
+                        await self._sentences.put(cloud_offer.SPOKEN_QUESTION)
+                    else:
+                        await self._sentences.put(event.error.spoken)
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001
@@ -581,6 +606,9 @@ class VoiceSession:
 
     # ================================================================ approvals
     async def _resolve_approval(self, approval_id: str, approved: bool, via: str) -> None:
+        if cloud_offer.is_offer_id(approval_id):
+            await self._resolve_cloud_offer(approval_id, approved, via)
+            return
         approval = pending_approvals.pop(approval_id)
         self._pending_approval = None
         if approval is None:
@@ -596,6 +624,26 @@ class VoiceSession:
         engine = self.engine_factory()
         self._turn_engine, self._heard = engine, []
         self._turn_task = asyncio.create_task(self._run_engine(engine.resume(approval, approved)))
+
+    async def _resolve_cloud_offer(self, offer_id: str, approved: bool, via: str) -> None:
+        offer = cloud_offer.pop(offer_id)
+        self._pending_approval = None
+        await self._send({"type": "approval_resolved", "approval_id": offer_id, "approved": approved, "via": via})
+        if offer is None or not approved:
+            await self._speak_standalone("Okay, dann nicht." if offer is not None else "Das Angebot ist abgelaufen.")
+            await self._set_state(self._resting_state())
+            return
+        self.turn_id += 1
+        self._t0 = time.perf_counter()
+        self._first_audio_sent = False
+        self._turn_metrics = {}
+        await self._set_state("thinking")
+        engine = self._make_engine("cloud")
+        if engine is None:
+            return
+        self._turn_text = offer.text
+        self._turn_engine, self._heard = engine, []
+        self._turn_task = asyncio.create_task(self._run_engine(engine.run_turn(offer.conversation_id, offer.text, source="voice", retry=True)))
 
     # ================================================================ background
     async def _speak_standalone(self, text: str) -> None:

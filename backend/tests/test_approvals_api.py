@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import json
 
-from app.llm.base import ChatWithToolsResponse, LLMProvider
+from tests.llm_doubles import ChatWithToolsResponse, OneShotLLM
 from app.tools import pending_approvals
 
 
-class ScriptedLLM(LLMProvider):
+class ScriptedLLM(OneShotLLM):
     name = "local"
     model = "scripted"
 

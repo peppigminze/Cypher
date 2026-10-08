@@ -97,3 +97,49 @@ def test_chat_requires_auth_and_valid_ids(client, user_headers):
 
 def test_history_hides_engine_context_lines():
     assert chat_api.display_text("[Kontext: Jetzt ist Montag, 12:00 Uhr.]\n[Aus deinem Gedächtnis (Notizen): „x“]\nWie geht's?") == "Wie geht's?"
+
+
+# ------------------------------------------------------------------ cloud only after asking (M5)
+def test_local_failure_offers_the_cloud_and_runs_it_only_after_yes(client, user_headers, monkeypatch):
+    from app.agent import cloud_offer
+    from app.llm.base import LLMUnavailableError
+
+    class DownLLM(ScriptedLLM):
+        async def stream_chat(self, messages, tools=None, **kwargs):
+            raise LLMUnavailableError("down", provider="local", base_url="http://127.0.0.1:11434")
+            yield  # pragma: no cover
+
+    cloud = ScriptedLLM([["Antwort aus der Cloud."]])
+    used = []
+
+    def provider(name, settings=None):
+        used.append(name)
+        return cloud if name == "cloud" else DownLLM([])
+
+    monkeypatch.setattr(chat_api, "get_provider_by_name", provider)
+    monkeypatch.setattr(cloud_offer, "cloud_available", lambda settings=None: True)
+    evs = events(client.post("/api/chat", json={"message": "Erklär mir Photosynthese"}, headers=user_headers))
+    assert [e["type"] for e in evs] == ["conversation", "error", "approval"]
+    card = evs[-1]["card"]
+    assert card["risk"] == "cloud" and card["approval_id"].startswith("cloud-")
+    assert used == ["local"]  # nothing went to the cloud yet
+
+    answer = events(client.post("/api/chat/approval", json={"approval_id": card["approval_id"], "approved": True}, headers=user_headers))
+    assert answer[-1]["text"] == "Antwort aus der Cloud." and used == ["local", "cloud"]
+    # The retried question is in the history once, with the cloud's answer.
+    sent = cloud.calls[0]
+    assert [m["role"] for m in sent[1:]] == ["user"] and sent[-1]["content"].endswith("Erklär mir Photosynthese")
+
+
+def test_no_cloud_offer_when_cloud_is_not_configured(client, user_headers):
+    evs = events(client.post("/api/chat", json={"message": "Hallo"}, headers=user_headers))
+    assert [e["type"] for e in evs] == ["conversation", "error"]
+
+
+def test_declined_cloud_offer(client, user_headers):
+    from app.agent import cloud_offer
+
+    offer = cloud_offer.create("abcdabcdabcdabcd", "Hallo", "text")
+    evs = events(client.post("/api/chat/approval", json={"approval_id": offer.offer_id, "approved": False}, headers=user_headers))
+    assert evs[-1]["text"] == "Okay, dann nicht."
+    assert client.post("/api/chat/approval", json={"approval_id": offer.offer_id, "approved": True}, headers=user_headers).status_code == 404

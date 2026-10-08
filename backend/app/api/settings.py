@@ -27,6 +27,8 @@ from app.auth import require_user
 from app.config import get_settings
 from app.database.db import get_db
 from app.schemas import SettingsOut, WakeOnLanInfo
+from app.core import errors
+from app.llm.factory import cloud_status
 from app.settings_store import VALID_PROVIDERS, get_active_provider, set_active_provider
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -34,7 +36,11 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 class ActiveProviderOut(BaseModel):
     provider: str
-    cloud_configured: bool  # whether CLOUD_LLM_API_KEY is set - lets the UI grey out "cloud" if switching would just fail
+    # Cloud usable (CLOUD_LLM_ENABLED=true and a key) - the UI greys out "cloud" otherwise.
+    cloud_configured: bool
+    # "ok" | "disabled" | "no_key" - so the UI can say what is missing.
+    cloud_status: str = "ok"
+    cloud_model: str = ""
 
 
 class SetActiveProviderIn(BaseModel):
@@ -43,11 +49,13 @@ class SetActiveProviderIn(BaseModel):
 
 @router.get("/provider", response_model=ActiveProviderOut)
 def get_provider(db: Session = Depends(get_db), _user=Depends(require_user)) -> ActiveProviderOut:
+    return _provider_out(get_active_provider(db))
+
+
+def _provider_out(provider: str) -> ActiveProviderOut:
     settings = get_settings()
-    return ActiveProviderOut(
-        provider=get_active_provider(db),
-        cloud_configured=bool(settings.CLOUD_LLM_API_KEY),
-    )
+    status_ = cloud_status(settings)
+    return ActiveProviderOut(provider=provider, cloud_configured=status_ == "ok", cloud_status=status_, cloud_model=settings.CLOUD_LLM_MODEL)
 
 
 @router.post("/provider", response_model=ActiveProviderOut)
@@ -59,18 +67,14 @@ def set_provider(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Unknown provider '{payload.provider}'. Must be one of {VALID_PROVIDERS}.",
         )
-    settings = get_settings()
-    if payload.provider == "cloud" and not settings.CLOUD_LLM_API_KEY:
+    if payload.provider == "cloud" and cloud_status(get_settings()) != "ok":
         # Fail the switch itself rather than silently accepting it and
-        # only erroring on the next /api/tool-chat call - the user
-        # should know immediately why "cloud" didn't take effect.
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot switch to cloud - CLOUD_LLM_API_KEY is not set in .env.",
-        )
+        # only erroring on the next request - the user should know
+        # immediately why "cloud" didn't take effect.
+        err = errors.cloud_not_configured()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"{err.message} {err.hint}")
 
-    provider = set_active_provider(db, payload.provider)
-    return ActiveProviderOut(provider=provider, cloud_configured=bool(settings.CLOUD_LLM_API_KEY))
+    return _provider_out(set_active_provider(db, payload.provider))
 
 
 @router.get("", response_model=SettingsOut)

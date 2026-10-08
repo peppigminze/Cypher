@@ -9,10 +9,10 @@ persisted through the same SQLite session the `client` fixture uses.
 """
 from __future__ import annotations
 
-from app.llm.base import ChatWithToolsResponse
+from tests.llm_doubles import ChatWithToolsResponse, OneShotLLM
 
 
-class FakeToolCallingLLM:
+class FakeToolCallingLLM(OneShotLLM):
     def __init__(self, model: str = "fake-model"):
         self.model = model
 
@@ -28,6 +28,7 @@ def _enable_cloud_key(monkeypatch):
     from app.config import get_settings
 
     monkeypatch.setenv("CLOUD_LLM_API_KEY", "sk-test-key")
+    monkeypatch.setenv("CLOUD_LLM_ENABLED", "true")
     get_settings.cache_clear()
 
 
@@ -80,6 +81,7 @@ def test_switching_to_cloud_without_an_api_key_is_rejected(client, user_headers,
     from app.config import get_settings
 
     monkeypatch.setenv("CLOUD_LLM_API_KEY", "")
+    monkeypatch.setenv("CLOUD_LLM_ENABLED", "true")
     get_settings.cache_clear()
     try:
         resp = client.post("/api/settings/provider", json={"provider": "cloud"}, headers=user_headers)
