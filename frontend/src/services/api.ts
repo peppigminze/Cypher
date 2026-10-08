@@ -195,6 +195,43 @@ export async function deleteMemory(id: number): Promise<void> {
   await request<void>(`/api/memory/${id}`, { method: "DELETE" });
 }
 
+// Both memory layers (M4): core facts (always in Cypher's prompt, limited)
+// and the searchable archive.
+export type MemoryLayer = "core" | "archive";
+
+export interface MemoryItem {
+  layer: MemoryLayer;
+  id: string;
+  text: string;
+}
+
+export interface MemoryOverview {
+  core: MemoryItem[];
+  archive: MemoryItem[];
+  core_used_tokens: number;
+  core_max_tokens: number;
+}
+
+export async function getMemoryOverview(): Promise<MemoryOverview> {
+  return request<MemoryOverview>("/api/memory/overview");
+}
+
+export async function addMemoryItem(text: string, layer: MemoryLayer): Promise<MemoryItem> {
+  return request<MemoryItem>("/api/memory/items", { method: "POST", body: JSON.stringify({ text, layer }) });
+}
+
+export async function updateMemoryItem(item: MemoryItem, change: { text?: string; move_to?: MemoryLayer }): Promise<MemoryItem> {
+  return request<MemoryItem>(`/api/memory/items/${item.layer}/${encodeURIComponent(item.id)}`, { method: "PATCH", body: JSON.stringify(change) });
+}
+
+export async function deleteMemoryItem(item: MemoryItem): Promise<void> {
+  await request<void>(`/api/memory/items/${item.layer}/${encodeURIComponent(item.id)}`, { method: "DELETE" });
+}
+
+export async function deleteConversationHistory(): Promise<{ deleted: number }> {
+  return request<{ deleted: number }>("/api/conversations", { method: "DELETE" });
+}
+
 // ------------------------------------------------------------------ Pending actions (confirmation flow)
 
 export async function listPendingActions(): Promise<PendingAction[]> {

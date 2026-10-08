@@ -196,7 +196,17 @@ def diagnostics_report(report: Dict[str, Any], runtime: Runtime) -> Dict[str, An
             "cloud_configured": bool(s.CLOUD_LLM_API_KEY),
         },
         "system": {"python": sys.version.split()[0], "platform": platform.platform()},
+        "context_budget": _context_budget(s),
     }
+
+
+def _context_budget(settings) -> Dict[str, Any]:
+    try:
+        from app.memory.budget import context_budget  # noqa: PLC0415
+
+        return context_budget(settings)
+    except Exception as exc:  # noqa: BLE001 - diagnostics must always answer
+        return {"error": str(exc)}
 
 
 def llm_status_dict(st: Optional[LLMStatus]) -> Dict[str, Any]:

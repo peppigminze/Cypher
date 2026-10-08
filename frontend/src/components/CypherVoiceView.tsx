@@ -212,6 +212,15 @@ export function CypherVoiceView({ status, onOpenMenu }: Props) {
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          className="voice-view__mode"
+          onClick={voice.newConversation}
+          disabled={offline}
+          title="Den bisherigen Gesprächsverlauf beiseitelegen - das Gedächtnis bleibt"
+        >
+          Neues Gespräch
+        </button>
         <form className="voice-view__type" onSubmit={submit}>
           <input
             type="text"

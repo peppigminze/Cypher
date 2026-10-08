@@ -55,6 +55,7 @@ function makeClient(overrides: Partial<ConstructorParameters<typeof VoiceClient>
 
 beforeEach(() => {
   FakeSocket.instances = [];
+  localStorage.removeItem("cypher.conversation.v1");
   vi.useFakeTimers();
 });
 afterEach(() => {
@@ -68,9 +69,24 @@ describe("VoiceClient", () => {
     const ws = FakeSocket.instances[0];
     expect(ws.url).not.toContain("secret");
     ws.open();
-    expect(JSON.parse(ws.sent[0] as string)).toEqual({ type: "auth", token: "secret-token" });
-    ws.receive(JSON.stringify({ type: "ready", mode: "auto" }));
+    expect(JSON.parse(ws.sent[0] as string)).toEqual({ type: "auth", token: "secret-token", conversation_id: null });
+    ws.receive(JSON.stringify({ type: "ready", mode: "auto", conversation_id: "abc123def4567890" }));
     expect(statuses).toEqual(["connecting", "open"]);
+  });
+
+  it("resumes the last conversation after a reconnect", () => {
+    localStorage.removeItem("cypher.conversation.v1");
+    const { client } = makeClient();
+    client.connect();
+    FakeSocket.instances[0].open();
+    FakeSocket.instances[0].receive(JSON.stringify({ type: "ready", conversation_id: "abc123def4567890" }));
+    FakeSocket.instances[0].drop();
+    vi.advanceTimersByTime(100);
+    FakeSocket.instances[1].open();
+    expect(JSON.parse(FakeSocket.instances[1].sent[0] as string).conversation_id).toBe("abc123def4567890");
+    FakeSocket.instances[1].receive(JSON.stringify({ type: "conversation", conversation_id: "ffff0000ffff0000" }));
+    expect(localStorage.getItem("cypher.conversation.v1")).toBe("ffff0000ffff0000");
+    client.close();
   });
 
   it("pairs an audio header with the following binary frame", () => {

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.agent.action_guard import claims_action, looks_like_action_request
+from app.agent.action_guard import answered_without_lookup, claims_action, guard_mode, looks_like_action_request
 from app.agent.quick_commands import match_quick_command, normalize
 
 
@@ -69,3 +69,46 @@ def test_short_success_claims_are_detected(reply):
 )
 def test_questions_and_explanations_are_not_claims(reply):
     assert not claims_action(reply)
+
+
+@pytest.mark.parametrize(
+    "text, mode",
+    [
+        ("Notiere: Brot", "action"),
+        ("Wie laut ist es gerade eingestellt?", "lookup"),
+        ("Was läuft gerade für ein Lied?", "lookup"),
+        ("Wie lange läuft mein Timer noch?", "lookup"),
+        ("Brauche ich heute einen Schirm?", "lookup"),
+        ("Wie wird das Wetter morgen in Zürich?", "lookup"),
+        ("Was ist der Unterschied zwischen einem Timer und einem Wecker?", None),
+        ("Wie spät ist es?", None),
+        ("An welchem Tag habe ich Berufsschule?", None),
+    ],
+)
+def test_guard_mode(text, mode):
+    assert guard_mode(text) == mode
+
+
+def test_lookup_answer_without_tool_is_suspicious_unless_it_asks_back():
+    assert answered_without_lookup("Die Lautstärke liegt bei 50 Prozent.")
+    assert not answered_without_lookup("Für welchen Ort?")
+    assert not answered_without_lookup("")
+
+
+@pytest.mark.parametrize(
+    "reply, suspicious",
+    [
+        ("Das habe ich getan.", True),  # slipped through the word list once
+        ("Okay.", True),
+        ("Notiz gespeichert.", True),
+        ("Ich habe keine laufenden Timer gefunden.", True),  # claims a check that never happened
+        ("Das kann ich leider nicht.", False),
+        ("Dafür habe ich kein Werkzeug.", False),
+        ("Für wie lange soll der Timer laufen?", False),
+        ("Ein Timer zählt eine Dauer herunter und meldet sich am Ende. " * 4, False),
+    ],
+)
+def test_unverified_action_reply(reply, suspicious):
+    from app.agent.action_guard import unverified_action_reply
+
+    assert unverified_action_reply(reply) is suspicious

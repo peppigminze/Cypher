@@ -68,6 +68,7 @@ Copyleft auf Dateiebene – betrifft nur Änderungen an deren eigenen Dateien, n
 | M2 | winrt-runtime, winrt-Windows.Media.Control, -Foundation, -Foundation.Collections 3.2.1 | MIT | Windows-Mediensitzung: echtes Pause/Play statt Toggle, „Was läuft gerade?" |
 | M2 | Pillow 12.3.0 | MIT-CMU (HPND, permissiv) | Bildschirmfoto für `describe_screen` (lokales Vision-Modell) |
 | M3 | esbuild 0.21.5 (Frontend, devDependency; war schon transitiv über vite installiert) | MIT | Test baut das Mikrofon-AudioWorklet wie `vite build` minifiziert und prüft, dass es eigenständig läuft |
+| M4 | – (keine neue Abhängigkeit) | – | Volltextsuche über SQLite FTS5 (in Pythons `sqlite3` enthalten, Public Domain) |
 
 Externe Dienste (keine Code-Abhängigkeit, ohne Account/Key):
 

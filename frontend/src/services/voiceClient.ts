@@ -43,6 +43,27 @@ export interface VoiceClientOptions {
   backoffMs?: number[];
 }
 
+const CONVERSATION_KEY = "cypher.conversation.v1";
+
+/** The conversation this browser is in - sent on (re)connect so the
+ * server can continue it (it decides whether it's recent enough). */
+export function storedConversationId(): string | null {
+  try {
+    return localStorage.getItem(CONVERSATION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function rememberConversationId(id: unknown): void {
+  if (typeof id !== "string") return;
+  try {
+    localStorage.setItem(CONVERSATION_KEY, id);
+  } catch {
+    /* private mode: just no resume */
+  }
+}
+
 const CLOSE_UNAUTHORIZED = 4401;
 const CLOSE_FORBIDDEN_ORIGIN = 4403;
 const CLOSE_RATE_LIMIT = 4429;
@@ -85,7 +106,7 @@ export class VoiceClient {
     ws.binaryType = "arraybuffer";
     this.ws = ws;
     ws.onopen = () => {
-      ws.send(JSON.stringify({ type: "auth", token: this.opts.getToken() ?? "" }));
+      ws.send(JSON.stringify({ type: "auth", token: this.opts.getToken() ?? "", conversation_id: storedConversationId() }));
       this.lastMessageAt = Date.now();
       this.startHeartbeat();
     };
@@ -145,6 +166,7 @@ export class VoiceClient {
       this.attempt = 0;
       this.opts.onStatus("open");
     }
+    if (message.type === "ready" || message.type === "conversation") rememberConversationId(message.conversation_id);
     this.opts.onMessage(message);
   }
 

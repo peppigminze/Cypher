@@ -282,6 +282,20 @@ async def test_questions_are_not_held_back(tools):
             break
 
 
+async def test_invented_status_answer_is_retried_with_a_lookup_hint(tools):
+    llm = ScriptedLLM([["Die Lautstärke liegt bei 50 Prozent."], [call("echo", {"text": "vol"})], ["Es sind 30 Prozent."]])
+    events = await run(make_engine(llm, tools), "Wie laut ist es gerade eingestellt?")
+    spoken = [e.text for e in events if isinstance(e, Sentence)]
+    assert "Die Lautstärke liegt bei 50 Prozent." not in spoken and spoken[-1] == "Es sind 30 Prozent."
+    assert "Rate nicht" in llm.calls[1][-1]["content"]
+
+
+async def test_lookup_second_answer_is_passed_on(tools):
+    llm = ScriptedLLM([["Keine Ahnung."], ["Dazu habe ich kein passendes Werkzeug."]])
+    events = await run(make_engine(llm, tools), "Wie laut ist es gerade eingestellt?")
+    assert events[-1].reply == "Dazu habe ich kein passendes Werkzeug."
+
+
 # ------------------------------------------------------------------ quick commands
 async def test_quick_command_skips_the_llm(tools):
     store = ConversationStore()
@@ -295,7 +309,7 @@ async def test_quick_command_skips_the_llm(tools):
 
 
 async def test_quick_command_not_used_when_tool_is_not_exposed(tools):
-    llm = ScriptedLLM([["Okay."]])
+    llm = ScriptedLLM([["Dafür habe ich gerade kein Werkzeug."]])
     engine = ConversationEngine(llm, tools, store=ConversationStore(), tool_names=["echo"])
     await run(engine, "Pause.")
     assert len(llm.calls) == 1

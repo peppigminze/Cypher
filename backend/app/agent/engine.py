@@ -34,16 +34,19 @@ import json
 import logging
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import aclosing
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
-from app.agent.action_guard import NOT_DONE_REPLY, RETRY_HINT, claims_action, looks_like_action_request
+from app.agent.action_guard import LOOKUP_HINT, NOT_DONE_REPLY, RETRY_HINT, answered_without_lookup, guard_mode, unverified_action_reply
 from app.agent.quick_commands import QuickCommand, match_quick_command
 from app.config import Settings, get_settings
 from app.core import errors
 from app.core.context import pipeline_id_var
 from app.core.metrics import metrics
+from app.database.models import ConversationHistory
 from app.llm.base import LLMProvider, LLMUnavailableError, StreamDone, TextDelta as LLMTextDelta, ToolCall, ToolCallEvent, stream_events
 from app.persona import system_prompt
 from app.security.untrusted import tool_result_message_content
@@ -176,11 +179,21 @@ class Conversation:
 
 
 class ConversationStore:
-    """In-memory conversations (M4 adds persistence + summaries)."""
+    """Conversations in memory, optionally persisted to SQLite (M4,
+    table conversation_history) so they survive a restart or a reconnect.
 
-    def __init__(self, max_conversations: int = 50) -> None:
+    Only the last KEEP_MESSAGES messages are stored - the model never sees
+    more than HISTORY_MAX_TOKENS of them anyway. Writes happen on one
+    background thread, so a slow disk never delays the answer.
+    """
+
+    KEEP_MESSAGES = 80
+
+    def __init__(self, max_conversations: int = 50, persist: bool = False) -> None:
         self._items: Dict[str, Conversation] = {}
         self._max = max_conversations
+        self.persist = persist
+        self._writer = ThreadPoolExecutor(max_workers=1, thread_name_prefix="conversation-store") if persist else None
 
     def get(self, conversation_id: str) -> Conversation:
         conv = self._items.get(conversation_id)
@@ -188,15 +201,107 @@ class ConversationStore:
             if len(self._items) >= self._max:
                 oldest = min(self._items.values(), key=lambda c: c.updated_at)
                 self._items.pop(oldest.id, None)
-            conv = Conversation(conversation_id)
+            conv = (self._load(conversation_id) if self.persist else None) or Conversation(conversation_id)
             self._items[conversation_id] = conv
         return conv
 
+    def save(self, conv: Conversation) -> None:
+        if not self.persist or self._writer is None:
+            return
+        messages = conv.messages[-self.KEEP_MESSAGES :]
+        # Start at a user message: a stored history must never begin with a
+        # tool result whose tool call was cut off.
+        while messages and messages[0]["role"] != "user":
+            messages = messages[1:]
+        snapshot = json.dumps(messages, ensure_ascii=False, default=str)
+        self._writer.submit(self._write, conv.id, snapshot, len(messages))
+
+    def mark_interrupted(self, conversation_id: str, heard: str) -> None:
+        conv = self.get(conversation_id)
+        conv.mark_interrupted(heard)
+        self.save(conv)
+
+    def last_active(self, conversation_id: str) -> Optional[float]:
+        """Unix time of the last change, or None if unknown."""
+        conv = self._items.get(conversation_id)
+        if conv is not None and conv.messages:
+            return conv.updated_at
+        if not self.persist:
+            return None
+        row = self._row(conversation_id)
+        return row.updated_at.replace(tzinfo=row.updated_at.tzinfo or timezone.utc).timestamp() if row is not None else None
+
     def reset(self, conversation_id: str) -> None:
         self._items.pop(conversation_id, None)
+        if self.persist:
+            self._run_db(lambda db: db.query(ConversationHistory).filter(ConversationHistory.id == conversation_id).delete())
+
+    def delete_all(self) -> int:
+        self._items.clear()
+        if not self.persist:
+            return 0
+        return self._run_db(lambda db: db.query(ConversationHistory).delete()) or 0
+
+    def prune(self, keep_days: int) -> int:
+        if not self.persist:
+            return 0
+        cutoff = datetime.now(timezone.utc) - timedelta(days=keep_days)
+        return self._run_db(lambda db: db.query(ConversationHistory).filter(ConversationHistory.updated_at < cutoff).delete()) or 0
+
+    def flush(self) -> None:
+        """Wait for pending writes (shutdown, tests)."""
+        if self._writer is not None:
+            self._writer.submit(lambda: None).result(timeout=10)
+
+    # ------------------------------------------------------------ storage
+    def _row(self, conversation_id: str) -> Optional[ConversationHistory]:
+        from app.database.db import SessionLocal  # noqa: PLC0415
+
+        try:
+            with SessionLocal() as db:
+                return db.get(ConversationHistory, conversation_id)
+        except Exception:  # noqa: BLE001 - history is a convenience, never fatal
+            logger.exception("Could not read conversation history")
+            return None
+
+    def _load(self, conversation_id: str) -> Optional[Conversation]:
+        row = self._row(conversation_id)
+        if row is None:
+            return None
+        try:
+            messages = json.loads(row.messages_json)
+        except ValueError:
+            return None
+        updated = row.updated_at.replace(tzinfo=row.updated_at.tzinfo or timezone.utc).timestamp()
+        return Conversation(conversation_id, messages=messages, updated_at=updated)
+
+    def _write(self, conversation_id: str, snapshot: str, count: int) -> None:
+        def upsert(db) -> None:
+            row = db.get(ConversationHistory, conversation_id)
+            if row is None:
+                row = ConversationHistory(id=conversation_id)
+                db.add(row)
+            row.messages_json = snapshot
+            row.message_count = count
+            row.updated_at = datetime.now(timezone.utc)
+
+        self._run_db(upsert)
+
+    @staticmethod
+    def _run_db(fn) -> Any:
+        from app.database.db import SessionLocal  # noqa: PLC0415
+
+        try:
+            with SessionLocal() as db:
+                result = fn(db)
+                db.commit()
+                return result
+        except Exception:  # noqa: BLE001
+            logger.exception("Conversation history write failed")
+            return None
 
 
-conversations = ConversationStore()
+conversations = ConversationStore(persist=True)
 
 
 def time_context() -> str:
@@ -253,9 +358,15 @@ class ConversationEngine:
             async for event in self._run_quick(conv, user_msg, quick, ctx):
                 yield event
             return
+        guard = guard_mode(user_text)
+        # Matching archive memories travel with this user turn (the core
+        # memory is already in the system prompt); remembered answer-style
+        # preferences only with turns that need no tool (see MemoryService.style_hint).
+        extra = [self._recall(user_text, db), self._style_hint() if guard is None else ""]
+        context_lines = [time_context()] + [line for line in extra if line]
+        user_msg = {"role": "user", "content": "\n".join(context_lines + [user_text.strip()])}
         messages = [{"role": "system", "content": system_prompt(source)}] + conv.window(self.settings.HISTORY_MAX_TOKENS) + [user_msg]
         new_messages: List[Dict[str, Any]] = [user_msg]
-        guard = looks_like_action_request(user_text)
         # aclosing: if the caller stops early (barge-in), the inner loop's
         # finally block - which writes the interrupted turn to the history -
         # runs right now, not whenever the garbage collector gets to it.
@@ -297,6 +408,25 @@ class ConversationEngine:
             async for event in events:
                 yield event
 
+    def _recall(self, user_text: str, db: Any) -> str:
+        from app.memory.service import get_memory  # noqa: PLC0415
+
+        try:
+            return get_memory().recall(user_text, db=db)
+        except Exception:  # noqa: BLE001 - memory must never break a turn
+            logger.exception("Memory recall failed")
+            return ""
+
+    @staticmethod
+    def _style_hint() -> str:
+        from app.memory.service import get_memory  # noqa: PLC0415
+
+        try:
+            return get_memory().style_hint()
+        except Exception:  # noqa: BLE001
+            logger.exception("Memory style hint failed")
+            return ""
+
     # -------------------------------------------------------------- quick commands
     def _quick_command(self, user_text: str, ctx: ToolContext) -> Optional[QuickCommand]:
         quick = match_quick_command(user_text)
@@ -321,16 +451,17 @@ class ConversationEngine:
         yield TurnDone(reply=reply, steps_used=0, metrics={"quick_command": 1.0, "first_sentence": elapsed, "total": elapsed})
 
     # -------------------------------------------------------------- internals
-    async def _loop(self, conv: Conversation, messages, new_messages, ctx: ToolContext, *, start_step: int, seen_calls: set, guard: bool = False) -> AsyncIterator[EngineEvent]:
-        """`guard`: the user asked for an action - hold the first answer back
-        until it is clear whether the model called a tool (action_guard.py)."""
+    async def _loop(self, conv: Conversation, messages, new_messages, ctx: ToolContext, *, start_step: int, seen_calls: set, guard: Optional[str] = None) -> AsyncIterator[EngineEvent]:
+        """`guard` ("action" | "lookup" | None, see action_guard.py): the user
+        asked for something only a tool can do or know - hold the first
+        answer back until it is clear whether the model called a tool."""
         tools = to_openai_tools(self.registry, self.tool_names)
         started = time.perf_counter()
         turn_metrics: Dict[str, float] = {}
         sentence_index = 0
         spoken_parts: List[str] = []
         committed = False
-        hinted = False
+        hinted: Any = False  # False, or the guard mode whose hint was sent
 
         def emit(kind: str, text: str) -> EngineEvent:
             nonlocal sentence_index
@@ -354,7 +485,8 @@ class ConversationEngine:
                 if hinted:
                     # The hint only goes into this one request, never into the history.
                     last = messages[-1]
-                    call_messages = messages[:-1] + [{**last, "content": f"{last['content']}\n{RETRY_HINT}"}]
+                    hint = LOOKUP_HINT if hinted == "lookup" else RETRY_HINT
+                    call_messages = messages[:-1] + [{**last, "content": f"{last['content']}\n{hint}"}]
                 call_started = time.perf_counter()
                 try:
                     async for event in stream_events(self.llm, call_messages, tools):
@@ -394,12 +526,17 @@ class ConversationEngine:
                 tail = [("sentence", s) for s in splitter.flush()]
                 if guard:
                     held.extend(tail)
-                    if not calls and claims_action("".join(text_parts)):
-                        # "Notiz gespeichert." without save_note: held back, never spoken.
-                        logger.warning("Model claimed an action without calling a tool%s: %r", " (again)" if hinted else "", "".join(text_parts)[:160])
+                    reply_text = "".join(text_parts)
+                    suspicious = not calls and (unverified_action_reply(reply_text) if guard == "action" else answered_without_lookup(reply_text))
+                    if suspicious and guard == "lookup" and hinted:
+                        suspicious = False  # second try: a lookup answer is passed on as it is
+                    if suspicious:
+                        # "Notiz gespeichert." without save_note, or "50 Prozent" without
+                        # get_volume: held back, never spoken.
+                        logger.warning("Model answered without the needed tool (%s)%s: %r", guard, " (again)" if hinted else "", reply_text[:160])
                         turn_metrics["guard_retries"] = turn_metrics.get("guard_retries", 0) + 1
                         if not hinted:
-                            hinted = True
+                            hinted = guard
                             continue
                         self._commit(conv, new_messages, partial_reply=NOT_DONE_REPLY, text_only=self._text_only_turn)
                         committed = True
@@ -457,7 +594,9 @@ class ConversationEngine:
                 plan = self.executor.plan(call.name, call.arguments, ctx)
                 if signature in seen_calls:
                     result = ToolResult(success=False, error=f"'{call.name}' was already called with these arguments in this turn - use its result instead of calling it again.")
-                elif plan.needs_approval:
+                elif plan.needs_approval and not (ctx.tainted and plan.tool is not None and not plan.tool.allow_when_tainted):
+                    # (A tool that refuses in tainted turns gets no approval card:
+                    # "yes" couldn't unlock it anyway - the executor reports why.)
                     remaining = [{"id": c.id, "name": c.name, "arguments": c.arguments, "raw": c.raw_arguments} for c in calls[i + 1 :]]
                     approval_id = pending_approvals.create(
                         tool_name=call.name,
@@ -525,6 +664,7 @@ class ConversationEngine:
         conv.compact_tool_results()
         conv.updated_at = time.time()
         new_messages.clear()
+        self.store.save(conv)
 
     def _record_usage(self, ctx: ToolContext, done: StreamDone) -> None:
         if done.usage is None or ctx.db is None:

@@ -109,6 +109,9 @@ def init_db() -> None:
 
     Base.metadata.create_all(bind=engine)
     models.run_migrations()
+    from app.memory.store import ensure_fts  # noqa: PLC0415
+
+    ensure_fts(engine)  # full-text index for the memory archive (M4)
 
 
 def get_db() -> Generator[Session, None, None]:

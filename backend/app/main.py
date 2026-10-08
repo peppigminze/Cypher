@@ -78,6 +78,20 @@ async def lifespan(app: FastAPI):
     _check_tokens(settings)
     init_db()
     logger.info("Database ready.")
+    from app.agent.engine import conversations  # noqa: PLC0415
+
+    from app.memory.budget import context_budget  # noqa: PLC0415
+
+    budget = context_budget(settings)
+    if not budget["fits"]:
+        logger.warning(
+            "Context budget %d tokens > LOCAL_LLM_NUM_CTX %d: long turns may lose the start of the prompt. "
+            "Lower HISTORY_MAX_TOKENS / MEMORY_* / FETCH_MAX_CHARS or raise LOCAL_LLM_NUM_CTX. Parts: %s",
+            budget["total"], budget["window"], budget["parts"],
+        )
+    pruned = conversations.prune(settings.CONVERSATION_KEEP_DAYS)
+    if pruned:
+        logger.info("Deleted %d conversation histories older than %d days.", pruned, settings.CONVERSATION_KEEP_DAYS)
 
     runtime = Runtime(settings)
     set_runtime(runtime)
@@ -94,6 +108,7 @@ async def lifespan(app: FastAPI):
             pass
         await runtime.stop()
         set_runtime(None)
+        conversations.flush()
 
 
 app = FastAPI(title="Cypher Backend", version=APP_VERSION, lifespan=lifespan)
@@ -114,6 +129,7 @@ app.include_router(health.router)
 app.include_router(messages.router)
 app.include_router(tasks.router)
 app.include_router(memory.router)
+app.include_router(memory.conversations_router)
 app.include_router(sync.router)
 app.include_router(agent_api.router)
 app.include_router(actions.router)

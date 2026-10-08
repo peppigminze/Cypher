@@ -20,6 +20,11 @@ only be reported after a tool result. The engine uses two checks:
 If both are true and the step made no tool call, the engine discards the
 reply (it was held back, never spoken), retries once with an explicit hint,
 and if the model claims success again it says honestly that nothing happened.
+
+Second mode, "lookup": questions about the current state that only a tool
+can know ("Wie laut ist es gerade?", "Brauche ich heute einen Schirm?").
+Answered without a tool, the answer is invented ("50 Prozent") - the engine
+retries once with a hint; the second answer is passed on as it is.
 """
 from __future__ import annotations
 
@@ -49,7 +54,7 @@ _CLAIM = re.compile(
     r"pausiert|angehalten|gestoppt|fortgesetzt|übersprungen|abgebrochen|"
     r"leiser|lauter|stumm|reduziert|erhöht|gesenkt|\w*gedreht|"
     r"kopiert|eingefügt|geöffnet|geschlossen|"
-    r"gefunden|nachgesehen|nachgeschaut|geprüft|überprüft|erledigt|gemacht|ausgeführt|mach\s+ich"
+    r"gefunden|nachgesehen|nachgeschaut|geprüft|überprüft|gelöscht|entfernt|erledigt|gemacht|ausgeführt|mach\s+ich"
     r")\b"
     # announcing instead of doing: "Ich stelle die Lautstärke runter."
     r"|\bich\s+(stelle?|schalte?|mache?|setze?|starte?|öffne|kopiere?|speichere?|notiere?|pausiere?|drehe?|merke?|suche?|schaue?|prüfe?)\b",
@@ -64,6 +69,45 @@ RETRY_HINT = (
 NOT_DONE_REPLY = "Das habe ich nicht ausgeführt, da ist etwas schiefgelaufen. Sag es bitte nochmal etwas genauer."
 
 
+LOOKUP_HINT = (
+    "[Hinweis: Diese Frage braucht aktuelle Daten vom PC oder aus dem Internet (Lautstärke, Wiedergabe, Timer, "
+    "Zwischenablage, Wetter, Auslastung ...). Rate nicht - ruf das passende Tool auf. Wenn kein Tool passt, sag das ehrlich.]"
+)
+
+# Questions about the CURRENT state of something only a tool can see
+# ("Wie laut ist es gerade?", "Was läuft gerade?", "Wird es morgen regnen?").
+# Needs a topic AND a "now/mine" marker, so "Was ist ein Timer?" stays a
+# normal knowledge question.
+_LOOKUP_TOPIC = re.compile(
+    r"\b(lautstärke|wie\s+laut|läuft|spielt|lied|song|titel|timer|wecker|erinnerung\w*|zwischenablage|"
+    r"wetter|regn\w*|regen|schirm|schnee|temperatur|grad|auslastung|ausgelastet|arbeitsspeicher|ram|cpu|"
+    r"notiz\w*|notiert|bildschirm)\b",
+    re.IGNORECASE,
+)
+_LOOKUP_NOW = re.compile(r"\b(gerade|aktuell|jetzt|momentan|heute|morgen|noch|mein\w*|eingestellt|draussen|draußen)\b", re.IGNORECASE)
+
+
+def looks_like_lookup_request(text: str) -> bool:
+    text = (text or "").strip()
+    return text.endswith("?") and bool(_LOOKUP_TOPIC.search(text)) and bool(_LOOKUP_NOW.search(text))
+
+
+def answered_without_lookup(reply: str) -> bool:
+    """A lookup question answered without a tool - unless the model asked
+    back ("Für welchen Ort?"), which is fine."""
+    reply = (reply or "").strip()
+    return bool(reply) and not reply.endswith("?")
+
+
+def guard_mode(text: str) -> "str | None":
+    """"action", "lookup" or None - which guard (if any) watches this turn."""
+    if looks_like_action_request(text):
+        return "action"
+    if looks_like_lookup_request(text):
+        return "lookup"
+    return None
+
+
 def looks_like_action_request(text: str) -> bool:
     text = (text or "").strip()
     if not _ACTION_REQUEST.search(text):
@@ -74,3 +118,21 @@ def looks_like_action_request(text: str) -> bool:
 def claims_action(reply: str) -> bool:
     reply = (reply or "").strip()
     return 0 < len(reply) <= _MAX_CLAIM_CHARS and bool(_CLAIM.search(reply))
+
+
+# A refusal or "nothing there" is an honest answer, not a fake confirmation.
+_REFUSAL = re.compile(r"\b(nicht|nichts|kein\w*|leider|unmöglich|geht\s+nicht)\b", re.IGNORECASE)
+
+
+def unverified_action_reply(reply: str) -> bool:
+    """The model answered an ACTION request without calling a tool. Suspicious
+    unless it asks back or refuses: a word list of success phrases is never
+    complete ("Das habe ich getan." slipped through one), so any short
+    statement counts - plus every explicit claim, even next to a refusal
+    ("Ich habe keine Timer gefunden" claims a check that never happened)."""
+    reply = (reply or "").strip()
+    if not reply or "?" in reply:
+        return False
+    if claims_action(reply):
+        return True
+    return len(reply) <= _MAX_CLAIM_CHARS and not _REFUSAL.search(reply)

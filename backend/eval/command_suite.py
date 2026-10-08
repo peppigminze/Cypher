@@ -31,7 +31,7 @@ from typing import Any, Dict, List, Optional
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from app.agent.action_guard import NOT_DONE_REPLY, claims_action  # noqa: E402
+from app.agent.action_guard import NOT_DONE_REPLY, unverified_action_reply  # noqa: E402
 from app.agent.engine import ApprovalRequired, ConversationEngine, ConversationStore, Sentence, ToolFinished, ToolStarted, TurnDone, TurnFailed  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.core.log import setup_logging  # noqa: E402
@@ -119,7 +119,7 @@ def evaluate(case: Dict[str, Any], run: CaseRun, registry) -> None:  # noqa: ANN
         hit = next((i for i, name in enumerate(run.tools) if name in accepted), None)
         run.tool_ok = hit is not None
         # The guard's honest "nicht ausgeführt" is a miss, not a false claim.
-        run.hallucinated = not run.tools and run.reply != NOT_DONE_REPLY and claims_action(run.reply)
+        run.hallucinated = not run.tools and run.reply != NOT_DONE_REPLY and unverified_action_reply(run.reply)
         if hit is not None and hit < len(run.call_args):
             run.arguments = run.call_args[hit]
     if run.tool_ok and run.tools and case.get("args"):
@@ -240,10 +240,16 @@ async def main() -> None:
     if args.only:
         wanted = set(args.only.split(","))
         cases = [c for c in cases if c["id"] in wanted]
-    skipped = [c["id"] for c in cases if c.get("needs_tool") and c["needs_tool"] not in exposed]
+    from app.persona import system_prompt  # noqa: PLC0415
+
+    prompt = system_prompt("voice")
+    skipped = [
+        c["id"] for c in cases
+        if (c.get("needs_tool") and c["needs_tool"] not in exposed) or (c.get("requires_prompt") and c["requires_prompt"] not in prompt)
+    ]
     cases = [c for c in cases if c["id"] not in skipped]
     if skipped:
-        print(f"Übersprungen (Tool noch nicht vorhanden): {', '.join(skipped)}")
+        print(f"Übersprungen (Tool fehlt oder Gedächtnis-Fakt nicht im Prompt): {', '.join(skipped)}")
 
     models = args.model or [base.LOCAL_LLM_MODEL]
     for model in models:

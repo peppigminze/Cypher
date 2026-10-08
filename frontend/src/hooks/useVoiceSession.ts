@@ -180,5 +180,13 @@ export function useVoiceSession() {
 
   const dismissError = useCallback(() => dispatch({ type: "dismiss_error" }), []);
 
-  return { state, tap, interrupt, setMode, approve, sendText, enableMic, disableMic, getLevel, dismissError };
+  /** Forget the short-term context (memory facts stay). */
+  const newConversation = useCallback(() => {
+    playerRef.current?.stop();
+    droppedTurnRef.current = Math.max(droppedTurnRef.current, stateRef.current.turnId);
+    clientRef.current?.send({ type: "new_conversation" });
+    dispatch({ type: "server", message: { type: "conversation_reset" }, now: Date.now() });
+  }, []);
+
+  return { state, tap, interrupt, setMode, approve, sendText, enableMic, disableMic, getLevel, dismissError, newConversation };
 }

@@ -1,5 +1,5 @@
 {
-  "_comment": "German command suite for the REAL conversation engine (production prompt, live tool registry, quick commands, action guard). Tools are not executed (dry run). 'expect': tool name, or null = answer without a tool. 'alt': other acceptable tools (for null: tools that are also fine). 'args': argument -> acceptable values (strings: case-insensitive substring, numbers/bools: exact). 'reply_contains': substrings one of which the final answer must contain. 'needs_tool': skip the case if this tool is not exposed (e.g. memory tools before M4).",
+  "_comment": "German command suite for the REAL conversation engine (production prompt, live tool registry, quick commands, action guard). Tools are not executed (dry run). 'expect': tool name, or null = answer without a tool. 'alt': other acceptable tools (for null: tools that are also fine). 'args': argument -> acceptable values (strings: case-insensitive substring, numbers/bools: exact). 'reply_contains': substrings one of which the final answer must contain. 'needs_tool': skip the case if this tool is not exposed. 'requires_prompt': skip unless the system prompt (core memory) contains this text - run with a prepared DATA_DIR (see docs/overhaul/M4-report.md).",
   "cases": [
     {"id": "note", "prompt": "Schreib eine Notiz: Milch und Brot kaufen.", "expect": "save_note", "args": {"text": ["milch"]}},
     {"id": "note_short", "prompt": "Notiere: Brot kaufen", "expect": "save_note", "args": {"text": ["brot"]}},
@@ -40,8 +40,12 @@
     {"id": "file_vague", "prompt": "Ich finde meine Präsentation für die Berufsschule nicht mehr.", "expect": "find_files", "args": {"query": ["präsentation", "praesentation", "berufsschule", "pptx"]}},
     {"id": "sysinfo", "prompt": "Wie stark ist mein PC gerade ausgelastet?", "expect": "get_system_info"},
     {"id": "screen", "prompt": "Was siehst du gerade auf meinem Bildschirm?", "expect": "describe_screen"},
-    {"id": "remember", "prompt": "Merk dir, dass ich am Freitag Berufsschule habe.", "expect": "remember", "alt": ["save_memory"], "args": {"fact": ["freitag"], "content": ["freitag"]}, "needs_tool": "remember"},
-    {"id": "forget", "prompt": "Vergiss, dass ich Kaffee mag.", "expect": "forget", "needs_tool": "forget"},
+    {"id": "remember", "prompt": "Merk dir, dass ich am Freitag Berufsschule habe.", "expect": "remember", "args": {"fact": ["freitag"]}, "needs_tool": "remember"},
+    {"id": "remember_pref", "prompt": "Merk dir bitte, dass ich lieber Tee als Kaffee trinke.", "expect": "remember", "args": {"fact": ["tee"]}, "needs_tool": "remember"},
+    {"id": "forget", "prompt": "Vergiss, dass ich Kaffee mag.", "expect": "forget", "args": {"query": ["kaffee"]}, "needs_tool": "forget"},
+    {"id": "memory_search", "prompt": "Was hab ich dir über mein Minecraft-Projekt erzählt?", "expect": null, "alt": ["search_memory"], "needs_tool": "search_memory"},
+    {"id": "memory_school", "prompt": "An welchem Tag habe ich Berufsschule?", "expect": null, "alt": ["search_memory"], "reply_contains": ["freitag"], "requires_prompt": "freitags Berufsschule"},
+    {"id": "memory_gpu", "prompt": "Welche Grafikkarte habe ich?", "expect": null, "alt": ["search_memory", "get_system_info"], "reply_contains": ["9070"], "requires_prompt": "9070"},
     {"id": "time", "prompt": "Wie spät ist es?", "expect": null, "alt": ["get_current_time"]},
     {"id": "date", "prompt": "Welcher Tag ist heute?", "expect": null, "alt": ["get_current_time"]},
     {"id": "joke", "prompt": "Erzähl mir einen kurzen Witz.", "expect": null},

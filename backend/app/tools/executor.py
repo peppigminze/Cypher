@@ -133,16 +133,17 @@ class ToolExecutor:
             error = f"Tool '{name}' is blocked and cannot be run."
             await self._audit_write(base, decision="blocked", success=False, error=error)
             return ToolResult(success=False, error=error)
-        if plan.risk.needs_approval and not approval_id:
-            error = f"Tool '{name}' needs the user's approval before it can run."
-            await self._audit_write(base, decision="needs_approval", success=False, error=error)
-            return ToolResult(success=False, error=error)
+        # Taint first: no approval can unlock these, so say the real reason.
         if ctx.tainted and not tool.allow_when_tainted:
             error = (
                 f"Tool '{name}' was not run: this turn contains untrusted external content, "
                 "and this action may only follow a direct request from the user."
             )
             await self._audit_write(base, decision="tainted_blocked", success=False, error=error)
+            return ToolResult(success=False, error=error)
+        if plan.risk.needs_approval and not approval_id:
+            error = f"Tool '{name}' needs the user's approval before it can run."
+            await self._audit_write(base, decision="needs_approval", success=False, error=error)
             return ToolResult(success=False, error=error)
 
         started = time.perf_counter()

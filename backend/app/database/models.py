@@ -385,6 +385,22 @@ class TokenUsageDaily(Base):
     __table_args__ = (UniqueConstraint("date", "provider", "model", name="uq_token_usage_daily"),)
 
 
+class ConversationHistory(Base):
+    """Recent messages of one conversation (M4), so a conversation survives
+    a backend restart or a reconnecting voice client. One row per
+    conversation with the last messages as JSON (rewritten on every turn -
+    simple, and the interrupted-answer correction just overwrites it).
+    Pruned after CONVERSATION_KEEP_DAYS. A new table - no migration risk."""
+
+    __tablename__ = "conversation_history"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    messages_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    message_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
 class ToolAuditEntry(Base):
     """One row per tool-call decision (M2): every automatic run, every
     approval request, approval, rejection, expiry and refusal. Never

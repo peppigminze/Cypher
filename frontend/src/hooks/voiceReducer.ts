@@ -157,6 +157,8 @@ function serverReducer(state: VoiceUiState, msg: ServerMessage, now: number): Vo
         },
       };
     }
+    case "conversation_reset":
+      return { ...state, transcript: "", reply: "", tool: null, approval: null, error: null, notice: null };
     case "approval_resolved":
       return { ...state, approval: null };
     case "audio_stop":

@@ -14,9 +14,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
+import time
+from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from app.agent.engine import conversations
 from app.auth import role_for_token
 from app.config import get_settings
 from app.core.context import new_id, request_id_var
@@ -35,6 +39,21 @@ AUTH_TIMEOUT_SECONDS = 5.0
 CLOSE_UNAUTHORIZED = 4401
 CLOSE_FORBIDDEN_ORIGIN = 4403
 CLOSE_RATE_LIMIT = 4429
+
+
+_CONVERSATION_ID = re.compile(r"^[a-f0-9]{8,32}$")
+
+
+def _resumable(conversation_id: object, minutes: int) -> Optional[str]:
+    """Continue the client's last conversation if it was active recently -
+    a page reload or a dropped connection shouldn't make Cypher forget what
+    was just said (and keeps the LLM prompt cache warm)."""
+    if not isinstance(conversation_id, str) or not _CONVERSATION_ID.match(conversation_id) or minutes <= 0:
+        return None
+    last = conversations.last_active(conversation_id)
+    if last is None or time.time() - last > minutes * 60:
+        return None
+    return conversation_id
 
 
 def _active_provider() -> str:
@@ -59,10 +78,12 @@ async def voice_ws(ws: WebSocket) -> None:
         return
 
     await ws.accept()
+    hello: dict = {}
     try:
         first = await asyncio.wait_for(ws.receive_text(), timeout=AUTH_TIMEOUT_SECONDS)
-        token = json.loads(first).get("token", "") if first.startswith("{") else ""
-    except (asyncio.TimeoutError, WebSocketDisconnect, json.JSONDecodeError, KeyError, RuntimeError):
+        hello = json.loads(first) if first.startswith("{") else {}
+        token = str(hello.get("token", "")) if isinstance(hello, dict) else ""
+    except (asyncio.TimeoutError, WebSocketDisconnect, json.JSONDecodeError, KeyError, RuntimeError, AttributeError):
         token = ""
     if role_for_token(token) != "user":
         limiter.record_auth_failure(client)
@@ -78,6 +99,7 @@ async def voice_ws(ws: WebSocket) -> None:
         tts=factory.make_tts(settings),
         wake=factory.make_wake_word(settings),
         endpointer_factory=lambda: factory.make_endpointer(settings),
+        conversation_id=_resumable(hello.get("conversation_id") if isinstance(hello, dict) else None, settings.CONVERSATION_RESUME_MINUTES),
     )
     logger.info("Voice session %s opened (client %s, mode %s)", session.session_id, client, session.mode)
     await session.start()

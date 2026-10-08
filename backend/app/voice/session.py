@@ -5,11 +5,13 @@ Wire protocol (all JSON text frames, except raw audio):
 
   client -> server
     binary                      PCM16 LE mono 16 kHz microphone audio
-    {"type":"auth","token"}     must be the first message (see app/api/voice_ws.py)
+    {"type":"auth","token","conversation_id"?}  must be the first message
+                                (app/api/voice_ws.py); a recent conversation_id is resumed
     {"type":"mode","mode"}      "wake" | "auto" | "ptt"
     {"type":"start"}            tap/press: start listening for a command
     {"type":"stop"}             release (push-to-talk) or "I'm done talking"
     {"type":"interrupt"}        barge-in by tap: stop speaking/thinking now
+    {"type":"new_conversation"} forget the short-term context, start fresh
     {"type":"text","text"}      typed command
     {"type":"approval","approval_id","approved"}
     {"type":"playback_started","turn_id"} / {"type":"playback_done","turn_id"}
@@ -195,6 +197,11 @@ class VoiceSession:
             await self._stop_listening()
         elif kind == "interrupt":
             await self.interrupt("tap")
+        elif kind == "new_conversation":
+            await self.interrupt("new_conversation", quiet=True)
+            self.conversation_id = new_conversation_id()
+            await self._send({"type": "conversation", "conversation_id": self.conversation_id})
+            await self._set_state(self._resting_state())
         elif kind == "text" and isinstance(msg.get("text"), str) and msg["text"].strip():
             await self.interrupt("new_text", quiet=True)
             self._t0 = time.perf_counter()

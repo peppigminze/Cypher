@@ -229,6 +229,19 @@ class Settings(BaseSettings):
     # --- Local data (memory, notes, secrets, backups) --------------------
     DATA_DIR: str = "data"
 
+    # --- Memory (M4) -----------------------------------------------------
+    # Core memory (data/core_memory.json) is always in the system prompt:
+    # this caps its size. Facts beyond it go to the searchable archive.
+    MEMORY_CORE_MAX_TOKENS: int = Field(400, ge=50, le=1500)
+    # Archive entries matching the current question are added to that turn,
+    # up to this many tokens (0 = never).
+    MEMORY_RECALL_MAX_TOKENS: int = Field(200, ge=0, le=800)
+    # A reconnecting voice client continues its last conversation if it was
+    # active within this many minutes; otherwise a new one starts.
+    CONVERSATION_RESUME_MINUTES: int = Field(30, ge=0, le=1440)
+    # Stored conversation history older than this is deleted at startup.
+    CONVERSATION_KEEP_DAYS: int = Field(30, ge=1, le=3650)
+
     # ------------------------------------------------------------------ validators
     @field_validator("DATABASE_URL")
     @classmethod

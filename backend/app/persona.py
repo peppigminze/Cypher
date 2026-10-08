@@ -44,5 +44,15 @@ SYSTEM_PROMPT = CYPHER_PERSONA + _TOOL_RULES + "\n" + UNTRUSTED_RULE
 
 def system_prompt(source: str = "voice") -> str:
     """Same prompt for voice and text (one prompt-cache prefix for both);
-    `source` is kept so callers don't need to change if they diverge again."""
-    return SYSTEM_PROMPT
+    `source` is kept so callers don't need to change if they diverge again.
+
+    The core memory (app/memory/service.py) is part of it: it changes only
+    when something is remembered or forgotten, so the prompt cache stays
+    valid in between."""
+    from app.memory.service import get_memory  # noqa: PLC0415 - avoid an import cycle at startup
+
+    try:
+        memory = get_memory().core_prompt_block()
+    except Exception:  # noqa: BLE001 - a broken memory file must not break every turn
+        memory = ""
+    return SYSTEM_PROMPT + ("\n\n" + memory if memory else "")
