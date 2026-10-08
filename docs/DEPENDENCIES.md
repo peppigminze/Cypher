@@ -69,6 +69,7 @@ Copyleft auf Dateiebene – betrifft nur Änderungen an deren eigenen Dateien, n
 | M2 | Pillow 12.3.0 | MIT-CMU (HPND, permissiv) | Bildschirmfoto für `describe_screen` (lokales Vision-Modell) |
 | M3 | esbuild 0.21.5 (Frontend, devDependency; war schon transitiv über vite installiert) | MIT | Test baut das Mikrofon-AudioWorklet wie `vite build` minifiziert und prüft, dass es eigenständig läuft |
 | M4 | – (keine neue Abhängigkeit) | – | Volltextsuche über SQLite FTS5 (in Pythons `sqlite3` enthalten, Public Domain) |
+| M5 | openai 3.26.1 (+ httpx2 2.13.1, httpcore2 2.13.1, truststore, jiter 0.17.0, sniffio 1.3.1) | Apache-2.0 (httpx2/httpcore2 BSD-3-Clause, truststore MIT, jiter MIT, sniffio MIT/Apache-2.0) | Offizielles SDK für die Cloud (Responses API), ersetzt eigenen httpx-Code |
 
 Externe Dienste (keine Code-Abhängigkeit, ohne Account/Key):
 
