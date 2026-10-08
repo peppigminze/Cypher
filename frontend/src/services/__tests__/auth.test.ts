@@ -56,7 +56,9 @@ describe("token handling (no token in the bundle)", () => {
   });
 
   it("pairs with a typed code only if the backend accepts it", async () => {
-    vi.spyOn(global, "fetch").mockResolvedValueOnce(respond(401)).mockResolvedValueOnce(respond(200, { ok: true }));
+    vi.spyOn(global, "fetch")
+      .mockResolvedValueOnce(respond(401))
+      .mockResolvedValueOnce(respond(200, { ok: true }));
     expect(await pairWithCode("wrong")).toBe(false);
     expect(getStoredToken()).toBeNull();
     expect(await pairWithCode("  right-code-12345678  ")).toBe(true);

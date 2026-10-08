@@ -37,7 +37,12 @@ describe("ChatView (engine chat)", () => {
 
   it("answers an approval card in the chat", async () => {
     vi.mocked(stream.streamChat).mockResolvedValue(
-      gen([{ type: "approval", card: { approval_id: "ap1", tool_name: "save_note", summary: "Notiz speichern: „Brot“", risk: "write", expires_in_seconds: 300 } }])
+      gen([
+        {
+          type: "approval",
+          card: { approval_id: "ap1", tool_name: "save_note", summary: "Notiz speichern: „Brot“", risk: "write", expires_in_seconds: 300 },
+        },
+      ])
     );
     vi.mocked(stream.streamApproval).mockResolvedValue(gen([{ type: "reply", text: "Notiz gespeichert." }]));
     render(<ChatView />);

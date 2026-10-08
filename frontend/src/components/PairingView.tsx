@@ -30,7 +30,9 @@ export function PairingView({ offline, onPaired, onRetry }: Props) {
     return (
       <main className="pairing" aria-live="polite">
         <h1>Cypher ist nicht erreichbar</h1>
-        <p>Das Backend antwortet nicht. Läuft Cypher auf dem PC? Starte es mit <code>start_cypher.bat</code>.</p>
+        <p>
+          Das Backend antwortet nicht. Läuft Cypher auf dem PC? Starte es mit <code>start_cypher.bat</code>.
+        </p>
         <p>Vom Handy aus: Ist Tailscale auf beiden Geräten aktiv?</p>
         <button type="button" className="pairing__button" onClick={onRetry}>
           Erneut versuchen
@@ -43,8 +45,8 @@ export function PairingView({ offline, onPaired, onRetry }: Props) {
     <main className="pairing">
       <h1>Gerät koppeln</h1>
       <p>
-        Dieses Gerät ist noch nicht mit Cypher verbunden. Öffne Cypher am PC, wähle im Menü <strong>Gerät koppeln</strong> und
-        öffne dort den Link auf diesem Gerät – oder gib den Code hier ein.
+        Dieses Gerät ist noch nicht mit Cypher verbunden. Öffne Cypher am PC, wähle im Menü <strong>Gerät koppeln</strong> und öffne dort
+        den Link auf diesem Gerät – oder gib den Code hier ein.
       </p>
       <form onSubmit={submit} className="pairing__form">
         <label htmlFor="pairing-code">Kopplungscode</label>

@@ -54,8 +54,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await resp.json()) as T;
 }
 
-
-
 // ------------------------------------------------------------------ Tasks
 
 export async function listTasks(): Promise<Task[]> {
@@ -97,11 +95,7 @@ export async function listMemory(): Promise<MemoryEntry[]> {
   return request<MemoryEntry[]>("/api/memory");
 }
 
-export async function saveMemory(
-  content: string,
-  category?: string,
-  memory_type: MemoryType = "fact"
-): Promise<MemoryEntry> {
+export async function saveMemory(content: string, category?: string, memory_type: MemoryType = "fact"): Promise<MemoryEntry> {
   return request<MemoryEntry>("/api/memory", {
     method: "POST",
     body: JSON.stringify({ content, category, memory_type }),
@@ -138,7 +132,10 @@ export async function addMemoryItem(text: string, layer: MemoryLayer): Promise<M
 }
 
 export async function updateMemoryItem(item: MemoryItem, change: { text?: string; move_to?: MemoryLayer }): Promise<MemoryItem> {
-  return request<MemoryItem>(`/api/memory/items/${item.layer}/${encodeURIComponent(item.id)}`, { method: "PATCH", body: JSON.stringify(change) });
+  return request<MemoryItem>(`/api/memory/items/${item.layer}/${encodeURIComponent(item.id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(change),
+  });
 }
 
 export async function deleteMemoryItem(item: MemoryItem): Promise<void> {

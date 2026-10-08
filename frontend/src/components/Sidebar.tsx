@@ -24,15 +24,9 @@ export function Sidebar({ active, onChange, pendingTaskCount }: Props) {
       </div>
       <nav className="sidebar__nav">
         {NAV_ITEMS.map((item) => (
-          <button
-            key={item.id}
-            className={`sidebar__nav-item ${active === item.id ? "is-active" : ""}`}
-            onClick={() => onChange(item.id)}
-          >
+          <button key={item.id} className={`sidebar__nav-item ${active === item.id ? "is-active" : ""}`} onClick={() => onChange(item.id)}>
             {item.label}
-            {item.id === "tasks" && pendingTaskCount > 0 && (
-              <span className="sidebar__nav-badge">{pendingTaskCount}</span>
-            )}
+            {item.id === "tasks" && pendingTaskCount > 0 && <span className="sidebar__nav-badge">{pendingTaskCount}</span>}
           </button>
         ))}
       </nav>

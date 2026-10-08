@@ -1,13 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ActiveProviderInfo, LlmProviderName, Settings, UsageSummary } from "../types";
+import { formatUsd } from "../utils/format";
 import { getActiveProvider, getSettingsOverview, getUsageSummary, setActiveProvider } from "../services/api";
 import { usePolling } from "../hooks/usePolling";
-
-/** "0,0123 $" - small cloud costs need more than two decimals. */
-export function formatUsd(value: number): string {
-  const digits = value > 0 && value < 0.1 ? 4 : 2;
-  return `${value.toLocaleString("de-DE", { minimumFractionDigits: digits, maximumFractionDigits: digits })} $`;
-}
 
 /** Rough "might be on a phone/PWA" signal for the Phase 7 cloud hint -
  * deliberately just a suggestion shown next to the toggle, never used
@@ -113,9 +108,8 @@ export function SettingsView() {
       <section className="settings__section">
         <h2>Voice / Tool-Calling: Provider</h2>
         <p className="settings__hint">
-          Legt fest, ob die Sprach-/Tool-Calling-Anfragen (Voice-UI, /api/tool-chat) über das
-          lokale Ollama-Modell oder einen Cloud-Anbieter laufen. Gilt für die laufende Session,
-          bleibt aber auch nach einem Neustart erhalten - wird nie automatisch umgeschaltet.
+          Legt fest, ob die Sprach-/Tool-Calling-Anfragen (Voice-UI, /api/tool-chat) über das lokale Ollama-Modell oder einen Cloud-Anbieter
+          laufen. Gilt für die laufende Session, bleibt aber auch nach einem Neustart erhalten - wird nie automatisch umgeschaltet.
         </p>
 
         {activeProvider ? (
@@ -156,9 +150,8 @@ export function SettingsView() {
             {providerError && <p className="settings__hint settings__hint--error">{providerError}</p>}
             {isLikelyMobile && activeProvider.provider === "local" && (
               <p className="settings__hint">
-                Hinweis: Du wirkst gerade auf einem mobilen/PWA-Kontext unterwegs - der lokale PC
-                ist dann evtl. nicht erreichbar. Cloud könnte hier zuverlässiger laufen (manuell
-                umschalten, kein Automatismus).
+                Hinweis: Du wirkst gerade auf einem mobilen/PWA-Kontext unterwegs - der lokale PC ist dann evtl. nicht erreichbar. Cloud
+                könnte hier zuverlässiger laufen (manuell umschalten, kein Automatismus).
               </p>
             )}
           </>
@@ -200,8 +193,8 @@ export function SettingsView() {
           </dd>
         </dl>
         <p className="settings__hint">
-          Änderungen an Sicherheitseinstellungen (erlaubte Verzeichnisse, Tokens) erfolgen nur in
-          der <code>.env</code>-Datei plus Neustart von Backend/Agent - nie über diese Seite.
+          Änderungen an Sicherheitseinstellungen (erlaubte Verzeichnisse, Tokens) erfolgen nur in der <code>.env</code>-Datei plus Neustart
+          von Backend/Agent - nie über diese Seite.
         </p>
       </section>
 
@@ -218,8 +211,8 @@ export function SettingsView() {
               </dd>
             </dl>
             <p className="settings__hint">
-              Da Backend/Agent auf diesem PC laufen, können sie sich nicht selbst aufwecken. Führe
-              diesen Befehl von einem <strong>anderen Gerät im selben Netzwerk</strong> aus:
+              Da Backend/Agent auf diesem PC laufen, können sie sich nicht selbst aufwecken. Führe diesen Befehl von einem{" "}
+              <strong>anderen Gerät im selben Netzwerk</strong> aus:
             </p>
             <div className="settings__code-row">
               <code className="settings__code">{wol.command}</code>
@@ -230,8 +223,8 @@ export function SettingsView() {
           </>
         ) : (
           <p className="settings__hint">
-            Nicht konfiguriert. Trage <code>WAKE_ON_LAN_MAC</code> in der <code>.env</code> ein
-            (MAC-Adresse via <code>ipconfig /all</code> finden).
+            Nicht konfiguriert. Trage <code>WAKE_ON_LAN_MAC</code> in der <code>.env</code> ein (MAC-Adresse via <code>ipconfig /all</code>{" "}
+            finden).
           </p>
         )}
       </section>

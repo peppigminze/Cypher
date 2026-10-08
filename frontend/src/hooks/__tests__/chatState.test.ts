@@ -19,7 +19,10 @@ describe("chatReducer", () => {
       { type: "finished" },
     ]);
     expect(s.conversationId).toBe("abc123abc123abc1");
-    expect(s.turns.map((t) => [t.role, t.text])).toEqual([["user", "Hallo"], ["assistant", "Hallo Silvan."]]);
+    expect(s.turns.map((t) => [t.role, t.text])).toEqual([
+      ["user", "Hallo"],
+      ["assistant", "Hallo Silvan."],
+    ]);
     expect(s.busy).toBe(false);
     expect(s.turns[1].streaming).toBe(false);
   });
@@ -29,7 +32,10 @@ describe("chatReducer", () => {
       { type: "send", text: "Notiere Brot" },
       ev({ type: "tool", phase: "start", name: "get_weather", summary: "Wetter" }),
       ev({ type: "tool", phase: "end", name: "get_weather", summary: "Wetter", success: true }),
-      ev({ type: "approval", card: { approval_id: "a1", tool_name: "save_note", summary: "Notiz speichern: „Brot“", risk: "write", expires_in_seconds: 60 } }),
+      ev({
+        type: "approval",
+        card: { approval_id: "a1", tool_name: "save_note", summary: "Notiz speichern: „Brot“", risk: "write", expires_in_seconds: 60 },
+      }),
       { type: "finished" },
     ]);
     const last = paused.turns[1];
@@ -42,12 +48,24 @@ describe("chatReducer", () => {
   });
 
   it("keeps German errors and hints", () => {
-    const s = run([{ type: "send", text: "x" }, ev({ type: "error", message: "Ich erreiche mein Sprachmodell gerade nicht.", hint: "Ollama starten." })]);
+    const s = run([
+      { type: "send", text: "x" },
+      ev({ type: "error", message: "Ich erreiche mein Sprachmodell gerade nicht.", hint: "Ollama starten." }),
+    ]);
     expect(s.turns[1].error).toEqual({ message: "Ich erreiche mein Sprachmodell gerade nicht.", hint: "Ollama starten." });
   });
 
   it("loads history and resets", () => {
-    const s = run([{ type: "load", conversationId: "c1", history: [{ role: "user", text: "A" }, { role: "assistant", text: "B" }] }]);
+    const s = run([
+      {
+        type: "load",
+        conversationId: "c1",
+        history: [
+          { role: "user", text: "A" },
+          { role: "assistant", text: "B" },
+        ],
+      },
+    ]);
     expect(s.turns.map((t) => t.text)).toEqual(["A", "B"]);
     expect(run([{ type: "reset" }], s).turns).toEqual([]);
   });
@@ -64,6 +82,9 @@ describe("parseSse", () => {
     });
     const out = [];
     for await (const e of parseSse(stream)) out.push(e);
-    expect(out).toEqual([{ type: "reply_delta", text: "Hallo" }, { type: "reply", text: "Hallo" }]);
+    expect(out).toEqual([
+      { type: "reply_delta", text: "Hallo" },
+      { type: "reply", text: "Hallo" },
+    ]);
   });
 });

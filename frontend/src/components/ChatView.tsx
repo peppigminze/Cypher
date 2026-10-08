@@ -113,7 +113,11 @@ export function ChatView() {
             {(t.text || t.streaming) && (
               <div className="chat-msg__bubble">
                 {t.text}
-                {t.streaming && <span className="chat-msg__cursor" aria-hidden="true">▍</span>}
+                {t.streaming && (
+                  <span className="chat-msg__cursor" aria-hidden="true">
+                    ▍
+                  </span>
+                )}
               </div>
             )}
             {t.approval && <ApprovalCard card={t.approval} onDecide={(approved) => decide(t.approval!.approvalId, approved)} />}

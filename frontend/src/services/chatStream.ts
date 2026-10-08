@@ -90,7 +90,9 @@ export interface HistoryTurn {
 }
 
 export async function fetchChatHistory(conversationId: string): Promise<HistoryTurn[]> {
-  const resp = await fetch(`${API_BASE_URL}/api/chat/history?conversation_id=${encodeURIComponent(conversationId)}`, { headers: headers() });
+  const resp = await fetch(`${API_BASE_URL}/api/chat/history?conversation_id=${encodeURIComponent(conversationId)}`, {
+    headers: headers(),
+  });
   if (!resp.ok) return [];
   const json = (await resp.json()) as { turns?: HistoryTurn[] };
   return json.turns ?? [];

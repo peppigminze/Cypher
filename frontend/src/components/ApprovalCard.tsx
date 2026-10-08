@@ -14,7 +14,15 @@ const RISK_LABEL: Record<string, string> = {
  * voice view and the text chat; the summary comes from the tool itself and
  * names exactly what would happen.
  */
-export function ApprovalCard({ card, onDecide, showKeys = false }: { card: Card; onDecide: (approved: boolean) => void; showKeys?: boolean }) {
+export function ApprovalCard({
+  card,
+  onDecide,
+  showKeys = false,
+}: {
+  card: Card;
+  onDecide: (approved: boolean) => void;
+  showKeys?: boolean;
+}) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -24,7 +32,12 @@ export function ApprovalCard({ card, onDecide, showKeys = false }: { card: Card;
   const titleId = `approval-title-${card.approvalId}`;
   const summaryId = `approval-summary-${card.approvalId}`;
   return (
-    <section className={`voice-view__confirm voice-view__confirm--${card.risk}`} role="alertdialog" aria-labelledby={titleId} aria-describedby={summaryId}>
+    <section
+      className={`voice-view__confirm voice-view__confirm--${card.risk}`}
+      role="alertdialog"
+      aria-labelledby={titleId}
+      aria-describedby={summaryId}
+    >
       <p id={titleId} className="voice-view__confirm-risk">
         {RISK_LABEL[card.risk] ?? "Braucht deine Bestätigung"}
       </p>
@@ -32,10 +45,21 @@ export function ApprovalCard({ card, onDecide, showKeys = false }: { card: Card;
         {card.summary || card.toolName}
       </p>
       <div className="voice-view__confirm-actions">
-        <button type="button" autoFocus className="voice-view__confirm-btn voice-view__confirm-btn--yes" disabled={seconds === 0} onClick={() => onDecide(true)}>
+        <button
+          type="button"
+          autoFocus
+          className="voice-view__confirm-btn voice-view__confirm-btn--yes"
+          disabled={seconds === 0}
+          onClick={() => onDecide(true)}
+        >
           Ja{showKeys && <kbd>J</kbd>}
         </button>
-        <button type="button" className="voice-view__confirm-btn voice-view__confirm-btn--no" disabled={seconds === 0} onClick={() => onDecide(false)}>
+        <button
+          type="button"
+          className="voice-view__confirm-btn voice-view__confirm-btn--no"
+          disabled={seconds === 0}
+          onClick={() => onDecide(false)}
+        >
           Nein{showKeys && <kbd>N</kbd>}
         </button>
       </div>

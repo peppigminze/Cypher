@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bubbleState, initialVoiceState, shouldStreamAudio, voiceReducer, type VoiceAction, type VoiceUiState } from "../voiceReducer";
-import { caption } from "../../components/CypherVoiceView";
+import { caption } from "../voiceText";
 import { plainText } from "../../utils/plainText";
 
 function run(actions: VoiceAction[], start: VoiceUiState = initialVoiceState): VoiceUiState {
@@ -8,7 +8,10 @@ function run(actions: VoiceAction[], start: VoiceUiState = initialVoiceState): V
 }
 
 const server = (message: Record<string, unknown>): VoiceAction => ({ type: "server", message: message as { type: string }, now: 1000 });
-const open: VoiceAction[] = [{ type: "connection", status: "open" }, server({ type: "ready", mode: "wake", wake_word_enabled: true, wake_phrase: "Hey Cypher" })];
+const open: VoiceAction[] = [
+  { type: "connection", status: "open" },
+  server({ type: "ready", mode: "wake", wake_word_enabled: true, wake_phrase: "Hey Cypher" }),
+];
 
 describe("voiceReducer", () => {
   it("follows a full spoken turn with live subtitles", () => {
@@ -35,7 +38,10 @@ describe("voiceReducer", () => {
     const s1 = run([
       ...open,
       server({ type: "state", state: "thinking" }),
-      server({ type: "approval", card: { approval_id: "a1", tool_name: "save_note", summary: "Notiz speichern: „Brot“", risk: "write", expires_in_seconds: 300 } }),
+      server({
+        type: "approval",
+        card: { approval_id: "a1", tool_name: "save_note", summary: "Notiz speichern: „Brot“", risk: "write", expires_in_seconds: 300 },
+      }),
       server({ type: "state", state: "speaking" }), // the question is read aloud
       server({ type: "state", state: "confirming" }),
     ]);
@@ -46,7 +52,12 @@ describe("voiceReducer", () => {
   });
 
   it("a new listening phase clears the old subtitles", () => {
-    const s = run([...open, server({ type: "transcript", text: "alt" }), server({ type: "reply", text: "alt" }), server({ type: "state", state: "listening" })]);
+    const s = run([
+      ...open,
+      server({ type: "transcript", text: "alt" }),
+      server({ type: "reply", text: "alt" }),
+      server({ type: "state", state: "listening" }),
+    ]);
     expect(s.transcript).toBe("");
     expect(s.reply).toBe("");
   });
@@ -68,13 +79,28 @@ describe("voiceReducer", () => {
     ]);
     expect(s.reply).toBe("Erster Satz. ");
     expect(s.serverState).toBe("listening");
-    const next = run([server({ type: "transcript", text: "Neu", turn_id: 6 }), server({ type: "reply_delta", text: "Okay.", turn_id: 6 })], s);
+    const next = run(
+      [server({ type: "transcript", text: "Neu", turn_id: 6 }), server({ type: "reply_delta", text: "Okay.", turn_id: 6 })],
+      s
+    );
     expect(next.reply).toBe("Okay.");
   });
 
   it("keeps German error messages and hints", () => {
-    const s = run([...open, server({ type: "error", code: "ollama_unreachable", message: "Ich erreiche mein Sprachmodell gerade nicht.", hint: "Ollama starten." })]);
-    expect(s.error).toEqual({ code: "ollama_unreachable", message: "Ich erreiche mein Sprachmodell gerade nicht.", hint: "Ollama starten." });
+    const s = run([
+      ...open,
+      server({
+        type: "error",
+        code: "ollama_unreachable",
+        message: "Ich erreiche mein Sprachmodell gerade nicht.",
+        hint: "Ollama starten.",
+      }),
+    ]);
+    expect(s.error).toEqual({
+      code: "ollama_unreachable",
+      message: "Ich erreiche mein Sprachmodell gerade nicht.",
+      hint: "Ollama starten.",
+    });
   });
 });
 

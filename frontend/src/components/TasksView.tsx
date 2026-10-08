@@ -73,11 +73,7 @@ export function TasksView() {
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleCreate()}
           />
-          <select
-            className="select-input"
-            value={priority}
-            onChange={(e) => setPriority(e.target.value as TaskPriority)}
-          >
+          <select className="select-input" value={priority} onChange={(e) => setPriority(e.target.value as TaskPriority)}>
             <option value="low">Niedrig</option>
             <option value="medium">Mittel</option>
             <option value="high">Hoch</option>
@@ -92,19 +88,11 @@ export function TasksView() {
           {dueAt && (
             <>
               <label className="reminder-toggle">
-                <input
-                  type="checkbox"
-                  checked={reminderEnabled}
-                  onChange={(e) => setReminderEnabled(e.target.checked)}
-                />
+                <input type="checkbox" checked={reminderEnabled} onChange={(e) => setReminderEnabled(e.target.checked)} />
                 🔔 Erinnern
               </label>
               {reminderEnabled && (
-                <select
-                  className="select-input"
-                  value={recurrence}
-                  onChange={(e) => setRecurrence(e.target.value as Recurrence)}
-                >
+                <select className="select-input" value={recurrence} onChange={(e) => setRecurrence(e.target.value as Recurrence)}>
                   <option value="none">einmalig</option>
                   <option value="daily">täglich</option>
                   <option value="weekly">wöchentlich</option>

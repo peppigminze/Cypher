@@ -33,10 +33,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    checkAuth();
+    let alive = true;
+    void ensureToken().then((state) => alive && setAuth(state));
     const onAuthRequired = () => checkAuth();
     window.addEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
-    return () => window.removeEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
+    return () => {
+      alive = false;
+      window.removeEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
+    };
   }, [checkAuth]);
 
   if (auth === "checking") {

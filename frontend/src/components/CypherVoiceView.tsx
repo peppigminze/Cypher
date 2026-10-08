@@ -3,7 +3,8 @@ import { ApprovalCard } from "./ApprovalCard";
 import { plainText } from "../utils/plainText";
 import { CypherBubble } from "./CypherBubble";
 import { useVoiceSession } from "../hooks/useVoiceSession";
-import { bubbleState, type VoiceMode, type VoiceUiState } from "../hooks/voiceReducer";
+import { bubbleState, type VoiceMode } from "../hooks/voiceReducer";
+import { bubbleLabel, caption } from "../hooks/voiceText";
 import { getActiveProvider } from "../services/api";
 import type { LlmProviderName, SystemStatus } from "../types";
 
@@ -18,42 +19,6 @@ const MODE_HINT: Record<VoiceMode, string> = {
   auto: "Tippen, sprechen - Cypher merkt selbst, wann du fertig bist",
   ptt: "Tippen zum Starten, nochmal tippen zum Senden",
 };
-
-export function caption(state: VoiceUiState): string {
-  if (state.connection === "unauthorized") return "Anmeldung abgelaufen - bitte neu koppeln.";
-  if (state.connection === "forbidden") return "Diese Adresse ist im Backend nicht freigegeben (CORS_ORIGINS).";
-  if (state.connection !== "open") return state.connection === "connecting" ? "Verbinde mit Cypher …" : "Verbindung getrennt - ich versuche es weiter …";
-  if (state.micError) return state.micError;
-  switch (state.serverState) {
-    case "wake_listening":
-      return state.micEnabled ? `Sag „${state.wakePhrase}“ …` : `Tippen, um „${state.wakePhrase}“ einzuschalten`;
-    case "listening":
-      if (state.mode === "ptt") return "Sprich - nochmal tippen zum Senden";
-      return state.userSpeaking ? "Ich höre …" : "Ich höre zu …";
-    case "thinking":
-      return state.tool?.running ? state.tool.summary || "Einen Moment …" : "Denke nach …";
-    case "speaking":
-      return "Tippen zum Unterbrechen";
-    case "confirming":
-      return "Sag „ja“ oder „nein“ - oder tippe unten.";
-    default:
-      return "Tippen zum Sprechen";
-  }
-}
-
-function bubbleLabel(state: VoiceUiState): string {
-  switch (state.serverState) {
-    case "thinking":
-    case "speaking":
-      return "Cypher unterbrechen";
-    case "listening":
-      return state.mode === "ptt" ? "Aufnahme senden" : "Fertig gesprochen";
-    case "confirming":
-      return "Antworte mit ja oder nein";
-    default:
-      return state.micEnabled ? "Sprechen" : "Mikrofon einschalten und sprechen";
-  }
-}
 
 function isTyping(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
@@ -125,7 +90,13 @@ export function CypherVoiceView({ status, onOpenMenu }: Props) {
       </button>
 
       <div className="voice-view__stage">
-        <CypherBubble state={look} getLevel={voice.getLevel} onClick={() => void voice.tap()} label={bubbleLabel(state)} disabled={offline} />
+        <CypherBubble
+          state={look}
+          getLevel={voice.getLevel}
+          onClick={() => void voice.tap()}
+          label={bubbleLabel(state)}
+          disabled={offline}
+        />
         <p className={`voice-view__caption ${state.micError || offline ? "is-error" : ""}`} aria-live="polite">
           {caption(state)}
         </p>
@@ -191,7 +162,10 @@ export function CypherVoiceView({ status, onOpenMenu }: Props) {
       </div>
 
       <footer className="voice-view__statusbar">
-        <span className={`voice-view__status-dot ${!offline && status?.pc_online !== false ? "is-online" : "is-offline"}`} aria-hidden="true" />
+        <span
+          className={`voice-view__status-dot ${!offline && status?.pc_online !== false ? "is-online" : "is-offline"}`}
+          aria-hidden="true"
+        />
         <span className="voice-view__status-text">{offline ? "Getrennt" : state.micEnabled ? "Verbunden · Mikrofon an" : "Verbunden"}</span>
         {typeof firstAudible === "number" && (
           <span className="voice-view__last-task">· Antwort nach {firstAudible.toFixed(1).replace(".", ",")} s</span>

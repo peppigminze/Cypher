@@ -102,7 +102,10 @@
   font-size: 14.5px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .sidebar__nav-item:hover {
@@ -528,7 +531,9 @@
   font-size: 14px;
   cursor: pointer;
   box-shadow: 0 0 16px -4px var(--accent-glow);
-  transition: filter 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    filter 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .chat__send:hover {
@@ -598,7 +603,9 @@
 }
 
 .text-input {
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .text-input:focus {
@@ -615,7 +622,9 @@
   padding: 9px 10px;
   font-size: 13.5px;
   font-family: inherit;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .select-input:focus {
@@ -634,7 +643,10 @@
   font-size: 13.5px;
   cursor: pointer;
   box-shadow: 0 0 16px -4px var(--accent-glow);
-  transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+  transition:
+    filter 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.1s ease;
 }
 
 .btn-primary:hover {
@@ -674,7 +686,9 @@
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .card:hover {
@@ -738,7 +752,10 @@
   padding: 6px 10px;
   font-size: 12.5px;
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .icon-btn:hover {
@@ -767,7 +784,9 @@
   flex-shrink: 0;
   color: var(--accent);
   filter: drop-shadow(0 0 6px var(--accent-glow));
-  transition: color 0.25s ease, filter 0.25s ease;
+  transition:
+    color 0.25s ease,
+    filter 0.25s ease;
 }
 
 .voice-orb:disabled {
@@ -868,7 +887,9 @@
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-md);
   padding: 18px 20px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .settings__section:hover {
@@ -934,7 +955,10 @@
   border: 1px solid var(--border);
   background: var(--surface-2);
   color: var(--text-dim);
-  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease;
 }
 
 .settings__provider-btn:hover:not(:disabled) {
@@ -1040,7 +1064,10 @@
   color: var(--text-dim);
   cursor: pointer;
   opacity: 0.55;
-  transition: opacity 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .voice-view__menu-btn:hover {
@@ -1180,7 +1207,9 @@
   background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
   opacity: 0.25;
   filter: blur(6px);
-  transition: opacity 0.3s ease, background 0.3s ease;
+  transition:
+    opacity 0.3s ease,
+    background 0.3s ease;
 }
 
 .cypher-bubble__rings,
@@ -1255,7 +1284,9 @@
   border-radius: 2px;
   background: var(--accent);
   box-shadow: 0 0 6px var(--accent-glow);
-  transition: height 0.05s linear, opacity 0.05s linear;
+  transition:
+    height 0.05s linear,
+    opacity 0.05s linear;
 }
 
 /* thinking: fast, tight rotation - visually distinct from listening's
@@ -1385,7 +1416,9 @@
   font-weight: 600;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: filter 0.15s ease, transform 0.1s ease;
+  transition:
+    filter 0.15s ease,
+    transform 0.1s ease;
 }
 
 .voice-view__confirm-btn:active {

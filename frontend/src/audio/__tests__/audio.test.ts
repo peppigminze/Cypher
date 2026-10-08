@@ -39,7 +39,10 @@ describe("Downsampler", () => {
 
 describe("capture worklet source", () => {
   it("runs inside a simulated AudioWorkletGlobalScope and posts 40 ms PCM16 chunks", () => {
-    const registered: Record<string, new (options: unknown) => { process: (i: Float32Array[][]) => boolean; port: { postMessage: (m: unknown) => void } }> = {};
+    const registered: Record<
+      string,
+      new (options: unknown) => { process: (i: Float32Array[][]) => boolean; port: { postMessage: (m: unknown) => void } }
+    > = {};
     class FakeProcessor {
       port = { postMessage: vi.fn() };
     }
@@ -76,7 +79,10 @@ describe("capture worklet in the production build", () => {
     });
     const code = result.outputFiles[0].text;
     const mod = await import(/* @vite-ignore */ `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`);
-    const registered: Record<string, new (o: unknown) => { process: (i: Float32Array[][]) => boolean; port: { postMessage: ReturnType<typeof vi.fn> } }> = {};
+    const registered: Record<
+      string,
+      new (o: unknown) => { process: (i: Float32Array[][]) => boolean; port: { postMessage: ReturnType<typeof vi.fn> } }
+    > = {};
     class FakeProcessor {
       port = { postMessage: vi.fn() };
     }
@@ -110,7 +116,13 @@ describe("PcmPlayer", () => {
       currentTime: 10,
       state: "running",
       destination: {},
-      createAnalyser: () => ({ fftSize: 256, connect() {}, getByteTimeDomainData(a: Uint8Array) { a.fill(128); } }),
+      createAnalyser: () => ({
+        fftSize: 256,
+        connect() {},
+        getByteTimeDomainData(a: Uint8Array) {
+          a.fill(128);
+        },
+      }),
       createBuffer: (_channels: number, length: number, rate: number) => ({ duration: length / rate, copyToChannel() {} }),
       createBufferSource: () => {
         const s = new FakeSource();

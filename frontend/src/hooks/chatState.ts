@@ -84,10 +84,16 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
           return updateLast(state, (t) => ({ ...t, text: str(e.text) || t.text, streaming: false }));
         case "tool":
           return updateLast(state, (t) => {
-            const chip: ToolChip = { name: str(e.name), summary: str(e.summary), running: e.phase === "start", success: e.phase === "end" ? e.success === true : undefined };
-            const tools = e.phase === "end" && t.tools.length && t.tools[t.tools.length - 1].running && t.tools[t.tools.length - 1].name === chip.name
-              ? [...t.tools.slice(0, -1), chip]
-              : [...t.tools, chip];
+            const chip: ToolChip = {
+              name: str(e.name),
+              summary: str(e.summary),
+              running: e.phase === "start",
+              success: e.phase === "end" ? e.success === true : undefined,
+            };
+            const tools =
+              e.phase === "end" && t.tools.length && t.tools[t.tools.length - 1].running && t.tools[t.tools.length - 1].name === chip.name
+                ? [...t.tools.slice(0, -1), chip]
+                : [...t.tools, chip];
             return { ...t, tools };
           });
         case "approval": {
@@ -106,7 +112,11 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
           }));
         }
         case "error":
-          return updateLast(state, (t) => ({ ...t, streaming: false, error: { message: str(e.message) || "Etwas ist schiefgelaufen.", hint: str(e.hint) || undefined } }));
+          return updateLast(state, (t) => ({
+            ...t,
+            streaming: false,
+            error: { message: str(e.message) || "Etwas ist schiefgelaufen.", hint: str(e.hint) || undefined },
+          }));
         default:
           return state;
       }

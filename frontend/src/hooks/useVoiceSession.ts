@@ -10,7 +10,7 @@
  * streams the answer sentence by sentence, and a tap or "Hey Cypher"
  * cuts Cypher off immediately.
  */
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from "react";
 import { startMicCapture, type MicCapture } from "../audio/captureWorklet";
 import { PcmPlayer } from "../audio/pcmPlayer";
 import { VoiceClient } from "../services/voiceClient";
@@ -31,8 +31,11 @@ export function micErrorMessage(err: unknown): string {
 
 export function useVoiceSession() {
   const [state, dispatch] = useReducer(voiceReducer, initialVoiceState);
+  // Callbacks from the audio thread and the socket read the latest state here.
   const stateRef = useRef(state);
-  stateRef.current = state;
+  useLayoutEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const clientRef = useRef<VoiceClient | null>(null);
   const playerRef = useRef<PcmPlayer | null>(null);

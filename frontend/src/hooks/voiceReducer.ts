@@ -103,7 +103,13 @@ function serverReducer(state: VoiceUiState, msg: ServerMessage, now: number): Vo
   switch (msg.type) {
     case "ready": {
       const mode = MODES.includes(msg.mode as VoiceMode) ? (msg.mode as VoiceMode) : state.mode;
-      return { ...state, mode, wakeAvailable: msg.wake_word_enabled === true, wakePhrase: str(msg.wake_phrase, state.wakePhrase), error: null };
+      return {
+        ...state,
+        mode,
+        wakeAvailable: msg.wake_word_enabled === true,
+        wakePhrase: str(msg.wake_phrase, state.wakePhrase),
+        error: null,
+      };
     }
     case "state": {
       const next = STATES.includes(msg.state as ServerVoiceState) ? (msg.state as ServerVoiceState) : state.serverState;
@@ -168,7 +174,14 @@ function serverReducer(state: VoiceUiState, msg: ServerMessage, now: number): Vo
     case "notice":
       return { ...state, notice: str(msg.text) };
     case "error":
-      return { ...state, error: { code: str(msg.code) || undefined, message: str(msg.message, "Etwas ist schiefgelaufen."), hint: str(msg.hint) || undefined } };
+      return {
+        ...state,
+        error: {
+          code: str(msg.code) || undefined,
+          message: str(msg.message, "Etwas ist schiefgelaufen."),
+          hint: str(msg.hint) || undefined,
+        },
+      };
     default:
       return state;
   }

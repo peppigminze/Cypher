@@ -28,25 +28,30 @@ export function MemoryView() {
   const [editing, setEditing] = useState<{ item: MemoryItem; text: string } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    try {
-      setData(await getMemoryOverview());
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }, []);
+  // Bumped after every change; the effect below then reloads the overview.
+  const [version, setVersion] = useState(0);
+  const refresh = useCallback(() => setVersion((v) => v + 1), []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    let alive = true;
+    getMemoryOverview()
+      .then((overview) => {
+        if (!alive) return;
+        setData(overview);
+        setError(null);
+      })
+      .catch((err) => alive && setError(err instanceof Error ? err.message : String(err)));
+    return () => {
+      alive = false;
+    };
+  }, [version]);
 
   async function run(action: () => Promise<unknown>, success?: string) {
     try {
       await action();
       setNotice(success ?? null);
       setError(null);
-      await refresh();
+      refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -152,7 +157,12 @@ export function MemoryView() {
             aria-label="Neuer Eintrag"
             style={{ minWidth: 240 }}
           />
-          <select className="select-input" value={draftLayer} onChange={(e) => setDraftLayer(e.target.value as MemoryLayer)} aria-label="Ablage">
+          <select
+            className="select-input"
+            value={draftLayer}
+            onChange={(e) => setDraftLayer(e.target.value as MemoryLayer)}
+            aria-label="Ablage"
+          >
             <option value="core">Kern-Gedächtnis</option>
             <option value="archive">Archiv</option>
           </select>
@@ -180,22 +190,39 @@ export function MemoryView() {
           <section className="memory-section" aria-labelledby="core-title">
             <h2 id="core-title">Kern-Gedächtnis</h2>
             <p className="memory-section__hint">Steht in jedem Gespräch zur Verfügung.</p>
-            <div className="memory-budget" role="meter" aria-valuemin={0} aria-valuemax={data.core_max_tokens} aria-valuenow={data.core_used_tokens} aria-label="Belegung Kern-Gedächtnis">
+            <div
+              className="memory-budget"
+              role="meter"
+              aria-valuemin={0}
+              aria-valuemax={data.core_max_tokens}
+              aria-valuenow={data.core_used_tokens}
+              aria-label="Belegung Kern-Gedächtnis"
+            >
               <div className="memory-budget__fill" style={{ width: `${usedPercent}%` }} />
             </div>
             <p className="memory-section__hint">{usedPercent} % belegt</p>
-            {data.core.length === 0 ? <p className="empty-state">Noch nichts. Sag „Merk dir, dass …“.</p> : <ul className="memory-list">{data.core.map(renderItem)}</ul>}
+            {data.core.length === 0 ? (
+              <p className="empty-state">Noch nichts. Sag „Merk dir, dass …“.</p>
+            ) : (
+              <ul className="memory-list">{data.core.map(renderItem)}</ul>
+            )}
           </section>
 
           <section className="memory-section" aria-labelledby="archive-title">
             <h2 id="archive-title">Archiv</h2>
             <p className="memory-section__hint">Wird nur genutzt, wenn es zur Frage passt.</p>
-            {data.archive.length === 0 ? <p className="empty-state">Leer.</p> : <ul className="memory-list">{data.archive.map(renderItem)}</ul>}
+            {data.archive.length === 0 ? (
+              <p className="empty-state">Leer.</p>
+            ) : (
+              <ul className="memory-list">{data.archive.map(renderItem)}</ul>
+            )}
           </section>
 
           <section className="memory-section">
             <h2>Gesprächsverlauf</h2>
-            <p className="memory-section__hint">Die letzten Gespräche bleiben gespeichert, damit Cypher nach einem Neustart weiss, worum es ging.</p>
+            <p className="memory-section__hint">
+              Die letzten Gespräche bleiben gespeichert, damit Cypher nach einem Neustart weiss, worum es ging.
+            </p>
             <button
               type="button"
               className="icon-btn icon-btn--danger"

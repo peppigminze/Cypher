@@ -68,10 +68,13 @@ export class PcmPlayer {
     source.start(startAt);
     if (!this.startedTurns.has(turnId)) {
       this.startedTurns.add(turnId);
-      const timer = setTimeout(() => {
-        this.timers.delete(timer);
-        if (this.turnId === turnId) this.onStarted?.(turnId);
-      }, Math.max(0, (startAt - now) * 1000));
+      const timer = setTimeout(
+        () => {
+          this.timers.delete(timer);
+          if (this.turnId === turnId) this.onStarted?.(turnId);
+        },
+        Math.max(0, (startAt - now) * 1000)
+      );
       this.timers.add(timer);
     }
   }
