@@ -79,6 +79,7 @@ class CaseRun:
     tool_ok: bool = False
     args_ok: Optional[bool] = None
     reply_ok: Optional[bool] = None
+    length_ok: Optional[bool] = None
     hallucinated: bool = False
     guard_retries: int = 0
     quick: bool = False
@@ -129,6 +130,10 @@ def evaluate(case: Dict[str, Any], run: CaseRun, registry) -> None:  # noqa: ANN
         run.args_ok = all(k in run.arguments and _value_ok(run.arguments[k], v) for k, v in checks)
     if case.get("reply_contains"):
         run.reply_ok = any(s.lower() in run.reply.lower() for s in case["reply_contains"])
+    if case.get("reply_max_chars"):
+        run.length_ok = len(run.reply) <= case["reply_max_chars"]
+    if case.get("reply_min_chars"):
+        run.length_ok = len(run.reply) >= case["reply_min_chars"]
 
 
 async def run_case(engine: ConversationEngine, case: Dict[str, Any]) -> CaseRun:
@@ -176,6 +181,8 @@ def summarize(model: str, runs: List[CaseRun]) -> Dict[str, Any]:
     plain = [r for r in runs if not r.expect]
     with_args = [r for r in runs if r.args_ok is not None]
     with_reply = [r for r in runs if r.reply_ok is not None]
+    with_length = [r for r in runs if r.length_ok is not None]
+    plain_replies = [len(r.reply) for r in runs if not r.expect and r.reply]
     llm_runs = [r for r in runs if not r.quick and r.first_sentence_s is not None]
 
     def median(values: List[Optional[float]]) -> Optional[float]:
@@ -190,6 +197,8 @@ def summarize(model: str, runs: List[CaseRun]) -> Dict[str, Any]:
         "no_tool_ok": f"{sum(r.tool_ok for r in plain)}/{len(plain)}",
         "args_ok": f"{sum(bool(r.args_ok) for r in with_args)}/{len(with_args)}",
         "reply_ok": f"{sum(bool(r.reply_ok) for r in with_reply)}/{len(with_reply)}",
+        "length_ok": f"{sum(bool(r.length_ok) for r in with_length)}/{len(with_length)}",
+        "median_reply_chars_no_tool": int(statistics.median(plain_replies)) if plain_replies else None,
         "hallucinated": sum(r.hallucinated for r in runs),
         "guard_retries": sum(r.guard_retries for r in runs),
         "guard_saves": sum(1 for r in runs if r.guard_retries and r.tool_ok and r.expect),
@@ -210,13 +219,13 @@ def to_markdown(summary: Dict[str, Any], runs: List[CaseRun]) -> str:
         "|---|---|",
     ]
     lines += [f"| {k} | {v} |" for k, v in summary.items() if k != "model"]
-    lines += ["", "| Fall | Prompt | erwartet | bekommen | Tool | Args | Antwort | Zeit (s) | Antworttext |", "|---|---|---|---|---|---|---|---|---|"]
+    lines += ["", "| Fall | Prompt | erwartet | bekommen | Tool | Args | Antwort | Länge | Zeit (s) | Antworttext |", "|---|---|---|---|---|---|---|---|---|---|"]
     for r in runs:
         mark = lambda v: "–" if v is None else ("✅" if v else "❌")  # noqa: E731
         got = ", ".join(r.tools) or "–"
         extra = (" (Schnellbefehl)" if r.quick else "") + (f" (Wächter ×{r.guard_retries})" if r.guard_retries else "") + (" ⚠️ behauptet" if r.hallucinated else "")
         reply = r.reply.replace("|", "/").replace("\n", " ")[:90]
-        lines.append(f"| {r.id} | {r.prompt} | {r.expect or '–'} | {got}{extra} | {mark(r.tool_ok)} | {mark(r.args_ok)} | {mark(r.reply_ok)} | {r.total_s} | {reply} |")
+        lines.append(f"| {r.id} | {r.prompt} | {r.expect or '–'} | {got}{extra} | {mark(r.tool_ok)} | {mark(r.args_ok)} | {mark(r.reply_ok)} | {mark(r.length_ok)} {len(r.reply)} | {r.total_s} | {reply} |")
     return "\n".join(lines) + "\n"
 
 
@@ -264,8 +273,8 @@ async def main() -> None:
                 run = await run_case(engine, case)
                 evaluate(case, run, registry)
                 runs.append(run)
-                if args.verbose or not run.tool_ok or run.args_ok is False or run.reply_ok is False:
-                    status = "OK" if run.tool_ok and run.args_ok is not False and run.reply_ok is not False else "XX"
+                if args.verbose or not run.tool_ok or run.args_ok is False or run.reply_ok is False or run.length_ok is False:
+                    status = "OK" if run.tool_ok and run.args_ok is not False and run.reply_ok is not False and run.length_ok is not False else "XX"
                     print(f"  {status} {run.id:14} tools={run.tools} args={json.dumps(run.arguments, ensure_ascii=False)[:70]} reply={run.reply[:70]!r}", flush=True)
         summary = summarize(model, runs)
         print(json.dumps(summary, ensure_ascii=False))

@@ -39,7 +39,10 @@ _ACTION_REQUEST = re.compile(
     r"zwischenablage|kopier\w*|"
     r"öffne\w*|starte\w*|mach\s+(mir\s+)?\w*\s*(auf|an)|"
     r"merk\s+dir|vergiss|such\w*|finde\w*|"
-    r"stell\w*|dreh\w*|brich\w*|abbrechen"
+    r"stell\w*|dreh\w*|brich\w*|abbrechen|"
+    # found by the M5 suite: "Gib mir in 90 Sekunden Bescheid", "Ruf die
+    # Seite ... ab", "Mach mir den Editor auf"
+    r"bescheid|ruf\w*\s.*\sab|mach\w*\s+(mir\s+)?(den|die|das)\s+\w+\s+(auf|an|zu)"
     r")\b",
     re.IGNORECASE,
 )

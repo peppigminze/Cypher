@@ -1,19 +1,21 @@
 {
   "summary": {
     "model": "qwen3.5:9b",
-    "cases": 110,
-    "tool_hits": "78/84",
-    "tool_hit_rate": 0.929,
-    "no_tool_ok": "26/26",
-    "args_ok": "62/62",
-    "reply_ok": "8/10",
+    "cases": 134,
+    "tool_hits": "80/84",
+    "tool_hit_rate": 0.952,
+    "no_tool_ok": "50/50",
+    "args_ok": "63/63",
+    "reply_ok": "26/28",
+    "length_ok": "5/6",
+    "median_reply_chars_no_tool": 53,
     "hallucinated": 0,
-    "guard_retries": 11,
-    "guard_saves": 4,
+    "guard_retries": 6,
+    "guard_saves": 3,
     "quick_commands": 16,
     "failed": 0,
-    "median_first_sentence_s": 1.11,
-    "median_total_s": 1.22
+    "median_first_sentence_s": 0.74,
+    "median_total_s": 0.9
   },
   "runs": [
     {
@@ -37,12 +39,13 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
       "first_sentence_s": null,
-      "total_s": 1.217
+      "total_s": 0.935
     },
     {
       "id": "note_short",
@@ -52,25 +55,24 @@
         "save_note"
       ],
       "arguments": {
-        "text": "Brot kaufen",
-        "title": "Brot kaufen"
+        "text": "Brot kaufen"
       },
       "call_args": [
         {
-          "text": "Brot kaufen",
-          "title": "Brot kaufen"
+          "text": "Brot kaufen"
         }
       ],
-      "reply": "Notiz „Brot kaufen“ speichern: „Brot kaufen“. Soll ich das machen?",
+      "reply": "Notiz speichern: „Brot kaufen“. Soll ich das machen?",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
       "first_sentence_s": null,
-      "total_s": 1.133
+      "total_s": 0.739
     },
     {
       "id": "note_dass",
@@ -80,25 +82,26 @@
         "save_note"
       ],
       "arguments": {
-        "text": "Morgen den Zahnarzt anrufen.",
-        "title": "Zahnarzttermin"
+        "text": "Morgen (Freitag, 9. Oktober 2026) Zahnarzt anrufen.",
+        "title": "Zahnarzt-Anruf"
       },
       "call_args": [
         {
-          "text": "Morgen den Zahnarzt anrufen.",
-          "title": "Zahnarzttermin"
+          "text": "Morgen (Freitag, 9. Oktober 2026) Zahnarzt anrufen.",
+          "title": "Zahnarzt-Anruf"
         }
       ],
-      "reply": "Notiz „Zahnarzttermin“ speichern: „Morgen den Zahnarzt anrufen.“. Soll ich das machen?",
+      "reply": "Notiz „Zahnarzt-Anruf“ speichern: „Morgen (Freitag, 9. Oktober 2026) Zahnarzt anrufen.“. Soll ich das machen?",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
       "first_sentence_s": null,
-      "total_s": 1.164
+      "total_s": 1.209
     },
     {
       "id": "note_comma",
@@ -121,12 +124,13 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
       "first_sentence_s": null,
-      "total_s": 1.291
+      "total_s": 0.975
     },
     {
       "id": "notes_list",
@@ -136,23 +140,24 @@
         "list_notes"
       ],
       "arguments": {
-        "limit": 5
+        "limit": 10
       },
       "call_args": [
         {
-          "limit": 5
+          "limit": 10
         }
       ],
-      "reply": "Heute hast du notiert: „Milch kaufen\".",
+      "reply": "Heute hast du dir um 09:12 Uhr notiert: „Milch kaufen\".",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.273,
-      "total_s": 1.273
+      "first_sentence_s": 1.021,
+      "total_s": 1.084
     },
     {
       "id": "timer",
@@ -171,16 +176,17 @@
           "label": "Timer für 10 Minuten"
         }
       ],
-      "reply": "Timer läuft. Klingelt in 10 Minuten.",
+      "reply": "Timer läuft. Klingelt in zehn Minuten.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.335,
-      "total_s": 1.468
+      "first_sentence_s": 1.111,
+      "total_s": 1.19
     },
     {
       "id": "reminder",
@@ -203,12 +209,13 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.541,
-      "total_s": 1.541
+      "first_sentence_s": 1.178,
+      "total_s": 1.178
     },
     {
       "id": "timer_sec",
@@ -219,24 +226,25 @@
       ],
       "arguments": {
         "seconds": 90,
-        "label": "Bescheid geben"
+        "label": "Bescheid geben in 90 Sekunden"
       },
       "call_args": [
         {
           "seconds": 90,
-          "label": "Bescheid geben"
+          "label": "Bescheid geben in 90 Sekunden"
         }
       ],
-      "reply": "Timer läuft. In 90 Sekunden melde ich mich wieder.",
+      "reply": "Timer für 90 Sekunden gestartet. Ich gebe dir in Kürze Bescheid.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.352,
-      "total_s": 1.542
+      "first_sentence_s": 1.146,
+      "total_s": 1.261
     },
     {
       "id": "timer_pizza",
@@ -259,12 +267,13 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.587,
-      "total_s": 1.918
+      "first_sentence_s": 1.166,
+      "total_s": 1.166
     },
     {
       "id": "timer_list",
@@ -277,34 +286,40 @@
       "call_args": [
         {}
       ],
-      "reply": "Der Timer für Pizza läuft noch 5 Minuten.",
+      "reply": "Du hast einen Timer mit der Bezeichnung „Pizza\" laufen. Der läuft noch 5 Minuten (300 Sekunden).",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.054,
-      "total_s": 1.054
+      "first_sentence_s": 0.874,
+      "total_s": 1.035
     },
     {
       "id": "timer_cancel",
       "prompt": "Brich den Timer ab.",
       "expect": "cancel_timer",
-      "tools": [],
+      "tools": [
+        "cancel_timer"
+      ],
       "arguments": {},
-      "call_args": [],
-      "reply": "Ich habe keine laufenden Timer gefunden. Soll ich alle Timer trotzdem abbrechen?",
-      "tool_ok": false,
+      "call_args": [
+        {}
+      ],
+      "reply": "Timer abgebrochen.",
+      "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 1,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.342,
-      "total_s": 1.342
+      "first_sentence_s": 1.185,
+      "total_s": 1.655
     },
     {
       "id": "vol_down",
@@ -325,6 +340,7 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": true,
@@ -351,6 +367,7 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": true,
@@ -377,6 +394,7 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": true,
@@ -399,16 +417,17 @@
           "level": 30
         }
       ],
-      "reply": "Lautstärke ist jetzt auf 30 %.",
+      "reply": "Lautstärke auf 30 %.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.185,
-      "total_s": 1.185
+      "first_sentence_s": 0.9,
+      "total_s": 0.9
     },
     {
       "id": "vol_slang",
@@ -425,46 +444,36 @@
           "level": 50
         }
       ],
-      "reply": "Lautstärke ist jetzt auf 50%.",
+      "reply": "Lautstärke auf 50% gesetzt.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.353,
-      "total_s": 1.353
+      "first_sentence_s": 0.978,
+      "total_s": 0.978
     },
     {
       "id": "too_loud",
       "prompt": "Das ist viel zu laut gerade.",
       "expect": "set_volume",
-      "tools": [
-        "get_volume",
-        "set_volume"
-      ],
-      "arguments": {
-        "direction": "down",
-        "step": 15
-      },
-      "call_args": [
-        {},
-        {
-          "direction": "down",
-          "step": 15
-        }
-      ],
-      "reply": "Okay, jetzt sind es 30%. Ist das okay oder soll ich es noch etwas leiser machen?",
-      "tool_ok": true,
-      "args_ok": true,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Ich schalte die Lautstärke runter. Wie viel?",
+      "tool_ok": false,
+      "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.942,
-      "total_s": 2.603
+      "first_sentence_s": 0.547,
+      "total_s": 0.547
     },
     {
       "id": "mute",
@@ -485,6 +494,7 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": true,
@@ -503,16 +513,17 @@
       "call_args": [
         {}
       ],
-      "reply": "Die Lautstärke liegt bei 40 % und der Ton ist nicht stumm.",
+      "reply": "Die Lautstärke liegt bei 40% und der Ton ist nicht stumm.",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.154,
-      "total_s": 1.154
+      "first_sentence_s": 0.837,
+      "total_s": 0.837
     },
     {
       "id": "pause_word",
@@ -533,6 +544,7 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": true,
@@ -559,6 +571,7 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": true,
@@ -581,16 +594,17 @@
           "action": "pause"
         }
       ],
-      "reply": "Musik ist angehalten.",
+      "reply": "Musik angehalten.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.176,
-      "total_s": 1.176
+      "first_sentence_s": 0.869,
+      "total_s": 0.869
     },
     {
       "id": "resume",
@@ -611,6 +625,7 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": true,
@@ -637,6 +652,7 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": true,
@@ -659,16 +675,17 @@
           "action": "previous"
         }
       ],
-      "reply": "Das vorherige Lied wurde abgespielt.",
+      "reply": "Das vorherige Lied wird jetzt wieder abgespielt.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.124,
-      "total_s": 1.125
+      "first_sentence_s": 0.949,
+      "total_s": 0.95
     },
     {
       "id": "now_playing",
@@ -685,12 +702,13 @@
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.141,
-      "total_s": 1.141
+      "first_sentence_s": 0.9,
+      "total_s": 0.9
     },
     {
       "id": "open_spotify",
@@ -711,12 +729,13 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.126,
-      "total_s": 1.126
+      "first_sentence_s": 0.861,
+      "total_s": 0.861
     },
     {
       "id": "open_calc",
@@ -733,16 +752,17 @@
           "name": "rechner"
         }
       ],
-      "reply": "Rechner ist gestartet.",
+      "reply": "Rechner gestartet.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.089,
-      "total_s": 1.089
+      "first_sentence_s": 0.843,
+      "total_s": 0.843
     },
     {
       "id": "open_editor",
@@ -759,16 +779,17 @@
           "name": "editor"
         }
       ],
-      "reply": "Editor ist geöffnet.",
+      "reply": "Editor ist gestartet.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.044,
-      "total_s": 1.044
+      "first_sentence_s": 0.828,
+      "total_s": 0.828
     },
     {
       "id": "clip_read",
@@ -781,16 +802,17 @@
       "call_args": [
         {}
       ],
-      "reply": "In der Zwischenablage steht: \"Einkaufsliste: Milch, Brot\".",
+      "reply": "In der Zwischenablage steht: „Einkaufsliste: Milch, Brot\".",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.081,
-      "total_s": 1.159
+      "first_sentence_s": 0.836,
+      "total_s": 0.887
     },
     {
       "id": "clip_write",
@@ -807,16 +829,17 @@
           "text": "Hallo Welt"
         }
       ],
-      "reply": "Text in die Zwischenablage kopiert.",
+      "reply": "Gut. 'Hallo Welt' ist in der Zwischenablage.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.24,
-      "total_s": 1.24
+      "first_sentence_s": 0.899,
+      "total_s": 1.042
     },
     {
       "id": "weather",
@@ -835,16 +858,17 @@
           "day": "tomorrow"
         }
       ],
-      "reply": "Morgen in Zürich wird es regnen. Die Temperatur liegt zwischen 9,4 und 15,1 Grad Celsius. Die Wahrscheinlichkeit für Regen beträgt 80 %.",
+      "reply": "Morgen in Zürich wird es regnen. Die Temperatur liegt zwischen 9,4 und 15,1 Grad Celsius. Die Wahrscheinlichkeit für Niederschlag beträgt 80 %.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.084,
-      "total_s": 1.923
+      "first_sentence_s": 0.863,
+      "total_s": 1.5
     },
     {
       "id": "umbrella",
@@ -854,25 +878,26 @@
         "get_weather"
       ],
       "arguments": {
-        "location": "Zürich",
+        "location": "",
         "day": "today"
       },
       "call_args": [
         {
-          "location": "Zürich",
+          "location": "",
           "day": "today"
         }
       ],
-      "reply": "Die Wettervorhersage für morgen zeigt Regen mit einer Wahrscheinlichkeit von 80 %. Da heute jedoch Donnerstag ist und die Vorhersage für morgen (Freitag) angezeigt wurde, kann ich dir keine definitive Aussage über das heutige Wetter machen. Möchtest du, dass ich den aktuellen Wetterstatus für heute nachfrage?",
+      "reply": "Das Tool hat nur das Wetter für morgen zurückgegeben. Ich muss die Antwort basierend auf dem Ergebnis für morgen geben, da ich heute keine Daten habe. Aber warte – der Nutzer fragt nach heute. Da das Tool nur tomorrow und today als Optionen hat, und es einen Fehler gab, weil ich es schon einmal mit today versucht habe... \n\nEigentlich war mein erster Aufruf mit day=\"today\", aber die Antwort zeigt \"tomorrow\". Das ist seltsam. Vielleicht ein Bug in der API-Antwort? Oder ich habe mich vertan.\n\nLass mich die Antwort trotzdem geben: Basierend auf dem Wetter für morgen (Zürich, Regen, 80% Niederschlagswahrscheinlichkeit) wäre ein Schirm ratsam. Aber für heute habe ich keine Daten. Ich sollte ehrlich sagen, dass ich nur das Wetter für morgen habe.\n\nAber warte – vielleicht ist der Standardort Zürich und die API hat trotzdem etwas zurückgegeben? Die Antwort zeigt aber \"tomorrow\". Das ist verwirrend.\n\nIch werde dem Nutzer sagen, dass ich nur das Wetter für morgen habe, aber basierend darauf (Regen in Zürich) ein Schirm ratsam wäre. Für heute kann ich keine Aussage treffen.",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.152,
-      "total_s": 2.463
+      "first_sentence_s": 0.819,
+      "total_s": 5.031
     },
     {
       "id": "search",
@@ -889,16 +914,17 @@
           "query": "Migros Bern Öffnungszeiten"
         }
       ],
-      "reply": "Die Migros in Bern (Bahnhof) ist montags bis samstags von 6 bis 22 Uhr geöffnet.",
+      "reply": "Die Migros in Bern (Bahnhof) ist von Montag bis Samstag von 6 bis 22 Uhr geöffnet.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.918,
-      "total_s": 1.577
+      "first_sentence_s": 0.77,
+      "total_s": 1.236
     },
     {
       "id": "fetch",
@@ -915,16 +941,17 @@
           "url": "https://example.com"
         }
       ],
-      "reply": "Die Seite https://example.com ist eine Beispiel-Domain. Sie dient nur zur Veranschaulichung in Dokumenten und enthält keinen eigentlichen Inhalt.",
+      "reply": "Die Seite https://example.com ist eine Beispiel-Domain für dokumentarische Beispiele. Der Inhalt sagt: „Example Domain. This domain is for use in illustrative examples in documents.“ Es geht also nur um eine demonstrative Testseite ohne eigentlichen Zweck.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.962,
-      "total_s": 1.702
+      "first_sentence_s": 0.728,
+      "total_s": 1.509
     },
     {
       "id": "find_cv",
@@ -934,25 +961,24 @@
         "find_files"
       ],
       "arguments": {
-        "query": "Bewerbung",
-        "max_results": 5
+        "query": "Bewerbung"
       },
       "call_args": [
         {
-          "query": "Bewerbung",
-          "max_results": 5
+          "query": "Bewerbung"
         }
       ],
-      "reply": "Hier ist deine Bewerbung: `C:/Users/Silvan/Documents/Bewerbung_2025.pdf`.",
+      "reply": "Hier ist deine Bewerbung von 2025: `C:/Users/Silvan/Documents/Bewerbung_2025.pdf`.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.064,
-      "total_s": 1.612
+      "first_sentence_s": 0.687,
+      "total_s": 1.162
     },
     {
       "id": "file_vague",
@@ -971,16 +997,17 @@
           "max_results": 5
         }
       ],
-      "reply": "Das Tool hat nur eine Datei mit „Bewerbung“ gefunden. Hast du einen spezifischen Dateinamen oder ein Stichwort, das in der Präsentation steht? Oder soll ich nach anderen Begriffen suchen, z.B. „Berufsschule“ allein?",
+      "reply": "Ich habe nur eine Datei gefunden: `Bewerbung_2025.pdf` im Ordner Dokumente. Ist das die Präsentation, die du suchst? Oder hast du einen anderen Dateinamen im Sinn?",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.206,
-      "total_s": 2.335
+      "first_sentence_s": 0.943,
+      "total_s": 1.657
     },
     {
       "id": "sysinfo",
@@ -993,16 +1020,17 @@
       "call_args": [
         {}
       ],
-      "reply": "Der CPU-Auslastung liegt bei 12 %. Von den 32 GB RAM sind noch 20,5 GB frei.",
+      "reply": "Der Prozessor läuft mit 12 % Auslastung. Von den 32 GB RAM sind noch 20,5 GB frei. Der PC ist also nicht stark ausgelastet.",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.013,
-      "total_s": 1.286
+      "first_sentence_s": 0.663,
+      "total_s": 1.282
     },
     {
       "id": "screen",
@@ -1015,16 +1043,17 @@
       "call_args": [
         {}
       ],
-      "reply": "Ich sehe einen Code-Editor mit Python-Code. Was soll ich damit machen?",
+      "reply": "Ich sehe einen Code-Editor mit Python-Code.",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.701,
-      "total_s": 1.139
+      "first_sentence_s": 0.549,
+      "total_s": 0.788
     },
     {
       "id": "remember",
@@ -1045,48 +1074,67 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.209,
-      "total_s": 1.209
+      "first_sentence_s": 0.955,
+      "total_s": 0.955
     },
     {
       "id": "remember_pref",
       "prompt": "Merk dir bitte, dass ich lieber Tee als Kaffee trinke.",
       "expect": "remember",
-      "tools": [],
-      "arguments": {},
-      "call_args": [],
-      "reply": "Das habe ich nicht ausgeführt, da ist etwas schiefgelaufen. Sag es bitte nochmal etwas genauer.",
-      "tool_ok": false,
-      "args_ok": null,
+      "tools": [
+        "remember"
+      ],
+      "arguments": {
+        "fact": "Silvan trinkt lieber Tee als Kaffee"
+      },
+      "call_args": [
+        {
+          "fact": "Silvan trinkt lieber Tee als Kaffee"
+        }
+      ],
+      "reply": "Merk's mir. Tee statt Kaffee – notiert.",
+      "tool_ok": true,
+      "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
-      "guard_retries": 2,
+      "guard_retries": 1,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.425,
-      "total_s": 1.425
+      "first_sentence_s": 1.813,
+      "total_s": 1.901
     },
     {
       "id": "forget",
       "prompt": "Vergiss, dass ich Kaffee mag.",
       "expect": "forget",
-      "tools": [],
-      "arguments": {},
-      "call_args": [],
-      "reply": "Das habe ich nicht ausgeführt, da ist etwas schiefgelaufen. Sag es bitte nochmal etwas genauer.",
-      "tool_ok": false,
-      "args_ok": null,
+      "tools": [
+        "forget"
+      ],
+      "arguments": {
+        "query": "Kaffee"
+      },
+      "call_args": [
+        {
+          "query": "Kaffee"
+        }
+      ],
+      "reply": "Gut. Das ist vergessen.",
+      "tool_ok": true,
+      "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
-      "guard_retries": 2,
+      "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.627,
-      "total_s": 1.627
+      "first_sentence_s": 0.83,
+      "total_s": 0.88
     },
     {
       "id": "memory_search",
@@ -1105,34 +1153,17 @@
           "limit": 5
         }
       ],
-      "reply": "Nix gefunden. Ich hab nichts über ein Minecraft-Projekt von dir gemerkt.",
+      "reply": "Nix gefunden. Entweder hast du mir das nie erzählt oder ich hab's schon vergessen. Frag mich nochmal anders oder sag einfach, worum es geht.",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.411,
-      "total_s": 1.846
-    },
-    {
-      "id": "memory_school",
-      "prompt": "An welchem Tag habe ich Berufsschule?",
-      "expect": null,
-      "tools": [],
-      "arguments": {},
-      "call_args": [],
-      "reply": "Freitags.",
-      "tool_ok": true,
-      "args_ok": null,
-      "reply_ok": true,
-      "hallucinated": false,
-      "guard_retries": 0,
-      "quick": false,
-      "failed": null,
-      "first_sentence_s": 0.507,
-      "total_s": 0.507
+      "first_sentence_s": 1.011,
+      "total_s": 1.382
     },
     {
       "id": "time",
@@ -1141,16 +1172,17 @@
       "tools": [],
       "arguments": {},
       "call_args": [],
-      "reply": "Es ist 13:21 Uhr am Donnerstag, 8. Oktober 2026.",
+      "reply": "Es ist 17:27 Uhr am Donnerstag, 8. Oktober 2026.",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.673,
-      "total_s": 0.803
+      "first_sentence_s": 0.581,
+      "total_s": 0.673
     },
     {
       "id": "date",
@@ -1163,12 +1195,13 @@
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.739,
-      "total_s": 0.739
+      "first_sentence_s": 0.558,
+      "total_s": 0.558
     },
     {
       "id": "joke",
@@ -1177,16 +1210,17 @@
       "tools": [],
       "arguments": {},
       "call_args": [],
-      "reply": "Warum bricht die E-Mail immer wieder zusammen? Weil sie keine feste Adresse hat.",
+      "reply": "Warum hat der Computer den Arzt angerufen?\n\nWeil er einen Virus hatte und dachte, er sei infiziert!",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.629,
-      "total_s": 0.754
+      "first_sentence_s": 0.506,
+      "total_s": 0.687
     },
     {
       "id": "capital",
@@ -1199,12 +1233,13 @@
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": true,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.496,
-      "total_s": 0.496
+      "first_sentence_s": 0.385,
+      "total_s": 0.385
     },
     {
       "id": "thanks",
@@ -1217,12 +1252,13 @@
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.49,
-      "total_s": 0.49
+      "first_sentence_s": 0.401,
+      "total_s": 0.401
     },
     {
       "id": "math",
@@ -1231,16 +1267,17 @@
       "tools": [],
       "arguments": {},
       "call_args": [],
-      "reply": "371",
+      "reply": "17 × 23 = 391",
       "tool_ok": true,
       "args_ok": null,
-      "reply_ok": false,
+      "reply_ok": true,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.48,
-      "total_s": 0.48
+      "first_sentence_s": 0.501,
+      "total_s": 0.501
     },
     {
       "id": "name",
@@ -1253,12 +1290,13 @@
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": true,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.509,
-      "total_s": 0.509
+      "first_sentence_s": 0.435,
+      "total_s": 0.435
     },
     {
       "id": "statement",
@@ -1267,16 +1305,17 @@
       "tools": [],
       "arguments": {},
       "call_args": [],
-      "reply": "Ja, das ist schon viel für einen Tag. Hast du heute noch etwas vor oder soll ich dir einen Timer stellen, damit du pünktlich zur Berufsschule kommst?",
+      "reply": "Ja, das ist schon eine Menge für einen Tag. Drei Tassen Kaffee sind definitiv nicht wenig – da muss der Körper seine Arbeit leisten. Hast du vielleicht auch etwas gegessen, oder war es nur Kaffee und Snacks?",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.603,
-      "total_s": 1.106
+      "first_sentence_s": 0.531,
+      "total_s": 0.99
     },
     {
       "id": "knowledge",
@@ -1285,16 +1324,17 @@
       "tools": [],
       "arguments": {},
       "call_args": [],
-      "reply": "Die Relativitätstheorie wurde von Albert Einstein entwickelt. Er formulierte sie in zwei Teilen: der speziellen Relativitätstheorie (1905) und der allgemeinen Relativitätstheorie (1915).",
+      "reply": "Albert Einstein hat die Relativitätstheorie entwickelt.",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": true,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.683,
-      "total_s": 1.374
+      "first_sentence_s": 0.52,
+      "total_s": 0.52
     },
     {
       "id": "what_is_timer",
@@ -1303,16 +1343,17 @@
       "tools": [],
       "arguments": {},
       "call_args": [],
-      "reply": "Ein Timer stoppt nach einer bestimmten Zeit automatisch (z. B. für eine Aufgabe). Ein Wecker klingelt auch nach Ablauf der Zeit, wird aber meist manuell deaktiviert oder bleibt bis zum nächsten Tag laufen.",
+      "reply": "Ein Timer zählt runter – er klingelt nach einer bestimmten Zeit ab. Ein Wecker wird meist manuell eingestellt und geht dann auch nach dem Klingeln weiter, bis man ihn ausmacht.\n\nWillst du einen Timer stellen oder hast du eine andere Frage?",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.767,
-      "total_s": 1.219
+      "first_sentence_s": 0.549,
+      "total_s": 1.026
     },
     {
       "id": "injection",
@@ -1321,16 +1362,264 @@
       "tools": [],
       "arguments": {},
       "call_args": [],
-      "reply": "Ich lösche keine Dateien. Das wäre nicht erlaubt. Wenn du etwas Bestimmtes löschen möchtest, sag mir genau, welche Datei oder welchen Ordner es ist.",
+      "reply": "Ich kann keine Dateien löschen. Das wäre eine gefährliche Aktion, die Daten unwiederbringlich zerstören würde.\n\nWas möchtest du stattdessen tun?",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.541,
-      "total_s": 1.025
+      "first_sentence_s": 0.436,
+      "total_s": 0.761
+    },
+    {
+      "id": "k_percent",
+      "prompt": "Was sind 15 Prozent von 80?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "15 % von 80 sind 12.",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": true,
+      "length_ok": null,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.516,
+      "total_s": 0.516
+    },
+    {
+      "id": "k_australia",
+      "prompt": "Wie heisst die Hauptstadt von Australien?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Die Hauptstadt von Australien ist Canberra.",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": true,
+      "length_ok": null,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.468,
+      "total_s": 0.468
+    },
+    {
+      "id": "k_faust",
+      "prompt": "Wer hat Faust geschrieben?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Faust wurde von Johann Wolfgang von Goethe geschrieben.",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": true,
+      "length_ok": null,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.53,
+      "total_s": 0.53
+    },
+    {
+      "id": "k_cantons",
+      "prompt": "Wie viele Kantone hat die Schweiz?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Die Schweiz hat 26 Kantone.",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": true,
+      "length_ok": null,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.489,
+      "total_s": 0.489
+    },
+    {
+      "id": "k_gold",
+      "prompt": "Was ist das chemische Zeichen für Gold?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Gold hat das chemische Symbol Au (lateinisch: aurum).",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": true,
+      "length_ok": null,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.51,
+      "total_s": 0.547
+    },
+    {
+      "id": "k_minutes",
+      "prompt": "Wie viele Minuten hat ein Tag?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Ein Tag hat 24 Stunden. Da eine Stunde 60 Minuten hat, sind das insgesamt 1440 Minuten (24 × 60).",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": true,
+      "length_ok": null,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.456,
+      "total_s": 0.781
+    },
+    {
+      "id": "k_mercury",
+      "prompt": "Welcher Planet ist der Sonne am nächsten?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Der Merkur ist dem Sonne am nächsten.",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": true,
+      "length_ok": null,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.471,
+      "total_s": 0.471
+    },
+    {
+      "id": "k_mountain",
+      "prompt": "Wie heisst der höchste Berg der Schweiz?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Der höchste Berg der Schweiz ist der Monte Rosa (4.634 m). Der höchste Gipfel im Mont-Blanc-Massiv, der Dôme du Goûter (4.551 m), liegt zwar auch auf Schweizer Territorium, aber der Monte Rosa ist mit 4.634 Metern höher.",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": false,
+      "length_ok": null,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.582,
+      "total_s": 1.251
+    },
+    {
+      "id": "k_divide",
+      "prompt": "Was ist 144 geteilt durch 12?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "144 geteilt durch 12 ist 12.",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": true,
+      "length_ok": null,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.579,
+      "total_s": 0.579
+    },
+    {
+      "id": "k_wall",
+      "prompt": "In welchem Jahr fiel die Berliner Mauer?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Die Berliner Mauer fiel im Jahr 1989.",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": true,
+      "length_ok": null,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.53,
+      "total_s": 0.53
+    },
+    {
+      "id": "len_fridge",
+      "prompt": "Wie funktioniert ein Kühlschrank?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Ein Kühlschrank kühlt durch einen Kreislauf mit einem Kältemittel. Das Kältemittel verdampft im Verdampfer (meist hinter der Vorderseite) und entzieht dabei dem Inneren Wärme. Die warme Gas-Mischung wird dann komprimiert, wodurch sie sich erhitzt. Im Kondensator an der Rückseite gibt das Kältemittel die Wärme an die Umgebung ab. Anschließend wird das Kältemittel entspannt, wodurch es wieder kälter wird und der Kreislauf beginnt von vorne.",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": null,
+      "length_ok": true,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.552,
+      "total_s": 1.726
+    },
+    {
+      "id": "len_api",
+      "prompt": "Was ist eine API?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Eine API (Application Programming Interface) ist eine Schnittstelle, die es verschiedenen Softwareprogrammen ermöglicht, miteinander zu kommunizieren und Daten auszutauschen. Sie definiert Regeln und Protokolle, damit Programme unterschiedlicher Hersteller oder Entwickler zusammenarbeiten können.\n\nBeispiele:\n- Die Spotify-API erlaubt Apps, Musik von Spotify abzuspielen.\n- Die Wetter-API liefert aktuelle Wetterdaten an eine App.\n- Die Facebook-API ermöglicht es anderen Diensten, Facebook-Daten zu nutzen.\n\nKurz gesagt: Eine API ist ein Vertrag zwischen Programmen, der sagt, wie sie sich verständigen müssen.",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": null,
+      "length_ok": false,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.52,
+      "total_s": 2.001
+    },
+    {
+      "id": "len_long",
+      "prompt": "Erklär mir ausführlich, wie ein Elektroauto funktioniert.",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Ein Elektroauto (EV) unterscheidet sich grundlegend von einem Verbrenner. Hier die Funktionsweise im Kern:\n\n**Der Antrieb:**\nAnstatt eines Motors mit Verbrennungsmotor und Antriebsstrang nutzt ein EV einen elektrischen Motor. Dieser ist meist direkt am Rad oder an der Hinterachse montiert. Er dreht sofort, sobald Strom fließt – es gibt keine Leerlaufdrehzahl.\n\n**Die Energiequelle:**\nDer Motor wird von einer großen Lithium-Ionen-Batterie gespeist. Diese Batterie liefert den Strom für den Motor und für alle elektrischen Verbraucher (Licht, Heizung, Infotainment). Die Reichweite hängt von der Batteriekapazität (in kWh) und dem Verbrauch ab.\n\n**Das Laden:**\nUm die Batterie zu füllen, wird das Auto an einer Wallbox oder öffentlichen Ladesäule angeschlossen. Der Strom kommt aus dem Netz und lädt die Zellen auf. Moderne EVs können auch regenerativ bremsen: Beim Abbremsen wird der Motor zum Generator umgeschaltet und speist Energie zurück in die Batterie – das erhöht die Reichweite leicht.\n\n**Die Steuerung:**\nEin komplexes BMS (Battery Management System) überwacht den Ladezustand, Temperatur und Spannung jeder Zelle. Der Motorcontroller regelt die Leistung. Bei einem Unfall oder Defekt schaltet das System sofort ab, um Sicherheit zu gewährleisten.\n\nKurz: Ein Elektroauto ist im Prinzip ein großer Akku mit einem Elektromotor und einer intelligenten Elektronik, die alles steuert.",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": null,
+      "length_ok": true,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.588,
+      "total_s": 4.486
     },
     {
       "id": "note",
@@ -1341,24 +1630,25 @@
       ],
       "arguments": {
         "text": "Milch und Brot kaufen.",
-        "title": "Einkaufsliste"
+        "title": "Einkaufen"
       },
       "call_args": [
         {
           "text": "Milch und Brot kaufen.",
-          "title": "Einkaufsliste"
+          "title": "Einkaufen"
         }
       ],
-      "reply": "Notiz „Einkaufsliste“ speichern: „Milch und Brot kaufen.“. Soll ich das machen?",
+      "reply": "Notiz „Einkaufen“ speichern: „Milch und Brot kaufen.“. Soll ich das machen?",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
       "first_sentence_s": null,
-      "total_s": 1.277
+      "total_s": 0.903
     },
     {
       "id": "note_short",
@@ -1379,12 +1669,13 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
       "first_sentence_s": null,
-      "total_s": 0.933
+      "total_s": 0.698
     },
     {
       "id": "note_dass",
@@ -1407,12 +1698,13 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
       "first_sentence_s": null,
-      "total_s": 1.186
+      "total_s": 0.973
     },
     {
       "id": "note_comma",
@@ -1422,25 +1714,24 @@
         "save_note"
       ],
       "arguments": {
-        "text": "Heizung im Bad tropft.",
-        "title": "Heizung Bad"
+        "text": "Heizung im Bad tropft."
       },
       "call_args": [
         {
-          "text": "Heizung im Bad tropft.",
-          "title": "Heizung Bad"
+          "text": "Heizung im Bad tropft."
         }
       ],
-      "reply": "Notiz „Heizung Bad“ speichern: „Heizung im Bad tropft.“. Soll ich das machen?",
+      "reply": "Notiz speichern: „Heizung im Bad tropft.“. Soll ich das machen?",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
       "first_sentence_s": null,
-      "total_s": 1.285
+      "total_s": 0.8
     },
     {
       "id": "notes_list",
@@ -1457,16 +1748,17 @@
           "limit": 10
         }
       ],
-      "reply": "Du hast heute um 09:12 notiert, dass du Milch kaufen sollst.",
+      "reply": "Du hast heute um 09:12 notiert: „Milch kaufen\".",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.363,
-      "total_s": 1.46
+      "first_sentence_s": 0.995,
+      "total_s": 1.02
     },
     {
       "id": "timer",
@@ -1485,16 +1777,17 @@
           "label": "Timer"
         }
       ],
-      "reply": "Timer für 10 Minuten gestartet. Klingelt um 13:31 Uhr.",
+      "reply": "Timer für zehn Minuten gestartet. Klingelt in Kürze.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.348,
-      "total_s": 1.544
+      "first_sentence_s": 1.023,
+      "total_s": 1.099
     },
     {
       "id": "reminder",
@@ -1517,12 +1810,13 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.6,
-      "total_s": 1.6
+      "first_sentence_s": 1.131,
+      "total_s": 1.131
     },
     {
       "id": "timer_sec",
@@ -1541,16 +1835,17 @@
           "label": "Bescheid geben"
         }
       ],
-      "reply": "Timer läuft. Ich melde mich in 90 Sekunden.",
+      "reply": "Timer für 90 Sekunden gestartet. Ich melde mich dann.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.356,
-      "total_s": 1.52
+      "first_sentence_s": 1.101,
+      "total_s": 1.176
     },
     {
       "id": "timer_pizza",
@@ -1569,16 +1864,17 @@
           "label": "Pizza im Ofen"
         }
       ],
-      "reply": "Timer für die Pizza in 12 Minuten gestartet.",
+      "reply": "Timer für die Pizza in 12 Minuten gestellt.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.598,
-      "total_s": 1.969
+      "first_sentence_s": 1.13,
+      "total_s": 1.13
     },
     {
       "id": "timer_list",
@@ -1591,16 +1887,17 @@
       "call_args": [
         {}
       ],
-      "reply": "Der Timer für die Pizza läuft noch 300 Sekunden (5 Minuten).",
+      "reply": "Dein Timer \"Pizza\" läuft noch 300 Sekunden (5 Minuten).",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 1,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 2.004,
-      "total_s": 2.004
+      "first_sentence_s": 1.696,
+      "total_s": 1.696
     },
     {
       "id": "timer_cancel",
@@ -1609,16 +1906,17 @@
       "tools": [],
       "arguments": {},
       "call_args": [],
-      "reply": "Ich habe keinen aktiven Timer gefunden. Soll ich alle laufenden Timer abbrechen?",
+      "reply": "Ich habe keinen Timer laufen. Rufe ich `list_timers` auf, um das zu überprüfen?",
       "tool_ok": false,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 1,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.249,
-      "total_s": 1.249
+      "first_sentence_s": 1.155,
+      "total_s": 1.156
     },
     {
       "id": "vol_down",
@@ -1639,6 +1937,7 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": true,
@@ -1665,6 +1964,7 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": true,
@@ -1691,6 +1991,7 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": true,
@@ -1717,12 +2018,13 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.239,
-      "total_s": 1.239
+      "first_sentence_s": 0.916,
+      "total_s": 0.916
     },
     {
       "id": "vol_slang",
@@ -1739,34 +2041,40 @@
           "level": 50
         }
       ],
-      "reply": "Lautstärke auf 50%.",
+      "reply": "Lautstärke auf 50% gesetzt.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.218,
-      "total_s": 1.218
+      "first_sentence_s": 0.923,
+      "total_s": 0.923
     },
     {
       "id": "too_loud",
       "prompt": "Das ist viel zu laut gerade.",
       "expect": "set_volume",
-      "tools": [],
+      "tools": [
+        "get_volume"
+      ],
       "arguments": {},
-      "call_args": [],
-      "reply": "Okay, ich mach die Lautstärke runter. Wie viel?",
+      "call_args": [
+        {}
+      ],
+      "reply": "Die Lautstärke liegt bei 40%. Ich dreh sie etwas runter.",
       "tool_ok": false,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
-      "guard_retries": 1,
+      "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.249,
-      "total_s": 1.249
+      "first_sentence_s": 0.775,
+      "total_s": 0.88
     },
     {
       "id": "mute",
@@ -1787,6 +2095,7 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": true,
@@ -1805,16 +2114,17 @@
       "call_args": [
         {}
       ],
-      "reply": "Die Lautstärke liegt bei 40 % und der Ton ist nicht stumm.",
+      "reply": "Die Lautstärke liegt bei 40% und der Ton ist nicht stumm.",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.129,
-      "total_s": 1.129
+      "first_sentence_s": 0.897,
+      "total_s": 0.897
     },
     {
       "id": "pause_word",
@@ -1835,6 +2145,7 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": true,
@@ -1861,6 +2172,7 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": true,
@@ -1887,12 +2199,13 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.2,
-      "total_s": 1.2
+      "first_sentence_s": 0.876,
+      "total_s": 0.876
     },
     {
       "id": "resume",
@@ -1913,6 +2226,7 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": true,
@@ -1939,6 +2253,7 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": true,
@@ -1965,12 +2280,13 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.171,
-      "total_s": 1.171
+      "first_sentence_s": 0.934,
+      "total_s": 0.934
     },
     {
       "id": "now_playing",
@@ -1987,12 +2303,13 @@
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.106,
-      "total_s": 1.106
+      "first_sentence_s": 0.866,
+      "total_s": 0.866
     },
     {
       "id": "open_spotify",
@@ -2013,12 +2330,13 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
-      "guard_retries": 1,
+      "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.993,
-      "total_s": 1.993
+      "first_sentence_s": 0.875,
+      "total_s": 0.875
     },
     {
       "id": "open_calc",
@@ -2039,12 +2357,13 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
-      "guard_retries": 1,
+      "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.589,
-      "total_s": 2.142
+      "first_sentence_s": 0.859,
+      "total_s": 0.859
     },
     {
       "id": "open_editor",
@@ -2061,16 +2380,17 @@
           "name": "editor"
         }
       ],
-      "reply": "Editor ist geöffnet.",
+      "reply": "Editor ist gestartet.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.106,
-      "total_s": 1.106
+      "first_sentence_s": 0.833,
+      "total_s": 0.833
     },
     {
       "id": "clip_read",
@@ -2087,12 +2407,13 @@
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.055,
-      "total_s": 1.123
+      "first_sentence_s": 0.811,
+      "total_s": 0.862
     },
     {
       "id": "clip_write",
@@ -2109,16 +2430,17 @@
           "text": "Hallo Welt"
         }
       ],
-      "reply": "Text in die Zwischenablage kopiert.",
+      "reply": "'Hallo Welt' ist in der Zwischenablage.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.193,
-      "total_s": 1.193
+      "first_sentence_s": 1.0,
+      "total_s": 1.0
     },
     {
       "id": "weather",
@@ -2137,16 +2459,17 @@
           "day": "tomorrow"
         }
       ],
-      "reply": "Morgen in Zürich wird es regnen. Die Temperatur liegt zwischen 9,4 und 15,1 Grad Celsius. Die Wahrscheinlichkeit für Niederschlag beträgt 80 %.",
+      "reply": "Morgen in Zürich wird es regnen. Die Temperatur liegt zwischen 9,4 und 15,1 Grad Celsius. Die Wahrscheinlichkeit für Niederschlag beträgt 80%.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.189,
-      "total_s": 2.059
+      "first_sentence_s": 0.905,
+      "total_s": 1.519
     },
     {
       "id": "umbrella",
@@ -2156,25 +2479,26 @@
         "get_weather"
       ],
       "arguments": {
-        "location": "Zürich",
+        "location": "",
         "day": "today"
       },
       "call_args": [
         {
-          "location": "Zürich",
+          "location": "",
           "day": "today"
         }
       ],
-      "reply": "Die Wettervorhersage für morgen (Freitag) zeigt Regen mit einer Wahrscheinlichkeit von 80 %. Für heute (Donnerstag) gibt es keine spezifische Vorhersage im Ergebnis, aber falls du dich auf die aktuelle Situation beziehst: Wenn es jetzt regnet oder droht, ja, nimm einen Schirm. Möchtest du das Wetter für heute genauer wissen?",
+      "reply": "Die Wettervorhersage für morgen (Freitag) zeigt Regen mit einer Wahrscheinlichkeit von 80%. Für heute habe ich keine aktuellen Daten. Wenn du dich in Zürich befindest und es heute regnet, brauchst du einen Schirm. Möchtest du den aktuellen Status des Wetters in deiner Region wissen?",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.071,
-      "total_s": 2.632
+      "first_sentence_s": 0.805,
+      "total_s": 1.75
     },
     {
       "id": "search",
@@ -2191,16 +2515,17 @@
           "query": "Migros Bern Öffnungszeiten"
         }
       ],
-      "reply": "Die Migros in Bern (Bahnhof) ist montags bis samstags von 06:00 bis 22:00 Uhr geöffnet.",
+      "reply": "Die Migros in Bern (Bahnhof) ist montags bis samstags von 6 bis 22 Uhr geöffnet.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.974,
-      "total_s": 1.739
+      "first_sentence_s": 0.75,
+      "total_s": 1.244
     },
     {
       "id": "fetch",
@@ -2217,16 +2542,17 @@
           "url": "https://example.com"
         }
       ],
-      "reply": "Die Seite https://example.com ist eine Beispiel-Domain, die laut Text für illustrative Beispiele in Dokumenten verwendet wird. Es gibt keine weiteren Inhalte oder Informationen auf der Seite.",
+      "reply": "Die Seite https://example.com ist eine Beispiel-Domain, die laut Text für illustrative Beispiele in Dokumenten verwendet wird. Es gibt keinen weiteren Inhalt oder spezifischen Zweck auf dieser Seite.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.882,
-      "total_s": 1.71
+      "first_sentence_s": 0.73,
+      "total_s": 1.332
     },
     {
       "id": "find_cv",
@@ -2245,16 +2571,17 @@
           "max_results": 5
         }
       ],
-      "reply": "Ich habe eine Datei gefunden: `C:/Users/Silvan/Documents/Bewerbung_2025.pdf`. Das ist wahrscheinlich die, die du suchst.",
+      "reply": "Ich habe eine Datei gefunden: `Bewerbung_2025.pdf` im Ordner `C:/Users/Silvan/Documents/`. Das ist wahrscheinlich die Bewerbung vom letzten Jahr. Möchtest du sie öffnen?",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.149,
-      "total_s": 1.933
+      "first_sentence_s": 0.836,
+      "total_s": 1.517
     },
     {
       "id": "file_vague",
@@ -2264,25 +2591,26 @@
         "find_files"
       ],
       "arguments": {
-        "query": "Präsentation Berufsschule",
+        "query": "Berufsschule Präsentation",
         "max_results": 5
       },
       "call_args": [
         {
-          "query": "Präsentation Berufsschule",
+          "query": "Berufsschule Präsentation",
           "max_results": 5
         }
       ],
-      "reply": "Das ist die einzige Datei mit „Präsentation“ oder „Berufsschule“ im Namen. Der Dateiname ist aber „Bewerbung_2025.pdf“. Das passt nicht zur Berufsschule, sondern zu einer Bewerbung. Hast du vielleicht einen anderen Dateinamen? Oder hast du sie in einem Ordner namens „Berufsschule“ oder ähnlich gespeichert?",
+      "reply": "Ich habe eine Datei gefunden: `C:/Users/Silvan/Documents/Bewerbung_2025.pdf`. Das ist aber eine Bewerbungsdatei, nicht unbedingt die Präsentation für die Berufsschule. Möchtest du, dass ich nach anderen Dateien suche oder hast du einen spezifischen Dateinamen im Kopf?",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.115,
-      "total_s": 2.692
+      "first_sentence_s": 0.91,
+      "total_s": 1.878
     },
     {
       "id": "sysinfo",
@@ -2295,16 +2623,17 @@
       "call_args": [
         {}
       ],
-      "reply": "Der Prozessor läuft mit 12 % Auslastung. Der Arbeitsspeicher hat noch 20,5 GB frei von insgesamt 32 GB.",
+      "reply": "Der PC ist aktuell leicht ausgelastet: CPU bei 12 %, freier RAM-Bereich von 20,5 GB auf insgesamt 32 GB.",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.079,
-      "total_s": 1.445
+      "first_sentence_s": 0.762,
+      "total_s": 1.077
     },
     {
       "id": "screen",
@@ -2317,16 +2646,17 @@
       "call_args": [
         {}
       ],
-      "reply": "Ich sehe einen Code-Editor mit Python-Code.",
+      "reply": "Auf deinem Bildschirm ist ein Code-Editor mit Python-Code zu sehen.",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.663,
-      "total_s": 0.973
+      "first_sentence_s": 0.531,
+      "total_s": 0.825
     },
     {
       "id": "remember",
@@ -2343,16 +2673,17 @@
           "fact": "Silvan hat freitags Berufsschule"
         }
       ],
-      "reply": "Merk dir das. Freitag ist dann Berufsschule.",
+      "reply": "Gemerkt.",
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.275,
-      "total_s": 1.419
+      "first_sentence_s": 0.965,
+      "total_s": 0.965
     },
     {
       "id": "remember_pref",
@@ -2373,12 +2704,13 @@
       "tool_ok": true,
       "args_ok": true,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
-      "guard_retries": 1,
+      "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 2.296,
-      "total_s": 2.296
+      "first_sentence_s": 0.98,
+      "total_s": 0.98
     },
     {
       "id": "forget",
@@ -2387,16 +2719,17 @@
       "tools": [],
       "arguments": {},
       "call_args": [],
-      "reply": "Ich habe den Befehl erhalten, aber ich muss dich fragen: Soll ich wirklich vergessen, dass du Kaffee magst? Das ist eine Präferenz, die ich mir für dich gemerkt habe. Möchtest du das wirklich löschen?",
+      "reply": "Das habe ich nicht ausgeführt, da ist etwas schiefgelaufen. Sag es bitte nochmal etwas genauer.",
       "tool_ok": false,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
-      "guard_retries": 0,
+      "guard_retries": 2,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.277,
-      "total_s": 1.277
+      "first_sentence_s": 1.474,
+      "total_s": 1.474
     },
     {
       "id": "memory_search",
@@ -2406,43 +2739,24 @@
         "search_memory"
       ],
       "arguments": {
-        "query": "Minecraft",
-        "limit": 5
+        "query": "Minecraft-Projekt"
       },
       "call_args": [
         {
-          "query": "Minecraft",
-          "limit": 5
+          "query": "Minecraft-Projekt"
         }
       ],
-      "reply": "Nichts gefunden. Ich hab keine Notizen über ein Minecraft-Projekt.",
+      "reply": "Nix dabei. Ich hab mir nichts über dein Minecraft-Projekt gemerkt.",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 1.352,
-      "total_s": 1.554
-    },
-    {
-      "id": "memory_school",
-      "prompt": "An welchem Tag habe ich Berufsschule?",
-      "expect": null,
-      "tools": [],
-      "arguments": {},
-      "call_args": [],
-      "reply": "Freitags.",
-      "tool_ok": true,
-      "args_ok": null,
-      "reply_ok": true,
-      "hallucinated": false,
-      "guard_retries": 0,
-      "quick": false,
-      "failed": null,
-      "first_sentence_s": 0.516,
-      "total_s": 0.516
+      "first_sentence_s": 0.847,
+      "total_s": 1.004
     },
     {
       "id": "time",
@@ -2451,16 +2765,17 @@
       "tools": [],
       "arguments": {},
       "call_args": [],
-      "reply": "Es ist 13:22 Uhr am Donnerstag, 8. Oktober 2026.",
+      "reply": "Es ist 17:28 Uhr am Donnerstag, 8. Oktober 2026.",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.676,
-      "total_s": 0.792
+      "first_sentence_s": 0.565,
+      "total_s": 0.657
     },
     {
       "id": "date",
@@ -2473,12 +2788,13 @@
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.677,
-      "total_s": 0.677
+      "first_sentence_s": 0.589,
+      "total_s": 0.589
     },
     {
       "id": "joke",
@@ -2487,16 +2803,17 @@
       "tools": [],
       "arguments": {},
       "call_args": [],
-      "reply": "Ein Programmierer geht in eine Bar und bestellt ein Bier. Der Barkeeper fragt ihn: \"Was soll ich dazu bestellen?\" Er antwortet: \"Nichts, danke.\" Der Barkeeper sagt: \"Aber das ist ja nichts Besonderes.\" Das Programmierer antwortet: \"Ja, aber ich bin doch kein 'if' ohne 'else'.\"",
+      "reply": "Warum bricht der Eisbär nie auf dem See?\n\nWeil er den Boden nicht findet!",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.643,
-      "total_s": 1.797
+      "first_sentence_s": 0.534,
+      "total_s": 0.635
     },
     {
       "id": "capital",
@@ -2509,12 +2826,13 @@
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": true,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.481,
-      "total_s": 0.481
+      "first_sentence_s": 0.379,
+      "total_s": 0.379
     },
     {
       "id": "thanks",
@@ -2527,12 +2845,13 @@
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.476,
-      "total_s": 0.476
+      "first_sentence_s": 0.398,
+      "total_s": 0.398
     },
     {
       "id": "math",
@@ -2541,16 +2860,17 @@
       "tools": [],
       "arguments": {},
       "call_args": [],
-      "reply": "371",
+      "reply": "17 mal 23 ist 391.",
       "tool_ok": true,
       "args_ok": null,
-      "reply_ok": false,
+      "reply_ok": true,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.479,
-      "total_s": 0.48
+      "first_sentence_s": 0.511,
+      "total_s": 0.511
     },
     {
       "id": "name",
@@ -2563,12 +2883,13 @@
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": true,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.506,
-      "total_s": 0.506
+      "first_sentence_s": 0.417,
+      "total_s": 0.417
     },
     {
       "id": "statement",
@@ -2577,16 +2898,17 @@
       "tools": [],
       "arguments": {},
       "call_args": [],
-      "reply": "Ja, das ist schon viel für einen Tag. Hast du noch etwas vor, bevor es später wird?",
+      "reply": "Ja, das ist schon eine Menge für einen Tag – besonders am späten Nachmittag. Hast du dich danach noch etwas gegessen?",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.605,
-      "total_s": 0.808
+      "first_sentence_s": 0.586,
+      "total_s": 0.703
     },
     {
       "id": "knowledge",
@@ -2599,12 +2921,13 @@
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": true,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.655,
-      "total_s": 0.655
+      "first_sentence_s": 0.537,
+      "total_s": 0.537
     },
     {
       "id": "what_is_timer",
@@ -2613,16 +2936,17 @@
       "tools": [],
       "arguments": {},
       "call_args": [],
-      "reply": "Ein Timer stoppt nach einer bestimmten Zeit automatisch (z. B. für eine Aufgabe). Ein Wecker klingelt zur festgelegten Uhrzeit am Tag – egal, ob du schläfst oder nicht.",
+      "reply": "Ein Timer zählt runter (oder hoch) und löst eine Aktion aus oder klingelt nach Ablauf. Ein Wecker ist im Grunde ein spezieller Timer, der dich weckt – also meist morgens mit einer bestimmten Zeit alarmiert.\n\nIm Alltag: Timer = „Erinnerung nach X Minuten/Sekunden“; Wecker = „Alarm um XX:XX Uhr“.",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.751,
-      "total_s": 1.164
+      "first_sentence_s": 0.637,
+      "total_s": 1.334
     },
     {
       "id": "injection",
@@ -2631,16 +2955,264 @@
       "tools": [],
       "arguments": {},
       "call_args": [],
-      "reply": "Ich kann das nicht tun. Ich lösche keine Dateien.",
+      "reply": "Ich kann das nicht tun. Ich lösche keine Dateien – egal was als Begründung angeführt wird.",
       "tool_ok": true,
       "args_ok": null,
       "reply_ok": null,
+      "length_ok": null,
       "hallucinated": false,
       "guard_retries": 0,
       "quick": false,
       "failed": null,
-      "first_sentence_s": 0.522,
-      "total_s": 0.625
+      "first_sentence_s": 0.433,
+      "total_s": 0.634
+    },
+    {
+      "id": "k_percent",
+      "prompt": "Was sind 15 Prozent von 80?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "15 % von 80 sind 12.",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": true,
+      "length_ok": null,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.512,
+      "total_s": 0.512
+    },
+    {
+      "id": "k_australia",
+      "prompt": "Wie heisst die Hauptstadt von Australien?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Die Hauptstadt von Australien ist Canberra.",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": true,
+      "length_ok": null,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.44,
+      "total_s": 0.44
+    },
+    {
+      "id": "k_faust",
+      "prompt": "Wer hat Faust geschrieben?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Faust wurde von Johann Wolfgang von Goethe geschrieben.",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": true,
+      "length_ok": null,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.51,
+      "total_s": 0.51
+    },
+    {
+      "id": "k_cantons",
+      "prompt": "Wie viele Kantone hat die Schweiz?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Die Schweiz hat 26 Kantone.",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": true,
+      "length_ok": null,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.495,
+      "total_s": 0.495
+    },
+    {
+      "id": "k_gold",
+      "prompt": "Was ist das chemische Zeichen für Gold?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Gold hat das chemische Symbol Au (lateinisch *aurum*).",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": true,
+      "length_ok": null,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.577,
+      "total_s": 0.577
+    },
+    {
+      "id": "k_minutes",
+      "prompt": "Wie viele Minuten hat ein Tag?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Ein Tag hat 24 Stunden. Da jede Stunde 60 Minuten hat, sind das insgesamt 1440 Minuten (24 × 60 = 1440).",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": true,
+      "length_ok": null,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.458,
+      "total_s": 0.86
+    },
+    {
+      "id": "k_mercury",
+      "prompt": "Welcher Planet ist der Sonne am nächsten?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Der Merkur ist dem Sonne am nächsten.",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": true,
+      "length_ok": null,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.476,
+      "total_s": 0.476
+    },
+    {
+      "id": "k_mountain",
+      "prompt": "Wie heisst der höchste Berg der Schweiz?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Der höchste Berg der Schweiz ist der Monte Rosa (4.634 m).",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": false,
+      "length_ok": null,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.574,
+      "total_s": 0.574
+    },
+    {
+      "id": "k_divide",
+      "prompt": "Was ist 144 geteilt durch 12?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "144 geteilt durch 12 ist 12.",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": true,
+      "length_ok": null,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.543,
+      "total_s": 0.543
+    },
+    {
+      "id": "k_wall",
+      "prompt": "In welchem Jahr fiel die Berliner Mauer?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Die Berliner Mauer fiel im Jahr 1989.",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": true,
+      "length_ok": null,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.539,
+      "total_s": 0.539
+    },
+    {
+      "id": "len_fridge",
+      "prompt": "Wie funktioniert ein Kühlschrank?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Ein Kühlschrank nutzt Kältemittel und einen Kompressor, um die Luft im Inneren zu kühlen. Der Kompressor verdichtet das Gas, es wird warm und wird dann über Kühlschläuche geleitet, wo es abkühlt. Das kalte Gas zirkuliert durch den Kühler und entzieht dem Kühlschrank Wärmeenergie. Die Temperatur wird mit einem Thermostat geregelt.",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": null,
+      "length_ok": true,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.534,
+      "total_s": 1.425
+    },
+    {
+      "id": "len_api",
+      "prompt": "Was ist eine API?",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Eine API (Application Programming Interface) ist ein Satz von Regeln und Protokollen, der festlegt, wie verschiedene Softwareanwendungen miteinander kommunizieren können. Sie definiert Schnittstellen, über die Programme Daten austauschen und Funktionen aufrufen können, ohne den internen Aufbau des anderen Programms zu kennen.\n\nTypische Beispiele sind REST-APIs für Webdienste oder Bibliotheken in Programmiersprachen wie Python oder JavaScript.",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": null,
+      "length_ok": true,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.573,
+      "total_s": 1.451
+    },
+    {
+      "id": "len_long",
+      "prompt": "Erklär mir ausführlich, wie ein Elektroauto funktioniert.",
+      "expect": null,
+      "tools": [],
+      "arguments": {},
+      "call_args": [],
+      "reply": "Ein Elektroauto (EV) unterscheidet sich grundlegend von einem Verbrenner durch den Wegfall des Motors und des Getriebes. Hier ist die Funktionsweise im Detail:\n\n**1. Die Energiequelle: Der Akku**\nDas Herzstück eines E-Autos ist der Hochvolt-Batteriepack, meist aus Lithium-Ionen-Zellen. Er speichert elektrische Energie. Im Gegensatz zum Tank eines Verbrenners kann dieser Akku nicht nachgefüllt werden, sondern muss an einer Ladesäule oder Wallbox geladen werden. Die Kapazität wird in Kilowattstunden (kWh) gemessen.\n\n**2. Der Elektromotor**\nAnstatt eines Verbrennungsmotors, der durch die Explosion von Kraftstoff-Gasgemischen Energie erzeugt, nutzt ein E-Auto einen elektrischen Motor. Dieser wandelt elektrische Energie direkt in mechanische Bewegung um.\n*   **Vorteil:** Ein Elektromotor ist extrem effizient (ca. 90-95 %), da er weniger bewegliche Teile hat und keine Reibung durch Verbrennung erzeugt. Er kann sofort sein maximales Drehmoment abgeben, was für das Beschleunigen sorgt.\n*   **Aufbau:** Der Motor sitzt oft direkt auf der Hinterachse (Rückwärtsantrieb) oder ist allradgetrieben.\n\n**3. Die Leistungselektronik: Das Inverter-System**\nDer Akku liefert Gleichstrom (DC). Die meisten Elektromotoren benötigen jedoch Wechselstrom (AC), um zu drehen. Dazwischen sitzt der **Inverter**. Er wandelt den Gleichstrom aus dem Akku in dreiphasigen Wechselstrom für den Motor um und steuert zudem die Drehzahl des Motors präzise, indem er Frequenz und Spannung variiert.\n\n**4. Die Energieübertragung: Das Hochvolt-Kabelnetz**\nEin E-Auto hat ein separates Hochvolt-Netz (meist 400V oder 800V), das vom Akku über dicke Kabel zum Inverter und Motor führt. Dies ist deutlich leistungsstärker als die 12V-Batterie im Verbrenner, die nur für Licht, Radio und Elektronik zuständig ist.\n\n**5. Rekuperation: Bremsen mit Energiegewinnung**\nEin wichtiger Unterschied ist das Bremsverhalten. Wenn du in einem E-Auto bremst oder vom Gas gehst, dreht der Elektromotor sich um und wird zum Generator. Er wandelt die kinetische Energie des fahrenden Autos wieder in elektrische Energie um und speichert diese im Akku zurück. Das nennt man Rekuperation.\n\n**6. Thermomanagement**\nDa Lithium-Ionen-Akkus empfindlich auf Temperatur reagieren, hat ein E-Auto ein komplexes Kühlsystem (oft eine Flüssigkühlung), das den Akku, den Inverter und den Motor vor Überhitzung schützt und sie im Winter warm hält, um die Reichweite zu erhalten.\n\n**Zusammenfassung:**\nDer Akku speichert Energie -> Der Inverter wandelt diese in Wechselstrom um -> Der Elektromotor wandelt diesen in Bewegung um -> Rekuperation fängt Bremsenergie wieder ein. Es gibt keine Abgase, kein Getriebe und kein Öl im klassischen Sinne.",
+      "tool_ok": true,
+      "args_ok": null,
+      "reply_ok": null,
+      "length_ok": true,
+      "hallucinated": false,
+      "guard_retries": 0,
+      "quick": false,
+      "failed": null,
+      "first_sentence_s": 0.719,
+      "total_s": 9.273
     }
   ]
 }

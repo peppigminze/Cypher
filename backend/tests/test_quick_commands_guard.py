@@ -75,6 +75,9 @@ def test_questions_and_explanations_are_not_claims(reply):
     "text, mode",
     [
         ("Notiere: Brot", "action"),
+        ("Gib mir in 90 Sekunden Bescheid.", "action"),
+        ("Ruf die Seite https://example.com ab und sag mir, worum es geht.", "action"),
+        ("Mach mir den Editor auf.", "action"),
         ("Wie laut ist es gerade eingestellt?", "lookup"),
         ("Was läuft gerade für ein Lied?", "lookup"),
         ("Wie lange läuft mein Timer noch?", "lookup"),

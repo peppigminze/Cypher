@@ -94,7 +94,7 @@ def cloud_not_configured() -> CypherError:
     return CypherError(
         code="cloud_not_configured",
         message="Der Cloud-Modus ist nicht eingerichtet.",
-        hint="Trage CLOUD_LLM_API_KEY in der .env ein und starte Cypher neu – oder bleib beim lokalen Modell.",
+        hint="In der .env CLOUD_LLM_ENABLED=true und CLOUD_LLM_API_KEY setzen und Cypher neu starten – oder beim lokalen Modell bleiben.",
         http_status=400,
     )
 
