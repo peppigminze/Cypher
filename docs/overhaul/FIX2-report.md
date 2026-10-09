@@ -46,3 +46,35 @@ Branch `fix/followup-fonts-pccontrol`, drei Punkte, je ein Commit.
 | Unterbrechen, Aktivierungswort, Gegenprobe mit Gerede | unverändert grün |
 
 **Latenz:** Während dieser Läufe lief VALORANT auf dem PC (CPU und GPU geteilt). „Hey Cypher, wie spät ist es?“ kam auf 2,7–2,8 s statt ~2,0 s gestern. Ein A/B-Vergleich mit dem Sitzungscode **vor** FIX2 unter derselben Last ergab dasselbe (2,77 / 2,83 s), die Verlangsamung kommt also von der Last und nicht von FIX2. Einmal hörte tiny die synthetische Stimme als „Hals einfach“ und das Aktivierungswort griff nicht. Das ist die bekannte Streuung der Testsprache.
+
+## 2. Schriften lokal
+
+### Ausgangslage (belegt)
+
+`frontend/index.html` lud Space Grotesk, Inter und Share Tech Mono über `fonts.googleapis.com`/`fonts.gstatic.com`. Jedes Öffnen der Oberfläche schickte also eine Anfrage an Google, und offline fielen die Schriften auf Systemschriften zurück.
+
+### Umsetzung
+
+- **Nur die Schriftdateien** übernommen: 7 woff2-Dateien (Latin-Teilmenge, nur die verwendeten Schnitte) aus den @fontsource-Paketen 5.3.0, dazu die drei OFL-Lizenztexte, unter `frontend/src/assets/fonts/`. Die Pakete selbst stehen komplett (auch ihr CSS) unter OFL. Deshalb ist **kein** npm-Paket Abhängigkeit, und die `@font-face`-Regeln in `src/styles/fonts.css` sind eigener Code (OFL nur für Fonts, Code bleibt MIT/Apache/BSD).
+- Die Latin-Teilmenge reicht für Deutsch (ä ö ü ß, „“, €). Zeichen ausserhalb (z. B. →) nimmt wie bisher die Systemschrift.
+- Google-Links aus `index.html` entfernt. Vite versieht die Dateien mit Hash, der Service Worker nimmt sie in den Precache (`globPatterns` um `woff2` ergänzt).
+- `docs/DEPENDENCIES.md`: Abschnitt „Schriften“ mit Lizenz und Urhebern, Ausnahme-Regel für OFL-Fonts oben notiert.
+
+### Grösse
+
+| | vorher | nachher |
+|---|---|---|
+| Schriftdateien im Build | 0 (von Google) | 7 Dateien, **125 KB** (Inter 3 × ~24 KB, Space Grotesk 3 × ~13 KB, Share Tech Mono 13,5 KB) |
+| Precache des Service Workers | 9 Einträge, 247,6 KiB | 16 Einträge, 374,7 KiB |
+| CSS | 27,0 KB | 29,5 KB (`@font-face`-Regeln) |
+
+### Tests (Playwright, `e2e/fonts.spec.ts`)
+
+1. **Keine Anfrage an Google:** Alle Netzwerkanfragen beim Öffnen werden mitgeschrieben. Keine geht an `google`/`gstatic` oder überhaupt an eine andere Adresse als `localhost`. Die woff2-Datei kommt vom eigenen Server.
+2. **Offline:** Erster Besuch installiert den Service Worker, dann Netzwerk aus (`context.setOffline(true)`) und Neu laden. Alle drei Schriften sind `loaded`, und Text in ihnen ist nachweislich anders breit als in der Ersatzschrift (also wirklich sichtbar, nicht nur „geladen“).
+
+Ein erster Testlauf war rot, weil der Vergleichstext Gewicht 400 nutzte. Space Grotesk gibt es erst ab 500, also nahm der Browser die Ersatzschrift. Behoben im Test (gleiches Gewicht wie die geladene Schrift), kein Fehler in der App.
+
+### Smoke-Test (echt)
+
+Die laufende Instanz (`http://127.0.0.1:8000`) im eingebauten Browser: **keine** Anfrage mit „google“, die woff2-Dateien kommen von `127.0.0.1:8000` (200). `document.fonts` meldet Inter 400, Space Grotesk 700 und Share Tech Mono 400 als geladen. Das Aussehen ist unverändert.

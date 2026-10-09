@@ -33,6 +33,8 @@ export default defineConfig(({ mode }) => {
       // to backend paths (e.g. /api/docs) must reach the backend, not the
       // cached index.html. Checked by e2e/pwa.spec.ts.
       workbox: {
+        // App shell incl. the bundled fonts (FIX2): offline the UI looks the same.
+        globPatterns: ["**/*.{js,css,html,woff2}"],
         navigateFallbackDenylist: [/^\/api\//, /^\/health$/, /^\/speak$/, /^\/transcribe$/],
         runtimeCaching: [],
         cleanupOutdatedCaches: true,

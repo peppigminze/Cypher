@@ -1,6 +1,7 @@
 # Abhängigkeiten & Lizenzen
 
 Regel: nur permissive Lizenzen (MIT / BSD / Apache-2.0 / ISC / PSF). Keine GPL/AGPL/LGPL.
+Ausnahme (Entscheidung FIX2): **Schriftdateien** dürfen unter der SIL Open Font License 1.1 stehen – nur die Fonts selbst, Code bleibt MIT/Apache/BSD.
 Jede neue Abhängigkeit wird hier mit Lizenz und Grund eingetragen.
 Geprüft über die installierten Paket-Metadaten (`importlib.metadata` bzw. `node_modules/*/package.json`).
 
@@ -42,6 +43,18 @@ Copyleft auf Dateiebene – betrifft nur Änderungen an deren eigenen Dateien, n
 | @testing-library/* | div. | MIT | Komponententests |
 | jsdom | 25.0.1 | MIT | DOM für Tests |
 
+## Schriften (gebündelt, `frontend/src/assets/fonts/`)
+
+Nur die woff2-Dateien (Latin-Teilmenge) aus den @fontsource-Paketen 5.3.0. Kein npm-Paket als Abhängigkeit, die `@font-face`-Regeln sind eigener Code (`src/styles/fonts.css`). Lizenztexte liegen daneben (`OFL-*.txt`).
+
+| Schrift | Schnitte | Lizenz | Copyright |
+|---|---|---|---|
+| Inter | 400, 500, 600 | SIL OFL 1.1 | The Inter Project Authors |
+| Space Grotesk | 500, 600, 700 | SIL OFL 1.1 | The Space Grotesk Project Authors |
+| Share Tech Mono | 400 | SIL OFL 1.1 (Reserved Font Name „Share“) | Carrois Type Design, Ralph du Carrois |
+
+Zusammen 125 KB. Vorher kamen sie von Google Fonts, jetzt geht beim Öffnen keine Anfrage mehr nach aussen.
+
 ## Modelle (keine Code-Abhängigkeiten, aber lizenzrelevant)
 
 | Modell | Lizenz | Hinweis |
@@ -74,6 +87,7 @@ Copyleft auf Dateiebene – betrifft nur Änderungen an deren eigenen Dateien, n
 | M6 | @playwright/test 1.63.0 (devDependency) | Apache-2.0 | Smoke-Test im vorhandenen Microsoft Edge (`channel: msedge`, kein Browser-Download) |
 | M7 | segno 1.6.6 | BSD-3-Clause (LICENSE im Wheel geprüft) | QR-Code fürs Handy-Koppeln (Menü → Handy), reines Python, keine weiteren Abhängigkeiten |
 | M8 | – (keine neue Abhängigkeit) | – | Abnahmetest nutzt nur vorhandene Pakete (httpx, websockets, numpy, openai) |
+| FIX2 | Schriftdateien Inter, Space Grotesk, Share Tech Mono (aus @fontsource 5.3.0, nur woff2) | SIL OFL 1.1 (für Fonts erlaubt) | lokal statt Google Fonts, siehe Abschnitt Schriften |
 
 Externe Programme (keine Code-Abhängigkeit, vom Nutzer installiert):
 

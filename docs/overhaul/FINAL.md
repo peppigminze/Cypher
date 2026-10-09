@@ -82,4 +82,4 @@ Hinweise zu deinen lokalen Dateien (nicht im Repo, ich habe sie nicht verändert
 
 Siehe [ACCEPTANCE.md](../ACCEPTANCE.md#bekannte-grenzen): Das Aktivierungswort ist kein trainiertes Modell („Heiße Seife …“ am Satzanfang weckt). „Das ist zu laut“ fragt manchmal zurück. Der Handy-Weg ist nicht live getestet.
 
-**Eine offene Entscheidung für dich:** Die Oberfläche lädt ihre Schriften (Space Grotesk, Inter, Share Tech Mono) von Google Fonts. Beim Öffnen geht also eine Anfrage an Google, ohne Internet fallen die Schriften auf Systemschriften zurück. Lokal einbinden ginge, aber die Schriftdateien stehen unter der SIL Open Font License, und die ist nicht auf der erlaubten Liste (MIT/Apache/BSD). Entweder du lässt OFL für Schriften zu, oder wir bleiben bei Google Fonts bzw. stellen auf Systemschriften um.
+**Schriften (entschieden in FIX2):** SIL OFL ist für Schriftdateien erlaubt. Inter, Space Grotesk und Share Tech Mono liegen jetzt lokal im Projekt, beim Öffnen geht keine Anfrage mehr an Google ([FIX2-report.md](FIX2-report.md)).
