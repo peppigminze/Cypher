@@ -57,6 +57,18 @@ Diese Punkte gehen nur mit echter Hardware, deinem Konto oder deiner Bestätigun
 - [ ] **Wiederherstellung üben:** `stop_cypher.bat` → `backup_cypher.bat --restore backups\<datei>.zip` → `JA` → `start_cypher.bat`.
 - [ ] **Wake-on-LAN** (optional): `WAKE_ON_LAN_MAC` setzen, `doctor.bat`, von einem zweiten Gerät `wake_pc.py`.
 
+### Folge-Zuhörfenster mit echter Stimme (FIX2)
+
+Mit synthetischer Stimme über den echten WebSocket getestet (siehe [FIX2-report.md](overhaul/FIX2-report.md)). Mit deiner Stimme und deinen Lautsprechern bitte einmal:
+
+- [ ] „Hey Cypher, wie spät ist es?“ → nach der Antwort erscheint der türkise Ring. Ohne Aktivierungswort „Und welcher Tag ist heute?“ fragen → Antwort, der Ring beginnt neu.
+- [ ] Danach still bleiben: Der Ring läuft in etwa 10 s leer, Cypher wartet wieder auf „Hey Cypher“.
+- [ ] Im Ring „Cypher, schlaf“ (auch „Schlaf, Cypher“ / „Cypher, schlafen“) → kurzes „Gut.“, Cypher wartet wieder aufs Aktivierungswort, keine Antwort vom Modell.
+- [ ] Im Ring „Ich habe schlecht geschlafen“ → normale Antwort, Cypher schläft **nicht** ein.
+- [ ] Lautsprecher laut, ohne Kopfhörer: Cypher hört sich im Ring nicht selbst (kein neuer Turn aus der eigenen Antwort).
+- [ ] Eine Frage beginnen, kurz bevor der Ring leer ist, und über das Ende hinaus weitersprechen → die ganze Frage kommt an.
+- [ ] Einstellungen → „Weiter zuhören“ → „aus“ → nach einer Antwort kein Ring mehr. Wieder auf 10 s stellen.
+
 ## Bekannte Grenzen
 
 - Das Aktivierungswort ist ein Whisper-basiertes Verfahren, kein trainiertes Modell. Es reagiert erst nach der Äusserung (bzw. ihren ersten 2,5 s). Eine Äusserung, die mit „Heiße Seife …“ beginnt, klingt wie „Hey Saifer“ und weckt Cypher.

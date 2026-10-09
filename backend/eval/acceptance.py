@@ -348,6 +348,20 @@ async def check_voice_time(inst: Instance, r: Result) -> None:
                     and re.search(r"\d{1,2}[:.]\d{2}|Uhr", reply) and result["speech_end_to_first_audio_s"])
 
 
+async def check_followup(inst: Instance, r: Result) -> None:
+    since = time.time()
+    result = await voice_client.scenario_followup()
+    r.details = {**result, "wake_heard": inst.wake_checks(since)}
+    r.passed = bool(result["ok"])
+
+
+async def check_echo_followup(inst: Instance, r: Result) -> None:
+    result = await voice_client.scenario_echo_followup()
+    r.details = result
+    r.passed = bool(result["window_opened"] and result["window_closed_by_itself"] and not result["self_interrupted"]
+                    and not result["turns_started_by_echo"])
+
+
 async def check_quick_commands(inst: Instance, r: Result) -> None:
     from app.tools.media_tools import media_session  # noqa: PLC0415
     from app.tools.volume_tools import _apply, _read, _with_endpoint  # noqa: PLC0415
@@ -505,6 +519,8 @@ CHECKS: List[tuple] = [
     ("health", "Health grün, Modell auf der GPU", check_health),
     ("ui", "Oberfläche vom Backend ausgeliefert", check_ui),
     ("voice", "„Hey Cypher, wie spät ist es?“ mit gemessener Latenz", check_voice_time),
+    ("followup", "Weiter zuhören nach der Antwort, Ablauf, „Cypher, schlaf“", check_followup),
+    ("echo", "Eigene Stimme weckt nicht, auch nicht im Folge-Fenster", check_echo_followup),
     ("quick", "„Mach die Musik leiser“ / „Pause“", check_quick_commands),
     ("note", "Notiz mit Freigabekarte + Audit-Log", check_note),
     ("interrupt", "Unterbrechen während Cypher spricht", check_interrupt),

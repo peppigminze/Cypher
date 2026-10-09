@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SettingsView } from "../SettingsView";
@@ -21,6 +21,10 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
 }
 
 describe("SettingsView - provider toggle", () => {
+  beforeEach(() => {
+    vi.mocked(api.getVoicePrefs).mockResolvedValue({ followup_window_seconds: 10 });
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -114,5 +118,27 @@ describe("SettingsView - provider toggle", () => {
     });
     render(<SettingsView />);
     expect(await screen.findByText("CLOUD_LLM_ENABLED=true")).toBeInTheDocument();
+  });
+});
+
+describe("SettingsView - follow-up window", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("shows the window length and saves a new one", async () => {
+    vi.mocked(api.getSettingsOverview).mockResolvedValue(makeSettings());
+    vi.mocked(api.getActiveProvider).mockResolvedValue({ provider: "local", cloud_configured: false });
+    vi.mocked(api.getUsageSummary).mockRejectedValue(new Error("x"));
+    vi.mocked(api.getVoicePrefs).mockResolvedValue({ followup_window_seconds: 10 });
+    vi.mocked(api.setVoicePrefs).mockResolvedValue({ followup_window_seconds: 0 });
+
+    render(<SettingsView />);
+    const select = await screen.findByLabelText("Weiter zuhören nach einer Antwort");
+    await waitFor(() => expect(select).toHaveValue("10"));
+    await userEvent.selectOptions(select, "0");
+    expect(api.setVoicePrefs).toHaveBeenCalledWith({ followup_window_seconds: 0 });
+    await waitFor(() => expect(select).toHaveValue("0"));
+    expect(screen.getByRole("option", { name: "aus" })).toBeInTheDocument();
   });
 });

@@ -12,6 +12,7 @@ export function caption(state: VoiceUiState): string {
       return state.micEnabled ? `Sag „${state.wakePhrase}“ …` : `Tippen, um „${state.wakePhrase}“ einzuschalten`;
     case "listening":
       if (state.mode === "ptt") return "Sprich - nochmal tippen zum Senden";
+      if (state.followup.phase === "open" && !state.userSpeaking) return "Ich höre weiter zu - frag einfach weiter.";
       return state.userSpeaking ? "Ich höre …" : "Ich höre zu …";
     case "thinking":
       return state.tool?.running ? state.tool.summary || "Einen Moment …" : "Denke nach …";
@@ -30,6 +31,7 @@ export function bubbleLabel(state: VoiceUiState): string {
     case "speaking":
       return "Cypher unterbrechen";
     case "listening":
+      if (state.followup.phase === "open") return "Weiter zuhören beenden";
       return state.mode === "ptt" ? "Aufnahme senden" : "Fertig gesprochen";
     case "confirming":
       return "Antworte mit ja oder nein";

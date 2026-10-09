@@ -93,6 +93,7 @@ export function CypherVoiceView({ onOpenMenu, menuOpen }: Props) {
           onClick={() => void voice.tap()}
           label={bubbleLabel(state)}
           disabled={offline}
+          countdown={look === "followup" ? state.followup : null}
         />
         <p className={`voice-view__caption ${state.micError || offline ? "is-error" : ""}`} aria-live="polite">
           {caption(state)}

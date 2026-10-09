@@ -265,3 +265,18 @@ export interface PairingInfo {
 export async function getPairing(): Promise<PairingInfo> {
   return request<PairingInfo>("/api/auth/pairing");
 }
+
+// ------------------------------------------------------------------ Voice preferences
+
+export interface VoicePrefs {
+  /** Wake mode: keep listening this long after an answer has finished playing (0 = off). */
+  followup_window_seconds: number;
+}
+
+export async function getVoicePrefs(): Promise<VoicePrefs> {
+  return request<VoicePrefs>("/api/settings/voice");
+}
+
+export async function setVoicePrefs(prefs: VoicePrefs): Promise<VoicePrefs> {
+  return request<VoicePrefs>("/api/settings/voice", { method: "PUT", body: JSON.stringify(prefs) });
+}

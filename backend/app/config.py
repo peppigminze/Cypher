@@ -207,6 +207,10 @@ class Settings(BaseSettings):
     VAD_MAX_UTTERANCE_SECONDS: float = Field(20.0, ge=3, le=120)
     # After the wake word: how long to wait for the actual command.
     LISTEN_TIMEOUT_SECONDS: float = Field(8.0, ge=2, le=60)
+    # Wake mode: after an answer has finished PLAYING, keep listening this
+    # long without the wake word (follow-up questions). 0 = off. Can be
+    # changed in the menu (Einstellungen), which overrides this value.
+    FOLLOWUP_WINDOW_SECONDS: float = Field(10.0, ge=0, le=60)
     # aec_text: browser echo cancellation + ignore wake words that match what
     #           Cypher is saying right now (barge-in by voice possible)
     # mic_gate: ignore the microphone entirely while Cypher speaks (barge-in by tap only)

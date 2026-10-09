@@ -54,6 +54,31 @@ def set_active_provider(db: Session, provider: str) -> str:
     return provider
 
 
+FOLLOWUP_WINDOW_KEY = "voice.followup_window_seconds"
+
+
+def get_followup_window_seconds(db: Session, default: float) -> float:
+    """Follow-up listening window (seconds, 0 = off): the menu's value if
+    one was saved, otherwise FOLLOWUP_WINDOW_SECONDS from .env."""
+    row = db.get(RuntimeSetting, FOLLOWUP_WINDOW_KEY)
+    try:
+        value = float(row.value) if row is not None else default
+    except ValueError:
+        return default
+    return min(max(value, 0.0), 60.0)
+
+
+def set_followup_window_seconds(db: Session, seconds: float) -> float:
+    seconds = min(max(float(seconds), 0.0), 60.0)
+    row = db.get(RuntimeSetting, FOLLOWUP_WINDOW_KEY)
+    if row is None:
+        db.add(RuntimeSetting(key=FOLLOWUP_WINDOW_KEY, value=str(seconds)))
+    else:
+        row.value = str(seconds)
+    db.commit()
+    return seconds
+
+
 def _today_utc() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 

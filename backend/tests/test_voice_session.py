@@ -27,8 +27,10 @@ from tests.test_engine import NoteTool, ScriptedLLM, call
 class FakeSTT:
     def __init__(self, texts: List[str]) -> None:
         self.texts = list(texts)
+        self.prompts: List[Optional[str]] = []
 
     async def transcribe(self, audio, *, initial_prompt=None):
+        self.prompts.append(initial_prompt)
         text = self.texts.pop(0) if self.texts else ""
         return Transcript(text, "de", audio.shape[0] / SAMPLE_RATE, 0.01)
 
@@ -74,7 +76,7 @@ def pcm(ms: int, loud: bool) -> bytes:
 
 
 class Harness:
-    def __init__(self, llm_steps, stt=(), wake=None, mode="auto", **settings_update):
+    def __init__(self, llm_steps, stt=(), wake=None, mode="auto", followup=0.0, **settings_update):
         self.out: List[Dict[str, Any]] = []
         self.binary: List[bytes] = []
         self.store = ConversationStore()
@@ -102,6 +104,7 @@ class Harness:
             wake=wake,
             endpointer_factory=lambda: Endpointer(AmplitudeVAD(), silence_ms=320, min_speech_ms=128, preroll_ms=96),
             conversation_id="voice-test",
+            followup_seconds=lambda: followup,
         )
 
     async def text(self, **msg):

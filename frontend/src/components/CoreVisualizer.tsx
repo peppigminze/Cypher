@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { followupLeft } from "../hooks/voiceMachine";
 import type { BubbleState } from "../hooks/voiceReducer";
 
 interface Props {
@@ -8,6 +9,8 @@ interface Props {
   onClick: () => void;
   label: string;
   disabled?: boolean;
+  /** Follow-up window (client ms): drawn as a slowly emptying ring. */
+  countdown?: { until: number; total: number } | null;
 }
 
 interface Palette {
@@ -22,6 +25,7 @@ const PALETTE: Record<BubbleState, Palette> = {
   idle: { core: "#1d6f86", glow: "rgba(56,224,255,0.16)", ring: "#38e0ff", motion: 0.05 },
   wake: { core: "#1c8a7a", glow: "rgba(46,230,197,0.2)", ring: "#2ee6c5", motion: 0.07 },
   listening: { core: "#38e0ff", glow: "rgba(56,224,255,0.38)", ring: "#7cf0ff", motion: 0.12 },
+  followup: { core: "#2bb8b0", glow: "rgba(46,230,197,0.24)", ring: "#7ff5e0", motion: 0.06 },
   thinking: { core: "#6a4dff", glow: "rgba(124,92,255,0.34)", ring: "#a58bff", motion: 0.45 },
   speaking: { core: "#5ff2ff", glow: "rgba(111,243,255,0.42)", ring: "#c8fbff", motion: 0.1 },
   confirming: { core: "#ffb454", glow: "rgba(255,180,84,0.32)", ring: "#ffd08a", motion: 0.08 },
@@ -39,12 +43,15 @@ const BINS = 64;
  *                    (mic while listening, Cypher's voice while speaking)
  *   orbit arcs       spin while Cypher is thinking
  *   core             breathes with the loudness, colour = state
+ *   countdown ring   follow-up window: an arc that empties clockwise
  *
  * prefers-reduced-motion: one still frame per state change, no animation.
  * The canvas is decoration (aria-hidden); the button carries the label.
  */
-export function CoreVisualizer({ state, getSpectrum, onClick, label, disabled }: Props) {
+export function CoreVisualizer({ state, getSpectrum, onClick, label, disabled, countdown }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const until = countdown?.until ?? 0;
+  const total = countdown?.total ?? 0;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -75,7 +82,7 @@ export function CoreVisualizer({ state, getSpectrum, onClick, label, disabled }:
       const cx = width / 2;
       const cy = height / 2;
       const r = Math.min(width, height) * 0.27;
-      const live = state === "listening" || state === "speaking" || state === "wake" || state === "confirming";
+      const live = state === "listening" || state === "followup" || state === "speaking" || state === "wake" || state === "confirming";
       const loudness = live && !reduced ? getSpectrum(bins) : 0;
       level = level * 0.8 + loudness * 0.2;
       ctx.clearRect(0, 0, width, height);
@@ -138,6 +145,21 @@ export function CoreVisualizer({ state, getSpectrum, onClick, label, disabled }:
         ctx.stroke();
       }
 
+      // Follow-up window: thin full circle + an arc for the time still left.
+      // Date.now(): the deadline comes from the server message in client time.
+      if (state === "followup" && total > 0) {
+        const left = followupLeft(until, total, Date.now());
+        ctx.lineWidth = 2.5;
+        ctx.globalAlpha = 0.18;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 1.12, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 0.85;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 1.12, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left);
+        ctx.stroke();
+      }
+
       // The core - an energy cell: dark shell, glowing centre that swells
       // with the voice, a segmented inner ring turning against the outer one.
       const breathe = reduced || state === "offline" ? 0 : Math.sin(t * 1.3) * 0.025;
@@ -180,14 +202,14 @@ export function CoreVisualizer({ state, getSpectrum, onClick, label, disabled }:
       ctx.lineCap = "round";
       ctx.globalAlpha = 1;
 
-      if (!reduced && state !== "offline") rafId = requestAnimationFrame(draw);
+      if (state !== "offline" && (!reduced || state === "followup")) rafId = requestAnimationFrame(draw);
     };
     rafId = requestAnimationFrame(draw);
     return () => {
       cancelAnimationFrame(rafId);
       observer?.disconnect();
     };
-  }, [state, getSpectrum]);
+  }, [state, getSpectrum, until, total]);
 
   return (
     <button type="button" className={`core core--${state}`} onClick={onClick} disabled={disabled} aria-label={label} title={label}>

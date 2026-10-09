@@ -201,6 +201,10 @@
 .voice-view--confirming .voice-view__caption {
   color: var(--amber);
 }
+.voice-view--followup .voice-view__caption {
+  color: #7ff5e0;
+  opacity: 0.7;
+}
 .voice-view__caption.is-error,
 .voice-view--offline .voice-view__caption {
   color: var(--danger);

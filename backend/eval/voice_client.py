@@ -141,6 +141,8 @@ class Client:
             elif kind == "state":
                 self.trace.states.append(msg["state"])
                 self.trace.mark("state:" + msg["state"], msg.get("turn_id"))
+                if "followup_seconds" in msg:
+                    self.trace.mark("followup_open", msg["followup_seconds"])
             elif kind == "audio_end":
                 self.trace.mark("audio_end", msg)
                 turn = msg.get("turn_id")
@@ -155,6 +157,7 @@ class Client:
         await asyncio.sleep(max(0.0, self.playback_until - time.perf_counter()))
         try:
             await self.ws.send(json.dumps({"type": "playback_done", "turn_id": turn}))
+            self.trace.mark("playback_done", turn)
         except websockets.ConnectionClosed:
             pass
 
@@ -332,7 +335,65 @@ async def scenario_approval() -> Dict[str, Any]:
                 "reply": [d["text"] for d in c.texts("reply", t_yes)][:1], "ok": bool(card and resolved and reply_t)}
 
 
-SCENARIOS = {"latency": scenario_latency, "wake": scenario_wake, "bargein": scenario_bargein, "echo": scenario_echo, "approval": scenario_approval}
+async def scenario_followup() -> Dict[str, Any]:
+    """FIX2: after an answer has PLAYED, Cypher keeps listening without the
+    wake word; the window restarts after each answer, runs out in silence,
+    and "Saifer, schlaf" ends it at once."""
+    out: Dict[str, Any] = {"scenario": "followup"}
+    async with Client("wake") as c:
+        await c.silence(0.5)
+        end1 = await c.stream(synth_16k("Hey Saifer, wie spät ist es?"))
+        await c.wait_for("audio_end", end1, 30)
+        played1 = await c.wait_for("playback_done", end1, 30)
+        open1 = await c.wait_for("followup_open", end1, 30)
+        out["window_opened_after_playback_s"] = round(open1 - played1, 3) if open1 and played1 else None
+        out["window_seconds"] = [d for t, n, d in c.trace.events if n == "followup_open"][:1]
+        # follow-up question WITHOUT the wake word
+        await c.silence(1.0)
+        end2 = await c.stream(synth_16k("Und welcher Wochentag ist heute?"))
+        first2 = await c.wait_for("first_audio", end2, 30)
+        await c.wait_for("audio_end", end2, 30)
+        out["followup_reply"] = [d["text"] for d in c.texts("reply", end2)][:1]
+        out["followup_first_audio_s"] = round(first2 - end2, 3) if first2 else None
+        out["wake_events_for_followup"] = len(c.texts("wake", end2))
+        open2 = await c.wait_for("followup_open", end2, 30)
+        out["window_restarted"] = open2 is not None
+        # silence -> back to the wake word
+        expired = await c.wait_for("state:wake_listening", open2 or end2, 20)
+        out["expired_after_s"] = round(expired - open2, 2) if expired and open2 else None
+        # sleep command inside a fresh window
+        end3 = await c.stream(synth_16k("Hey Saifer, was ist die Hauptstadt von Spanien?"))
+        open3 = await c.wait_for("followup_open", end3, 40)
+        await c.silence(1.0)
+        turns_before = len(c.texts("reply", 0))
+        end4 = await c.stream(synth_16k("Saifer, schlaf."))
+        asleep = await c.wait_for("state:wake_listening", end4, 10)
+        heard = [d.get("text") for d in c.texts("transcript", end4)]
+        out["sleep"] = {"window_was_open": open3 is not None, "heard": heard, "asleep_after_s": round(asleep - end4, 2) if asleep else None,
+                        "new_llm_turn": len(c.texts("reply", 0)) > turns_before}
+    out["ok"] = bool(out["window_opened_after_playback_s"] is not None and out["window_opened_after_playback_s"] >= 0
+                     and out["followup_reply"] and out["wake_events_for_followup"] == 0 and out["window_restarted"]
+                     and out["expired_after_s"] and out["sleep"]["asleep_after_s"] is not None and not out["sleep"]["new_llm_turn"])
+    return out
+
+
+async def scenario_echo_followup() -> Dict[str, Any]:
+    """FIX2: Cypher's own voice (incl. the wake word) played back into the mic
+    must neither interrupt the answer nor start a turn in the follow-up window."""
+    async with Client("wake", echo=True) as c:
+        start = round(time.perf_counter() - c.trace.t0, 3)
+        await c.send_json({"type": "text", "text": "Wie heisst du? Antworte mit einem Satz, der mit 'Hey, ich bin Cypher' beginnt."})
+        await c.wait_for("audio_end", start, 60)
+        opened = await c.wait_for("followup_open", start, 60)
+        closed = await c.wait_for("state:wake_listening", opened or start, 20)
+        turns_after_window = [d.get("text") for d in c.texts("transcript", opened or start) if d.get("text")]
+        return {"scenario": "echo_followup", "reply": [d["text"] for d in c.texts("reply", start)][:1],
+                "self_interrupted": c.trace.first("audio_stop", start) is not None, "window_opened": opened is not None,
+                "window_closed_by_itself": closed is not None, "turns_started_by_echo": turns_after_window}
+
+
+SCENARIOS = {"latency": scenario_latency, "wake": scenario_wake, "bargein": scenario_bargein, "echo": scenario_echo, "approval": scenario_approval,
+             "followup": scenario_followup, "echo_followup": scenario_echo_followup}
 
 
 async def main() -> None:

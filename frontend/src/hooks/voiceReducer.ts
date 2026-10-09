@@ -10,7 +10,7 @@
  * connection, microphone, live subtitles.
  */
 import type { ConnectionStatus, ServerMessage } from "../services/voiceClient";
-import { micStreams } from "./voiceMachine";
+import { followupNext, micStreams, type FollowupPhase } from "./voiceMachine";
 
 export type ServerVoiceState = "idle" | "wake_listening" | "listening" | "thinking" | "speaking" | "confirming";
 export type VoiceMode = "wake" | "auto" | "ptt";
@@ -37,6 +37,15 @@ export interface ToolActivity {
   success?: boolean;
 }
 
+/** The follow-up window as the server announced it (times in client ms). */
+export interface Followup {
+  phase: FollowupPhase;
+  until: number;
+  total: number;
+}
+
+const NO_FOLLOWUP: Followup = { phase: "off", until: 0, total: 0 };
+
 export interface VoiceUiState {
   connection: ConnectionStatus;
   serverState: ServerVoiceState;
@@ -57,6 +66,7 @@ export interface VoiceUiState {
   // interrupted, but a few deltas may still be in flight.
   ignoredTurn: number;
   lastMetrics: Record<string, number> | null;
+  followup: Followup;
 }
 
 export const initialVoiceState: VoiceUiState = {
@@ -77,6 +87,7 @@ export const initialVoiceState: VoiceUiState = {
   turnId: 0,
   ignoredTurn: -1,
   lastMetrics: null,
+  followup: NO_FOLLOWUP,
 };
 
 export type VoiceAction =
@@ -115,11 +126,18 @@ function serverReducer(state: VoiceUiState, msg: ServerMessage, now: number): Vo
     case "state": {
       const next = STATES.includes(msg.state as ServerVoiceState) ? (msg.state as ServerVoiceState) : state.serverState;
       const listensNow = next === "listening" || next === "wake_listening" || next === "confirming";
-      // Starting to listen for a new command clears the old subtitles.
-      const freshTurn = next === "listening" && state.serverState !== "listening";
+      const seconds = typeof msg.followup_seconds === "number" ? msg.followup_seconds : null;
+      const opens = next === "listening" && seconds !== null;
+      const followup: Followup = opens
+        ? { phase: followupNext(state.followup.phase, "open"), until: now + seconds * 1000, total: num(msg.followup_total, seconds) * 1000 }
+        : { ...NO_FOLLOWUP, phase: followupNext(state.followup.phase, "close") };
+      // Starting to listen for a new command clears the old subtitles - but in
+      // the follow-up window the answer stays readable until you speak.
+      const freshTurn = next === "listening" && state.serverState !== "listening" && !opens;
       return {
         ...state,
         serverState: next,
+        followup,
         turnId: num(msg.turn_id, state.turnId),
         userSpeaking: listensNow ? state.userSpeaking : false,
         // The card survives "speaking" (Cypher reads the question aloud) and
@@ -132,6 +150,11 @@ function serverReducer(state: VoiceUiState, msg: ServerMessage, now: number): Vo
       return MODES.includes(msg.mode as VoiceMode) ? { ...state, mode: msg.mode as VoiceMode } : state;
     case "vad":
       return { ...state, userSpeaking: msg.speech === true };
+    case "followup":
+      // {"active": false}: you started talking - the window stops counting.
+      return msg.active === false
+        ? { ...state, followup: { ...state.followup, phase: followupNext(state.followup.phase, "speech") } }
+        : state;
     case "wake":
       return { ...state, transcript: "", reply: "", tool: null, error: null };
     case "transcript":
@@ -195,7 +218,7 @@ export function voiceReducer(state: VoiceUiState, action: VoiceAction): VoiceUiS
         ...state,
         connection: action.status,
         // A dropped connection ends whatever the server was doing.
-        ...(action.status !== "open" ? { serverState: "idle" as const, userSpeaking: false, approval: null } : {}),
+        ...(action.status !== "open" ? { serverState: "idle" as const, userSpeaking: false, approval: null, followup: NO_FOLLOWUP } : {}),
       };
     case "server":
       return serverReducer(state, action.message, action.now);
@@ -215,7 +238,7 @@ export function voiceReducer(state: VoiceUiState, action: VoiceAction): VoiceUiS
 }
 
 /** Which bubble look/label the UI shows. */
-export type BubbleState = "offline" | "idle" | "wake" | "listening" | "thinking" | "speaking" | "confirming";
+export type BubbleState = "offline" | "idle" | "wake" | "listening" | "followup" | "thinking" | "speaking" | "confirming";
 
 export function bubbleState(state: VoiceUiState): BubbleState {
   if (state.connection !== "open") return "offline";
@@ -223,7 +246,7 @@ export function bubbleState(state: VoiceUiState): BubbleState {
     case "wake_listening":
       return state.micEnabled ? "wake" : "idle";
     case "listening":
-      return "listening";
+      return state.followup.phase === "open" ? "followup" : "listening";
     case "thinking":
       return "thinking";
     case "speaking":

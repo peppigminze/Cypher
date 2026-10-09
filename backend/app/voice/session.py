@@ -20,7 +20,15 @@ Wire protocol (all JSON text frames, except raw audio):
   server -> client
     ready, state, vad, wake, transcript, reply_delta, tool, approval,
     audio (header) + binary PCM16 frame, audio_end, audio_stop, reply,
-    notice, error, pong
+    notice, error, pong, followup
+
+Follow-up window (wake mode): when an answer has finished PLAYING
+(playback_done), Cypher keeps listening FOLLOWUP_WINDOW_SECONDS without the
+wake word - sent as {"type":"state","state":"listening","followup_seconds",
+"followup_total"}. Speech starting inside the window stops the countdown
+({"type":"followup","active":false}) and is taken in full, even past the
+deadline. Silence until the deadline -> back to wake_listening. "Cypher,
+schlaf" ends it at once (app/voice/sleep.py, never sent to the LLM).
 
 States: idle | wake_listening | listening | thinking | speaking | confirming
 
@@ -69,11 +77,16 @@ from app.llm.base import LLMUnavailableError
 from app.tools import pending_approvals
 from app.voice.protocols import SAMPLE_RATE, SpeechToText, TextToSpeech, WakeWordDetector
 from app.voice.segmenter import Endpointer, SpeechEnd, SpeechPause, SpeechStart
+from app.voice.sleep import match_sleep_command
 from app.voice.yesno import match_yes_no
 
 logger = logging.getLogger("cypher.voice.session")
 
 MODES = ("wake", "auto", "ptt")
+# Right after the speaker stops, the room still rings (reverb, buffered audio
+# in the browser): ignore the mic this long when the follow-up window opens.
+FOLLOWUP_ECHO_TAIL_SECONDS = 0.35
+SLEEP_ACK = "Gut."
 # Whisper sometimes "hears" these in near-silence; never treat them as commands.
 _HALLUCINATIONS = re.compile(
     r"^(untertitel.*|vielen dank( fürs zuschauen)?\.?|danke\.?|tschüss\.?|amara\.org.*|\.+|you)$", re.IGNORECASE
@@ -93,6 +106,7 @@ class VoiceSession:
         wake: Optional[WakeWordDetector],
         endpointer_factory: Callable[[], Endpointer],
         conversation_id: Optional[str] = None,
+        followup_seconds: Optional[Callable[[], float]] = None,
     ) -> None:
         self._send_json = send_json
         self._send_bytes = send_bytes
@@ -136,6 +150,14 @@ class VoiceSession:
         # One lock for all outbound frames: an audio header and its binary
         # frame must arrive back to back.
         self._send_lock = asyncio.Lock()
+        # Follow-up window (see module docstring). The timer lives here only.
+        self._followup_seconds_fn = followup_seconds or self._configured_followup_seconds
+        self._followup_after_playback = False  # the turn answered -> open after playback
+        self._followup_until: Optional[float] = None
+        self._followup_total = 0.0
+        self._followup_paused = False  # user started talking: the window stops counting
+        self._mute_until = 0.0
+        self._utterances_pending = 0  # SpeechEnd seen, not yet handled
 
     # ================================================================ lifecycle
     async def start(self) -> None:
@@ -175,10 +197,12 @@ class VoiceSession:
             except Exception:  # noqa: BLE001 - client went away; the receive loop will notice
                 self._closed = True
 
-    async def _set_state(self, state: str) -> None:
-        if state != self.state:
+    async def _set_state(self, state: str, *, force: bool = False, **extra: Any) -> None:
+        if state in ("idle", "wake_listening", "confirming"):
+            self._clear_followup()  # resting or asking: no follow-up window
+        if state != self.state or force:
             self.state = state
-            await self._send({"type": "state", "state": state, "turn_id": self.turn_id})
+            await self._send({"type": "state", "state": state, "turn_id": self.turn_id, **extra})
 
     def _resting_state(self) -> str:
         return "wake_listening" if self.mode == "wake" else "idle"
@@ -203,6 +227,7 @@ class VoiceSession:
         elif kind == "new_conversation":
             await self.interrupt("new_conversation", quiet=True)
             self.conversation_id = new_conversation_id()
+            self._clear_followup()
             await self._send({"type": "conversation", "conversation_id": self.conversation_id})
             await self._set_state(self._resting_state())
         elif kind == "text" and isinstance(msg.get("text"), str) and msg["text"].strip():
@@ -227,13 +252,20 @@ class VoiceSession:
             return
         if not self._should_segment():
             return
+        if self._mute_until and time.monotonic() < self._mute_until:
+            return  # echo tail right after playback
         for event in self.endpointer.feed(samples):
             if isinstance(event, SpeechStart):
                 await self._send({"type": "vad", "speech": True})
+                if self._followup_until is not None and not self._followup_paused:
+                    # The window only counts until the user starts talking.
+                    self._followup_paused = True
+                    await self._send({"type": "followup", "active": False, "reason": "speech"})
             elif isinstance(event, SpeechPause):
                 self._start_speculation(event)
             elif isinstance(event, SpeechEnd):
                 await self._send({"type": "vad", "speech": False})
+                self._utterances_pending += 1
                 self._spawn(self._on_utterance(event))
 
     def _should_segment(self) -> bool:
@@ -251,6 +283,7 @@ class VoiceSession:
             return
         self.mode = mode
         self.endpointer.reset()
+        self._clear_followup()
         await self._send({"type": "mode", "mode": mode})
         if self.state in ("idle", "wake_listening", "listening"):
             await self._set_state(self._resting_state())
@@ -258,6 +291,7 @@ class VoiceSession:
     async def _start_listening(self) -> None:
         if self.state in ("thinking", "speaking"):
             await self.interrupt("tap", quiet=True)
+        self._clear_followup()  # a tap means "listen for one command now"
         self.endpointer.reset()
         if self.mode == "ptt":
             self._ptt_active = True
@@ -290,7 +324,7 @@ class VoiceSession:
             # pauses must not pile up transcriptions.
             return
         if self.state == "listening":
-            task = asyncio.create_task(self.stt.transcribe(pause.audio))
+            task = asyncio.create_task(self.stt.transcribe(pause.audio, initial_prompt=self._command_prompt()))
         elif self.state == "wake_listening" and self.wake is not None:
             task = asyncio.create_task(self._speculative_wake(pause.audio))
         else:
@@ -305,7 +339,7 @@ class VoiceSession:
         result = await self.wake.detect(audio)
         command = None
         if result.detected and len(result.remainder.split()) >= 2:
-            command = await self.stt.transcribe(audio)
+            command = await self.stt.transcribe(audio, initial_prompt=self._command_prompt())
         return result, command
 
     async def _take_speculation(self, event: SpeechEnd):
@@ -327,17 +361,20 @@ class VoiceSession:
     # ================================================================ utterances
     async def _on_utterance(self, event: SpeechEnd) -> None:
         t_end = time.perf_counter()
-        async with self._utterance_lock:
-            if self.state in ("thinking", "speaking"):
-                await self._maybe_barge_in(event)
-            elif self.state == "confirming":
-                await self._handle_confirmation_audio(event.audio)
-            elif self.state == "wake_listening":
-                await self._handle_wake_candidate(event.audio, t_end, await self._take_speculation(event))
-            elif self.state == "listening":
-                self._t0 = t_end
-                spec = await self._take_speculation(event)
-                await self._handle_command_audio(event.audio, transcript=spec)
+        try:
+            async with self._utterance_lock:
+                if self.state in ("thinking", "speaking"):
+                    await self._maybe_barge_in(event)
+                elif self.state == "confirming":
+                    await self._handle_confirmation_audio(event.audio)
+                elif self.state == "wake_listening":
+                    await self._handle_wake_candidate(event.audio, t_end, await self._take_speculation(event))
+                elif self.state == "listening":
+                    self._t0 = t_end
+                    spec = await self._take_speculation(event)
+                    await self._handle_command_audio(event.audio, transcript=spec)
+        finally:
+            self._utterances_pending -= 1
 
     async def _handle_wake_candidate(self, audio: np.ndarray, t_end: float, spec=None) -> None:
         assert self.wake is not None
@@ -348,11 +385,19 @@ class VoiceSession:
             result = await self.wake.detect(audio)
         if not result.detected:
             return
+        if match_sleep_command(result.transcript, self.settings.WAKE_WORD_PHRASE):
+            await self._go_to_sleep()
+            return
         await self._send({"type": "wake", "detected": True, "score": result.score, "transcript": result.transcript})
         self._t0 = t_end
-        if len(result.remainder.split()) >= 2 or (result.remainder and audio.shape[0] > SAMPLE_RATE * 2.2):
+        # Longer than the wake-word model's window: the command may be in the
+        # part it never heard ("Hi Cypher." for "Hey Cypher, wie spät ist es?").
+        beyond_window = audio.shape[0] > SAMPLE_RATE * (self.settings.WAKE_WORD_WINDOW_SECONDS - 0.2)
+        if len(result.remainder.split()) >= 2 or (result.remainder and audio.shape[0] > SAMPLE_RATE * 2.2) or beyond_window:
             # "Hey Cypher, wie spät ist es" in one breath: the command is in this
             # utterance. Re-transcribe with the accurate model and strip the wake phrase.
+            # If that finds only the wake word after all, keep listening for the command.
+            self._listen_deadline = time.monotonic() + self.settings.LISTEN_TIMEOUT_SECONDS
             await self._handle_command_audio(audio, strip_wake=True, transcript=command)
         else:
             self._listen_deadline = time.monotonic() + self.settings.LISTEN_TIMEOUT_SECONDS
@@ -370,6 +415,9 @@ class VoiceSession:
             logger.info("Ignored wake word that echoes Cypher's own speech: %r", result.transcript)
             return
         await self.interrupt("wake_word", quiet=True)
+        if match_sleep_command(result.transcript, self.settings.WAKE_WORD_PHRASE):
+            await self._go_to_sleep()
+            return
         await self._send({"type": "wake", "detected": True, "score": result.score, "transcript": result.transcript})
         self._t0 = time.perf_counter()
         if len(result.remainder.split()) >= 2:
@@ -377,6 +425,16 @@ class VoiceSession:
         else:
             self._listen_deadline = time.monotonic() + self.settings.LISTEN_TIMEOUT_SECONDS
             await self._set_state("listening")
+
+    def _command_prompt(self) -> Optional[str]:
+        """Whisper prompt for commands. In wake mode it also names the sleep
+        command: measured with the test voice, "Saifer, schlaf." came out as
+        "Cypher Klaw." without it and as "Cypher, schlaf." with it, while
+        normal follow-up questions were transcribed the same (FIX2 report)."""
+        base = self.settings.WHISPER_INITIAL_PROMPT
+        if self.mode == "wake" and self.wake is not None:
+            return f"{base} Cypher, schlaf.".strip()
+        return base or None
 
     def _is_echo(self, transcript: str) -> bool:
         now = time.monotonic()
@@ -394,7 +452,7 @@ class VoiceSession:
 
     async def _transcribe(self, audio: np.ndarray, ready=None) -> Optional[str]:
         started = time.perf_counter()
-        transcript = ready if ready is not None else await self.stt.transcribe(audio)
+        transcript = ready if ready is not None else await self.stt.transcribe(audio, initial_prompt=self._command_prompt())
         self._turn_metrics = {"stt": round(time.perf_counter() - started, 3), "stt_speculative": ready is not None}
         text = transcript.text.strip()
         if not text or _HALLUCINATIONS.match(text):
@@ -412,13 +470,28 @@ class VoiceSession:
         if text and not strip_wake and self._is_echo(text):
             logger.info("Ignored utterance that echoes Cypher's own speech: %r", text)
             text = None
-        if text and strip_wake:
+        if text and match_sleep_command(text, self.settings.WAKE_WORD_PHRASE):
+            await self._send({"type": "transcript", "text": text, "turn_id": self.turn_id})
+            await self._go_to_sleep()
+            return
+        if text and (strip_wake or self.wake is not None):
             from app.voice.wakeword import match_wake_phrase  # noqa: PLC0415
 
             match = match_wake_phrase(text, self.settings.WAKE_WORD_PHRASE, self.settings.WAKE_WORD_THRESHOLD)
+            if match.detected and not match.remainder and not strip_wake:
+                # Just "Hey Cypher" again (e.g. inside the follow-up window) - not a
+                # question for the model: listen for the actual command.
+                await self._send({"type": "wake", "detected": True, "score": match.score, "transcript": match.transcript})
+                self._clear_followup()
+                self._listen_deadline = time.monotonic() + self.settings.LISTEN_TIMEOUT_SECONDS
+                await self._set_state("listening", force=True)
+                return
             text = match.remainder if match.detected else text
         if not text:
             await self._send({"type": "transcript", "text": "", "turn_id": self.turn_id})
+            if self._followup_until is not None:
+                await self._resume_followup()  # noise or our own echo: the window goes on
+                return
             await self._set_state("listening" if self.mode != "ptt" and self.state != "idle" and self._listen_deadline else self._resting_state())
             return
         await self._begin_turn(text, stt_seconds=self._turn_metrics.get("stt"))
@@ -443,6 +516,7 @@ class VoiceSession:
     async def _begin_turn(self, text: str, stt_seconds: Optional[float] = None) -> None:
         self.turn_id += 1
         self._listen_deadline = None
+        self._clear_followup()
         self._first_audio_sent = False
         self._audio_out_seconds = 0.0
         if stt_seconds is None:
@@ -559,6 +633,9 @@ class VoiceSession:
     async def _finish_turn(self, turn: int, confirming: bool) -> None:
         await self._send({"type": "audio_end", "turn_id": turn, "metrics": self._turn_metrics})
         logger.info("Voice turn %s metrics: %s", turn, self._turn_metrics)
+        # A spoken answer (not an approval question) opens the follow-up
+        # window - but only once its audio has really finished playing.
+        self._followup_after_playback = not confirming and self._first_audio_sent
         if confirming:
             self._listen_deadline = time.monotonic() + max(self.settings.LISTEN_TIMEOUT_SECONDS, 15)
             await self._set_state("confirming")
@@ -570,13 +647,72 @@ class VoiceSession:
     async def _on_playback_done(self) -> None:
         self._playback_expected_until = 0.0
         if self.state == "speaking":
+            if self._followup_after_playback and await self._open_followup():
+                return
             await self._set_state(self._resting_state())
             await self._flush_notices()
+
+    # ================================================================ follow-up window
+    def _configured_followup_seconds(self) -> float:
+        from app.database.db import session_scope  # noqa: PLC0415
+        from app.settings_store import get_followup_window_seconds  # noqa: PLC0415
+
+        try:
+            with session_scope() as db:
+                return get_followup_window_seconds(db, self.settings.FOLLOWUP_WINDOW_SECONDS)
+        except Exception:  # noqa: BLE001 - a DB hiccup must not break the voice session
+            return self.settings.FOLLOWUP_WINDOW_SECONDS
+
+    async def _open_followup(self) -> bool:
+        self._followup_after_playback = False
+        if self.mode != "wake" or self.wake is None:
+            return False
+        seconds = self._followup_seconds_fn()
+        if seconds <= 0:
+            return False
+        now = time.monotonic()
+        self._followup_until, self._followup_total, self._followup_paused = now + seconds, seconds, False
+        self._listen_deadline = None  # the window has its own deadline
+        self._mute_until = now + FOLLOWUP_ECHO_TAIL_SECONDS
+        self.endpointer.reset()
+        await self._set_state("listening", force=True, followup_seconds=round(seconds, 2), followup_total=round(seconds, 2))
+        return True
+
+    async def _resume_followup(self) -> None:
+        """The utterance in the window was noise/echo: go on with what is left."""
+        assert self._followup_until is not None
+        remaining = self._followup_until - time.monotonic()
+        if remaining <= 0:
+            await self._end_followup()
+            return
+        self._followup_paused = False
+        await self._set_state("listening", force=True, followup_seconds=round(remaining, 2), followup_total=round(self._followup_total, 2))
+
+    def _clear_followup(self) -> None:
+        self._followup_until = None
+        self._followup_paused = False
+        self._followup_after_playback = False
+        self._mute_until = 0.0
+
+    async def _end_followup(self) -> None:
+        self._clear_followup()
+        await self._set_state(self._resting_state())
+        await self._flush_notices()
+
+    async def _go_to_sleep(self) -> None:
+        """"Cypher, schlaf": short acknowledgement, back to the wake word."""
+        logger.info("Sleep command - back to the wake word")
+        self._clear_followup()
+        self._listen_deadline = None
+        await self._speak_standalone(SLEEP_ACK)
+        if self.state != "speaking":
+            await self._set_state(self._resting_state())
 
     async def interrupt(self, reason: str, quiet: bool = False) -> None:
         if self.state not in ("thinking", "speaking", "confirming") and self._turn_task is None:
             return
         logger.info("Interrupt (%s) in state %s", reason, self.state)
+        self._clear_followup()
         old_turn, was = self.turn_id, self.state
         self.turn_id += 1  # stale events/audio of the old turn are dropped
         await self._cancel_turn()
@@ -651,6 +787,7 @@ class VoiceSession:
         self.turn_id += 1
         turn = self.turn_id
         self._first_audio_sent = False
+        self._followup_after_playback = False  # reminders, "Gut." etc. are not answers
         queue: "asyncio.Queue[Optional[str]]" = asyncio.Queue()
         await queue.put(text)
         await queue.put(None)
@@ -679,17 +816,20 @@ class VoiceSession:
 
     async def _timeouts(self) -> None:
         while True:
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.1)
             now = time.monotonic()
-            if self.state == "listening" and self._listen_deadline is not None and now > self._listen_deadline and not self.endpointer.in_speech:
+            if self.state == "listening" and self._followup_until is not None:
+                # Expires only in silence: speech that started in time is taken in full.
+                if now >= self._followup_until and not self._followup_paused and not self.endpointer.in_speech and self._utterances_pending == 0:
+                    await self._end_followup()
+            elif self.state == "listening" and self._listen_deadline is not None and now > self._listen_deadline and not self.endpointer.in_speech:
                 self._listen_deadline = None
                 await self._set_state(self._resting_state())
             elif self.state == "confirming" and self._listen_deadline is not None and now > self._listen_deadline and self._pending_approval is None:
                 await self._set_state(self._resting_state())
-            elif self.state == "speaking" and self._turn_task is not None and self._turn_task.done() and self._playback_expected_until and now > self._playback_expected_until + 5:
+            elif self.state == "speaking" and (self._turn_task is None or self._turn_task.done()) and self._playback_expected_until and now > self._playback_expected_until + 5:
                 # Client never reported playback_done (tab in background?) - don't hang.
-                self._playback_expected_until = 0.0
-                await self._set_state(self._resting_state())
+                await self._on_playback_done()
 
     async def _fail(self, err: errors.CypherError) -> None:
         await self._send({"type": "error", "turn_id": self.turn_id, **err.to_dict()})

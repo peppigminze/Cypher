@@ -805,3 +805,11 @@
 .pairing__error {
   color: #ff9b9b;
 }
+
+.settings__field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}

@@ -20,7 +20,7 @@ restart instead of silently reverting to .env's static LLM_PROVIDER.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.auth import require_user
@@ -29,7 +29,7 @@ from app.database.db import get_db
 from app.schemas import SettingsOut, WakeOnLanInfo
 from app.core import errors
 from app.llm.factory import cloud_status
-from app.settings_store import VALID_PROVIDERS, get_active_provider, set_active_provider
+from app.settings_store import VALID_PROVIDERS, get_active_provider, get_followup_window_seconds, set_active_provider, set_followup_window_seconds
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -75,6 +75,22 @@ def set_provider(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"{err.message} {err.hint}")
 
     return _provider_out(set_active_provider(db, payload.provider))
+
+
+class VoicePrefs(BaseModel):
+    # Wake mode: keep listening this long after an answer has finished playing (0 = off).
+    followup_window_seconds: float = Field(ge=0, le=60)
+
+
+@router.get("/voice", response_model=VoicePrefs)
+def get_voice_prefs(db: Session = Depends(get_db), _user=Depends(require_user)) -> VoicePrefs:
+    return VoicePrefs(followup_window_seconds=get_followup_window_seconds(db, get_settings().FOLLOWUP_WINDOW_SECONDS))
+
+
+@router.put("/voice", response_model=VoicePrefs)
+def set_voice_prefs(payload: VoicePrefs, db: Session = Depends(get_db), _user=Depends(require_user)) -> VoicePrefs:
+    """Comfort setting, not security relevant - applies from the next answer on."""
+    return VoicePrefs(followup_window_seconds=set_followup_window_seconds(db, payload.followup_window_seconds))
 
 
 @router.get("", response_model=SettingsOut)

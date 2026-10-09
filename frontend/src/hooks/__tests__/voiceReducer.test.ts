@@ -131,3 +131,56 @@ describe("plainText (subtitles)", () => {
     expect(plainText("- Milch\n- Brot: ja - klar")).toBe("Milch\nBrot: ja - klar");
   });
 });
+
+describe("voiceReducer - follow-up window", () => {
+  const answered = [
+    ...open,
+    server({ type: "state", state: "thinking", turn_id: 2 }),
+    server({ type: "transcript", text: "Wie spät ist es?" }),
+    server({ type: "reply", text: "Zwölf Uhr." }),
+    server({ type: "state", state: "speaking", turn_id: 2 }),
+  ];
+
+  it("opens with the server's deadline and keeps the answer readable", () => {
+    const s = run([...answered, server({ type: "state", state: "listening", turn_id: 2, followup_seconds: 10, followup_total: 10 })]);
+    expect(s.followup).toEqual({ phase: "open", until: 1000 + 10_000, total: 10_000 });
+    expect(s.reply).toBe("Zwölf Uhr.");
+    expect(bubbleState(s)).toBe("followup");
+    expect(caption(s)).toBe("Ich höre weiter zu - frag einfach weiter.");
+  });
+
+  it("pauses when you start talking and closes when the server moves on", () => {
+    const opened = run([...answered, server({ type: "state", state: "listening", followup_seconds: 10, followup_total: 10 })]);
+    const talking = run([server({ type: "vad", speech: true }), server({ type: "followup", active: false, reason: "speech" })], opened);
+    expect(talking.followup.phase).toBe("paused");
+    expect(bubbleState(talking)).toBe("listening");
+    const thinking = run([server({ type: "state", state: "thinking", turn_id: 3 })], talking);
+    expect(thinking.followup.phase).toBe("off");
+    const asleep = run([server({ type: "state", state: "wake_listening" })], opened);
+    expect(asleep.followup.phase).toBe("off");
+  });
+
+  it("reopens with the time that is left after noise", () => {
+    const opened = run([...answered, server({ type: "state", state: "listening", followup_seconds: 10, followup_total: 10 })]);
+    const s = run(
+      [
+        server({ type: "followup", active: false }),
+        server({ type: "state", state: "thinking" }),
+        server({ type: "state", state: "listening", followup_seconds: 4, followup_total: 10 }),
+      ],
+      opened
+    );
+    expect(s.followup).toEqual({ phase: "open", until: 1000 + 4_000, total: 10_000 });
+  });
+
+  it("a dropped connection ends the window", () => {
+    const opened = run([...answered, server({ type: "state", state: "listening", followup_seconds: 10, followup_total: 10 })]);
+    expect(run([{ type: "connection", status: "closed" }], opened).followup.phase).toBe("off");
+  });
+
+  it("a normal listening state (after the wake word) is not a follow-up window", () => {
+    const s = run([...open, server({ type: "state", state: "listening", turn_id: 1 })]);
+    expect(s.followup.phase).toBe("off");
+    expect(bubbleState(s)).toBe("listening");
+  });
+});

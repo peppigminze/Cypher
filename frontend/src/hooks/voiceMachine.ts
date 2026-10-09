@@ -61,6 +61,37 @@ export function isExpectedTransition(from: ServerVoiceState, to: ServerVoiceStat
   return from === to || SERVER_FLOW[from].includes(to);
 }
 
+/**
+ * Follow-up window (FIX2): a SUB-state of "listening", not a new main state.
+ * After an answer has finished playing, the server keeps listening for a few
+ * seconds without the wake word. The timer runs on the server; the client
+ * only mirrors it.
+ *
+ *          server opens (answer played)          user starts talking
+ *   off ───────────────────────────────▶ open ───────────────────────▶ paused
+ *    ▲                                    │ ▲                             │
+ *    │   command / expiry / sleep /       │ └──── noise or echo, time ────┘
+ *    └── tap / any other state / offline ─┘       left: server reopens
+ */
+export type FollowupPhase = "off" | "open" | "paused";
+export type FollowupEvent = "open" | "speech" | "close";
+
+export const FOLLOWUP_FLOW: Record<FollowupPhase, Record<FollowupEvent, FollowupPhase>> = {
+  off: { open: "open", speech: "off", close: "off" },
+  open: { open: "open", speech: "paused", close: "off" },
+  paused: { open: "open", speech: "paused", close: "off" },
+};
+
+export function followupNext(phase: FollowupPhase, event: FollowupEvent): FollowupPhase {
+  return FOLLOWUP_FLOW[phase][event];
+}
+
+/** Share of the window still left (1 = just opened, 0 = over). */
+export function followupLeft(until: number, total: number, now: number): number {
+  if (total <= 0) return 0;
+  return Math.min(1, Math.max(0, (until - now) / total));
+}
+
 /** Audio leaves the browser only when the server needs it (privacy). */
 export function micStreams(state: ServerVoiceState, mode: VoiceMode, pttHeld: boolean): boolean {
   if (mode === "wake") return true;
