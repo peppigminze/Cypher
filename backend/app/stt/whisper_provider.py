@@ -77,9 +77,15 @@ def warm_up(settings: Settings | None = None) -> float:
     request doesn't pay for lazy initialization. Returns seconds taken."""
     settings = settings or get_settings()
     started = time.perf_counter()
-    model = get_whisper_model(settings)
     silence = np.zeros(16000, dtype=np.float32)
-    list(model.transcribe(silence, language=settings.WHISPER_LANGUAGE or None, beam_size=1)[0])
+    sizes = [None]
+    # The wake word uses its own (smaller) model - warm it too, or the first
+    # "Hey Cypher" after a start pays for loading it (M8: ~1 s).
+    if settings.WAKE_WORD_ENABLED and settings.WAKE_WORD_MODEL != settings.WHISPER_MODEL_SIZE:
+        sizes.append(settings.WAKE_WORD_MODEL)
+    for size in sizes:
+        model = get_whisper_model(settings, size)
+        list(model.transcribe(silence, language=settings.WHISPER_LANGUAGE or None, beam_size=1)[0])
     return time.perf_counter() - started
 
 

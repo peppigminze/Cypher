@@ -43,17 +43,6 @@ export interface Task {
   completed_at: string | null;
 }
 
-export type MemoryType = "fact" | "preference" | "project";
-
-export interface MemoryEntry {
-  id: number;
-  content: string;
-  category: string | null;
-  memory_type: MemoryType;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface Project {
   id: number;
   name: string;
@@ -81,68 +70,10 @@ export interface Settings {
   cloud_llm_enabled: boolean;
   cloud_llm_model: string | null;
   allowed_directories: string[];
-  message_max_retries: number;
   wake_on_lan: WakeOnLanInfo;
 }
 
-export interface SystemStatus {
-  pc_online: boolean;
-  last_seen: string | null;
-  pending_messages: number;
-  llm_provider: string;
-  llm_available: boolean | null;
-}
-
-export type ActionStatus = "awaiting_confirmation" | "confirmed" | "rejected" | "executing" | "completed" | "failed";
-
-export interface PendingAction {
-  id: number;
-  message_id: number | null;
-  tool_name: string;
-  arguments: Record<string, unknown>;
-  observations: unknown[];
-  status: ActionStatus;
-  result: unknown;
-  error: string | null;
-  created_at: string;
-  resolved_at: string | null;
-}
-
-// ---------------------------------------------------------------- Voice (native tool-calling + local STT/TTS)
-
-export interface ToolCallResult {
-  name: string;
-  arguments: Record<string, unknown>;
-  success: boolean;
-  data?: unknown;
-  error: string | null;
-}
-
-export interface PendingConfirmationInfo {
-  approval_id: string;
-  tool_name: string;
-  arguments: Record<string, unknown>;
-}
-
 export type LlmProviderName = "local" | "cloud";
-
-export interface ToolChatResult {
-  reply: string;
-  tool_calls: ToolCallResult[];
-  steps_used: number;
-  pending_confirmation?: PendingConfirmationInfo | null;
-  // Which provider actually answered this request (Phase 7) - always
-  // present, so the UI can show a Lokal/Cloud indicator without a
-  // separate round-trip.
-  provider: LlmProviderName;
-}
-
-export interface TranscribeResult {
-  text: string;
-  language: string | null;
-  audio_duration_seconds: number;
-  transcribe_time_seconds: number;
-}
 
 // ---------------------------------------------------------------- Provider toggle (Phase 7)
 

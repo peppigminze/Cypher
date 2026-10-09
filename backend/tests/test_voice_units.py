@@ -93,6 +93,8 @@ def test_phonetic_key_merges_whisper_spellings():
         ("Cypher.", ""),
         ("Okay Sypher wie wird das Wetter", "wie wird das Wetter"),
         ("Karl Cypher.", ""),  # tiny Whisper mishearing a lone "Hey Saifer."
+        ("Halsaifer stop.", "stop"),  # M8 acceptance run: "Hey Saifer, stopp." merged, scored 0.82 before
+        ("Heiseife Stop.", "Stop"),
     ],
 )
 def test_wake_phrase_detected_with_remainder(transcript, remainder):
@@ -102,7 +104,8 @@ def test_wake_phrase_detected_with_remainder(transcript, remainder):
 
 @pytest.mark.parametrize(
     "transcript",
-    ["Ich hab gestern mit Cypher geredet.", "Super, danke.", "Seifert kommt morgen.", "Hey Silvan, alles gut?", "Karl Cypher kommt morgen.", "Kaffee.", ""],
+    ["Ich hab gestern mit Cypher geredet.", "Super, danke.", "Seifert kommt morgen.", "Hey Silvan, alles gut?", "Karl Cypher kommt morgen.",
+     "Kaffee.", "", "Hallo Seifert, kommst du morgen?", "Halt, Seife!"],
 )
 def test_wake_phrase_not_detected(transcript):
     assert not match_wake_phrase(transcript, "Hey Cypher", 0.85).detected

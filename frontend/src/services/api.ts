@@ -1,16 +1,4 @@
-import type {
-  ActiveProviderInfo,
-  LlmProviderName,
-  MemoryEntry,
-  MemoryType,
-  Project,
-  Settings,
-  SystemStatus,
-  Task,
-  ToolChatResult,
-  TranscribeResult,
-  UsageSummary,
-} from "../types";
+import type { ActiveProviderInfo, LlmProviderName, Project, Settings, Task, UsageSummary } from "../types";
 
 import { API_BASE_URL, AUTH_REQUIRED_EVENT, getStoredToken } from "./auth";
 
@@ -91,21 +79,6 @@ export async function getDueReminders(): Promise<Task[]> {
 
 // ------------------------------------------------------------------ Memory
 
-export async function listMemory(): Promise<MemoryEntry[]> {
-  return request<MemoryEntry[]>("/api/memory");
-}
-
-export async function saveMemory(content: string, category?: string, memory_type: MemoryType = "fact"): Promise<MemoryEntry> {
-  return request<MemoryEntry>("/api/memory", {
-    method: "POST",
-    body: JSON.stringify({ content, category, memory_type }),
-  });
-}
-
-export async function deleteMemory(id: number): Promise<void> {
-  await request<void>(`/api/memory/${id}`, { method: "DELETE" });
-}
-
 // Both memory layers (M4): core facts (always in Cypher's prompt, limited)
 // and the searchable archive.
 export type MemoryLayer = "core" | "archive";
@@ -146,21 +119,14 @@ export async function deleteConversationHistory(): Promise<{ deleted: number }> 
   return request<{ deleted: number }>("/api/conversations", { method: "DELETE" });
 }
 
-// ------------------------------------------------------------------ Status
-
-export async function getStatus(): Promise<SystemStatus> {
-  return request<SystemStatus>("/api/status");
-}
-
 export async function getSettingsOverview(): Promise<Settings> {
   return request<Settings>("/api/settings");
 }
 
 // ------------------------------------------------------------------ Provider toggle (Phase 7)
-// Manual-only local/cloud switch for the native tool-calling pipeline
-// (/api/tool-chat). Never automatic - see CypherVoiceView.tsx's
-// provider badge and SettingsView.tsx's toggle, the only two places
-// that ever call setActiveProvider.
+// Manual-only local/cloud switch for every turn (voice and chat). Never
+// automatic - SettingsView.tsx's toggle is the only place that calls
+// setActiveProvider.
 
 export async function getActiveProvider(): Promise<ActiveProviderInfo> {
   return request<ActiveProviderInfo>("/api/settings/provider");
@@ -198,64 +164,6 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
 
 export async function deleteProject(id: number): Promise<void> {
   await request<void>(`/api/projects/${id}`, { method: "DELETE" });
-}
-
-// ------------------------------------------------------------------ Voice (local STT/TTS + native tool-calling)
-// Used by the text chat (ChatView); the voice view streams over /api/voice/ws.
-// These three endpoints are separate from /api/messages (see backend
-// app/api/tool_chat.py, transcribe.py, speak.py) - none of them touch the
-// production chat pipeline above.
-
-export async function transcribeAudio(audioBlob: Blob): Promise<TranscribeResult> {
-  const formData = new FormData();
-  formData.append("audio", audioBlob, "recording.webm");
-
-  const resp = await fetch(`${BASE_URL}/transcribe`, {
-    method: "POST",
-    headers: bearer(),
-    body: formData,
-  });
-  if (!resp.ok) throw await errorFromResponse(resp, "Transkription fehlgeschlagen");
-  return (await resp.json()) as TranscribeResult;
-}
-
-export async function toolChat(message: string, source: "voice" | "text" = "voice"): Promise<ToolChatResult> {
-  return request<ToolChatResult>("/api/tool-chat", {
-    method: "POST",
-    body: JSON.stringify({ message, source }),
-  });
-}
-
-// Resolves a pending_confirmation from toolChat() (see
-// backend/app/tools/pending_approvals.py) - approving runs the paused
-// tool and continues the reply, rejecting cancels it. Throws (a plain
-// 404) if approval_id is unknown or its 5-minute TTL already expired -
-// callers should treat that the same as an explicit rejection.
-export async function confirmToolCall(approvalId: string, approved: boolean): Promise<ToolChatResult> {
-  return request<ToolChatResult>("/api/tool-chat/confirm", {
-    method: "POST",
-    body: JSON.stringify({ approval_id: approvalId, approved }),
-  });
-}
-
-export interface SpeakResult {
-  audioBlob: Blob;
-  audioDurationSeconds: number;
-  generationTimeSeconds: number;
-}
-
-export async function speakText(text: string): Promise<SpeakResult> {
-  const resp = await fetch(`${BASE_URL}/speak`, {
-    method: "POST",
-    headers: { ...authHeaders() },
-    body: JSON.stringify({ text }),
-  });
-  if (!resp.ok) throw await errorFromResponse(resp, "Sprachausgabe fehlgeschlagen");
-  return {
-    audioBlob: await resp.blob(),
-    audioDurationSeconds: Number(resp.headers.get("X-Audio-Duration-Seconds") ?? 0),
-    generationTimeSeconds: Number(resp.headers.get("X-Generation-Time-Seconds") ?? 0),
-  };
 }
 
 // ------------------------------------------------------------------ System (M6: diagnostics, audit, logs)

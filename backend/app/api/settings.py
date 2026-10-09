@@ -101,6 +101,5 @@ def get_settings_overview(_user=Depends(require_user)) -> SettingsOut:
         cloud_llm_enabled=settings.CLOUD_LLM_ENABLED,
         cloud_llm_model=settings.CLOUD_LLM_MODEL if settings.CLOUD_LLM_ENABLED else None,
         allowed_directories=settings.allowed_directories_list,
-        message_max_retries=settings.MESSAGE_MAX_RETRIES,
         wake_on_lan=wake_on_lan,
     )

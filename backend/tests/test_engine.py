@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 import pytest
 
 from app.agent import engine as engine_mod
-from app.agent.action_guard import NOT_DONE_REPLY, RETRY_HINT
+from app.agent.action_guard import NOT_DONE_REPLY, RETRY_HINT, obvious_tool, retry_hint
 from app.agent.engine import (
     INTERRUPTED_MARK,
     REJECTED_REPLY,
@@ -256,8 +256,26 @@ async def test_claimed_action_without_tool_is_held_back_and_retried(tools):
     # The false claim was never emitted (not spoken, not subtitled).
     assert not any(isinstance(e, (Sentence, TextDelta)) and "gespeichert" in e.text for e in events)
     assert isinstance(events[-1], ApprovalRequired)
-    assert llm.calls[1][-1]["content"].endswith(RETRY_HINT)
-    assert all(RETRY_HINT not in (m.get("content") or "") for m in store.get("g").messages)
+    # "Notiere" clearly means save_note - the retry names it
+    assert llm.calls[1][-1]["content"].endswith(retry_hint("save_note"))
+    assert all("[Hinweis:" not in (m.get("content") or "") for m in store.get("g").messages)
+
+
+async def test_retry_hint_names_the_obvious_tool_only_when_it_is_clear(tools):
+    assert obvious_tool("Merk dir, dass meine Lieblingsfarbe Petrol ist.") == "remember"
+    assert obvious_tool("Schreib dir auf: Milch kaufen") == "save_note"
+    assert obvious_tool("Vergiss nicht, dass ich morgen Training habe.") == "remember"
+    assert obvious_tool("Vergiss, dass ich Kaffee mag.") == "forget"
+    assert obvious_tool("Brich den Timer ab.") == "cancel_timer"
+    assert obvious_tool("Das ist viel zu laut gerade.") == "set_volume"
+    assert obvious_tool("Stell einen Timer auf 5 Minuten") is None
+    assert obvious_tool("Mach die Musik leiser") is None
+    assert retry_hint(None) == RETRY_HINT
+    store = ConversationStore()
+    llm = ScriptedLLM([["Leiser gemacht."], [call("set_volume", {"direction": "down"})], ["Leiser."]])
+    engine = make_engine(llm, tools, store)
+    await run(engine, "Dreh die Musik bitte ein bisschen runter", cid="h")
+    assert llm.calls[1][-1]["content"].endswith(RETRY_HINT)  # no single obvious tool -> generic hint
 
 
 async def test_claim_twice_gives_an_honest_answer(tools):

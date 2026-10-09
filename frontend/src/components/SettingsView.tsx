@@ -106,10 +106,10 @@ export function SettingsView() {
       </section>
 
       <section className="settings__section">
-        <h2>Voice / Tool-Calling: Provider</h2>
+        <h2>Sprachmodell: lokal oder Cloud</h2>
         <p className="settings__hint">
-          Legt fest, ob die Sprach-/Tool-Calling-Anfragen (Voice-UI, /api/tool-chat) über das lokale Ollama-Modell oder einen Cloud-Anbieter
-          laufen. Gilt für die laufende Session, bleibt aber auch nach einem Neustart erhalten - wird nie automatisch umgeschaltet.
+          Legt fest, ob Cypher (Sprache und Chat) mit dem lokalen Ollama-Modell oder über die Cloud antwortet. Bleibt nach einem Neustart
+          erhalten und wird nie automatisch umgeschaltet.
         </p>
 
         {activeProvider ? (

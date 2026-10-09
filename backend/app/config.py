@@ -145,10 +145,6 @@ class Settings(BaseSettings):
     WAKE_ON_LAN_BROADCAST: str = "255.255.255.255"
     WAKE_ON_LAN_PORT: int = Field(9, ge=1, le=65535)
 
-    # --- Sync/message retries (legacy pipeline) --------------------------
-    MESSAGE_MAX_RETRIES: int = Field(3, ge=0, le=20)
-    MESSAGE_RETRY_BACKOFF_SECONDS: float = Field(15.0, ge=0)
-
     # --- Cloud LLM (optional, never automatic) ---------------------------
     CLOUD_LLM_ENABLED: bool = False
     CLOUD_LLM_BASE_URL: str = "https://api.openai.com/v1"

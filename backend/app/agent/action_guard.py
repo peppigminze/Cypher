@@ -69,6 +69,32 @@ RETRY_HINT = (
     "[Hinweis: Du hast eben kein Tool aufgerufen, also ist nichts passiert. "
     "Wenn das ein Befehl ist, ruf jetzt das passende Tool auf. Sonst antworte ehrlich.]"
 )
+
+# Requests whose tool is unambiguous. If the model claims success without a
+# tool call, the retry names it: measured in M8 with "Merk dir, dass meine
+# Lieblingsfarbe Petrol ist." - with the generic hint qwen3.5:9b answered
+# "Ich habe mir gemerkt ..." twice in 2 of 4 runs.
+_OBVIOUS_TOOL = (
+    (re.compile(r"\bmerk\w*\s+dir\b|\bvergiss\s+nicht\b", re.IGNORECASE), "remember"),
+    (re.compile(r"\bvergiss\b", re.IGNORECASE), "forget"),
+    (re.compile(r"\bnotiz\w*|\bnotier\w*|\bschreib\w*\s+(dir|mir)?\s*\w*\s*auf\b", re.IGNORECASE), "save_note"),
+    (re.compile(r"\btimer\b.*\b(ab|abbrechen|stopp\w*|lösch\w*)\b|\b(brich|stopp\w*|lösch\w*)\b.*\btimer\b", re.IGNORECASE), "cancel_timer"),
+    (re.compile(r"\bzu\s+(laut|leise)\b", re.IGNORECASE), "set_volume"),
+)
+
+
+def obvious_tool(user_text: str) -> str | None:
+    """The one tool an explicit request clearly asks for, if any."""
+    for pattern, tool in _OBVIOUS_TOOL:
+        if pattern.search(user_text):
+            return tool
+    return None
+
+
+def retry_hint(tool: str | None) -> str:
+    if tool is None:
+        return RETRY_HINT
+    return f"[Hinweis: Du hast eben kein Tool aufgerufen, also ist nichts passiert. Ruf jetzt das Tool {tool} auf.]"
 NOT_DONE_REPLY = "Das habe ich nicht ausgeführt, da ist etwas schiefgelaufen. Sag es bitte nochmal etwas genauer."
 
 

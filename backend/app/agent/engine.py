@@ -40,7 +40,7 @@ from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
-from app.agent.action_guard import LOOKUP_HINT, NOT_DONE_REPLY, RETRY_HINT, answered_without_lookup, guard_mode, unverified_action_reply
+from app.agent.action_guard import LOOKUP_HINT, NOT_DONE_REPLY, answered_without_lookup, guard_mode, obvious_tool, retry_hint, unverified_action_reply
 from app.agent.quick_commands import QuickCommand, match_quick_command
 from app.config import Settings, get_settings
 from app.core import errors
@@ -421,6 +421,10 @@ class ConversationEngine:
             logger.exception("Memory recall failed")
             return ""
 
+    def _obvious_tool(self, user_text: str) -> Optional[str]:
+        tool = obvious_tool(user_text or "")
+        return tool if tool in self.tool_names else None
+
     @staticmethod
     def _style_hint() -> str:
         from app.memory.service import get_memory  # noqa: PLC0415
@@ -489,7 +493,7 @@ class ConversationEngine:
                 if hinted:
                     # The hint only goes into this one request, never into the history.
                     last = messages[-1]
-                    hint = LOOKUP_HINT if hinted == "lookup" else RETRY_HINT
+                    hint = LOOKUP_HINT if hinted == "lookup" else retry_hint(self._obvious_tool(ctx.user_message))
                     call_messages = messages[:-1] + [{**last, "content": f"{last['content']}\n{hint}"}]
                 call_started = time.perf_counter()
                 try:

@@ -254,7 +254,6 @@ class SettingsOut(BaseModel):
     cloud_llm_enabled: bool
     cloud_llm_model: Optional[str]
     allowed_directories: List[str]
-    message_max_retries: int
     wake_on_lan: WakeOnLanInfo
 
 

@@ -12,6 +12,10 @@ So this is a keyword spotter built from parts that already exist:
     words are fuzzy-matched against the wake phrase after a light phonetic
     normalisation (Whisper hears "Cypher" as "Saifer", "Sypher", "Süfer" ...).
 
+Known ambiguity: an utterance that STARTS with "Heiße Seife ..." sounds
+like "Hey Saifer" - and tiny Whisper writes the real wake word that way,
+too ("Heiseife Stop."). Text alone can't tell them apart.
+
 Honest trade-offs vs. a trained detector: it only reacts after the
 utterance (or its first 2.5 s) ended, it costs ~0.3-0.4 s of CPU per
 utterance heard, and every utterance in the room is transcribed locally
@@ -71,6 +75,10 @@ def match_wake_phrase(transcript: str, phrase: str, threshold: float) -> WakeRes
     core_words = [w for w in phrase_words if w not in _FILLERS] or phrase_words
     core = phonetic("".join(core_words))
     full = phonetic("".join(phrase_words))
+    # "Cypher" is spoken "Saifer": merged forms like "Halsaifer" / "Heiseife"
+    # are compared against that too. Only for the whole phrase - for the core
+    # word alone it would let "Seifert kommt morgen" wake Cypher.
+    spoken = phonetic("".join(w if w in _FILLERS else w.replace("y", "ai") for w in phrase_words))
     best_score, best_end = 0.0, 0
     for start in range(min(3, len(words))):
         if start > 0 and words[start - 1][0].lower() not in _FILLERS:
@@ -88,7 +96,7 @@ def match_wake_phrase(transcript: str, phrase: str, threshold: float) -> WakeRes
             if width > len(words):
                 break
             candidate = phonetic("".join(w for w, _ in words[:width]))
-            score = _similarity(candidate, full)
+            score = max(_similarity(candidate, full), _similarity(candidate, spoken))
             if score > best_score:
                 best_score, best_end = score, words[width - 1][1]
     if best_score < threshold and len(words) == 2 and len(words[0][0]) <= 5:

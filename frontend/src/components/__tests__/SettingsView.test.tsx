@@ -15,7 +15,6 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
     cloud_llm_enabled: false,
     cloud_llm_model: null,
     allowed_directories: [],
-    message_max_retries: 3,
     wake_on_lan: { configured: false, mac_address: null, broadcast: "255.255.255.255", port: 9, command: null },
     ...overrides,
   };

@@ -302,13 +302,13 @@ def main() -> int:
     checks = run_all()
     errors_ = sum(c.status == ERROR for c in checks)
     warnings_ = sum(c.status == WARN for c in checks)
-    if args.json:
-        print(json.dumps({"errors": errors_, "warnings": warnings_, "checks": [asdict(c) for c in checks]}, ensure_ascii=False, indent=2))
-        return 1 if errors_ else 0
     try:
         sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
     except (AttributeError, ValueError):
         pass
+    if args.json:
+        print(json.dumps({"errors": errors_, "warnings": warnings_, "checks": [asdict(c) for c in checks]}, ensure_ascii=False, indent=2))
+        return 1 if errors_ else 0
     print("\nCypher-Doktor\n=============")
     area = None
     for c in checks:

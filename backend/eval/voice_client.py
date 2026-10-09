@@ -37,6 +37,13 @@ from app.security.tokens import get_tokens  # noqa: E402
 
 FRAME = 320  # 20 ms at 16 kHz
 URL = "ws://127.0.0.1:8000/api/voice/ws"
+TOKEN: Optional[str] = None  # None = this PC's token (data/secrets.json or .env)
+
+
+def configure(url: str, token: str) -> None:
+    """Point the scenarios at another instance (eval/acceptance.py)."""
+    global URL, TOKEN
+    URL, TOKEN = url, token
 
 
 def synth_16k(text: str) -> np.ndarray:
@@ -96,7 +103,7 @@ class Client:
 
     async def __aenter__(self):
         self.ws = await websockets.connect(URL, max_size=None)
-        await self.ws.send(json.dumps({"type": "auth", "token": get_tokens().user_token}))
+        await self.ws.send(json.dumps({"type": "auth", "token": TOKEN or get_tokens().user_token}))
         await self.ws.send(json.dumps({"type": "mode", "mode": self.mode}))
         self._reader = asyncio.create_task(self._read())
         self._pump = asyncio.create_task(self._mic_pump())
