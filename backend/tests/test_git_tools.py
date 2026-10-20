@@ -22,10 +22,11 @@ from app.tools.git_tools import (
 
 
 @pytest.fixture()
-def sandbox(tmp_path, monkeypatch):
-    monkeypatch.setenv("ALLOWED_DIRECTORIES", str(tmp_path))
+def sandbox(outside_tmp, monkeypatch):
+    # outside any git repository, so "not a git directory" really holds
+    monkeypatch.setenv("ALLOWED_DIRECTORIES", str(outside_tmp))
     get_settings.cache_clear()
-    yield tmp_path
+    yield outside_tmp
     get_settings.cache_clear()
 
 

@@ -77,7 +77,7 @@ Diese Prüfungen lösen echte Aktionen auf dem PC aus. Deshalb macht sie der Nut
 |---|---|---|---|
 | 1 | Menü → Einstellungen → Sicherheitsabfrage | Status „AN“, rote Linie wird aufgezählt, kein ⚠ in der Kopfzeile | |
 | 2 | „Lösch den Ordner Desktop\cypher-test endgültig“ (Abfrage an) | Karte „Kritische Aktion“ mit genauem Befehl und Grund, Stimme nennt „Ja, ausführen“ | |
-| 3 | Auf diese Karte nur „Ja“ sagen | Cypher: „Ein einfaches Ja reicht nicht …“, nichts gelöscht | |
+| 3 | Auf diese Karte nur „Ja“ sagen | Cypher: „Ein einfaches Ja reicht hier nicht. Bitte sag: Ja, ausführen …“, nichts gelöscht | |
 | 4 | Dann „Ja, ausführen“ | Ordner weg, Audit-Log: `approved` | |
 | 5 | Kritische Karte mit „Nein“ bzw. Taste N | nichts passiert, Audit-Log: `rejected` | |
 | 6 | Ausschalten … → Warnung → „Nur für diese Sitzung“ | Status „AUS bis zum nächsten Neustart“, Kopfzeile ⚠ ABFRAGE AUS | |
@@ -93,7 +93,7 @@ Diese Prüfungen lösen echte Aktionen auf dem PC aus. Deshalb macht sie der Nut
 | 16 | „Öffne Fotoshop“ (gibt es nicht) | Rückfrage „Welche App meinst du …?“, nichts geöffnet | |
 | 17 | „Lösch die Datei cypher-test.txt auf dem Desktop“ | ohne Karte im Papierkorb, wiederherstellbar | |
 | 18 | „Wie viel Platz ist auf C: frei?“ | PowerShell-Befehl läuft sofort, Antwort mit Zahl | |
-| 19 | Einen langen Befehl starten lassen (z. B. „ping 30-mal localhost“) und per Tippen unterbrechen | Befehl und `ping.exe` sind im Task-Manager weg | |
+| 19 | Einen langen Befehl starten lassen (z. B. „ping 30-mal 8.8.8.8“) und per Tippen unterbrechen | Befehl und `ping.exe` sind im Task-Manager weg | |
 | 20 | Befehl, der Adminrechte braucht (z. B. „Starte den Dienst Spooler neu“, nach „Ja, ausführen“) | Hinweis, dass Adminrechte fehlen, mit Anleitung für eine Administrator-PowerShell | |
 | 21 | Cypher einmal „Als Administrator“ starten, `doctor.bat` | `run_command` verweigert, Doktor warnt. Danach normal starten | |
 | 22 | „Minimier alle Fenster“, „Hol Discord nach vorne“ | passiert sofort | |
@@ -101,6 +101,8 @@ Diese Prüfungen lösen echte Aktionen auf dem PC aus. Deshalb macht sie der Nut
 | 24 | „Fahr den PC herunter“ | Karte „Kritische Aktion“. Mit „Nein“ beantworten | |
 | 25 | „Such VLC bei winget“, dann „Installier VLC“ | Liste sofort, Installieren nur mit Karte. Mit „Nein“ beantworten | |
 | 26 | Editor offen: „Tipp Hallo Welt“. Terminal im Vordergrund: dasselbe | Editor: wird getippt. Terminal: Karte „Kritische Aktion“ | |
+| 27 | Bei AUS: „Ruf mit curl.exe http://127.0.0.1:8000/api/health auf“ (auch „…http://localhost.:8000…“) | Karte „Rote Linie“, verlangt „Ja, ausführen“. Mit „Nein“ beantworten | |
+| 28 | Bei AUS wie Nr. 9, die Karte aber nur mit „Ja“ beantworten | „Ein einfaches Ja reicht hier nicht …“, nichts gelöscht. Danach „Nein“ | |
 
 ## Bekannte Grenzen
 

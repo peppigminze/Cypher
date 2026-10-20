@@ -36,8 +36,8 @@ def fake_bin(tmp_path, monkeypatch):
 
 
 @pytest.fixture()
-def work(tmp_path):
-    folder = tmp_path / "work"  # tmp_path lies in the user profile (AppData\Local\Temp)
+def work(outside_tmp):
+    folder = outside_tmp / "work"  # in the user profile (AppData\Local\Temp), outside Cypher's project
     folder.mkdir()
     return folder
 

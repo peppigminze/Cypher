@@ -128,12 +128,23 @@ Feste Regeln, kein Modell. Was nicht sicher einzuordnen ist, wird `critical`.
 
 | Funktion | bewertet | Beispiele für `critical` |
 |---|---|---|
-| `classify_powershell` | eine ganze PowerShell-Zeile: Ketten (`;`, `\|`, `&&`), Skriptblöcke, Aliase, `-EncodedCommand`, `Invoke-Expression`, Pfade in Argumenten, Arbeitsordner | `Remove-Item`, Dienste, geplante Aufgaben, Firewall/Defender, Partitionen, Konten, `Invoke-Expression`, unbekannte Cmdlets und Programme (Webzugriff wie `Invoke-WebRequest` ist `write`, auf Cyphers eigene Adresse rote Linie) |
+| `classify_powershell` | eine ganze PowerShell-Zeile: Ketten (`;`, `\|`, `&&`), Skriptblöcke, Aliase, `-EncodedCommand`, `Invoke-Expression`, Pfade in Argumenten, Arbeitsordner | `Remove-Item`, Dienste, geplante Aufgaben, Firewall/Defender, Partitionen, Konten, `Invoke-Expression`, unbekannte Cmdlets und Programme (Webzugriff wie `Invoke-WebRequest` ist `write`, auf diesen PC rote Linie, siehe unten) |
 | `classify_path` | Datei/Ordner für lesen, schreiben, löschen, ausführen | ausserhalb des Benutzerordners, Systemordner, Autostart, ganze Ordner, `.ssh`/`.env`/Cookies, Cyphers eigene Dateien, Downloads/Temp beim Ausführen |
-| `classify_open_target` / `classify_start_menu_app` | App, URI, URL, Datei zum Öffnen | PowerShell, cmd, regedit, python …, unbekannte URI-Schemata, `http://127.0.0.1…` (Cyphers API) |
+| `classify_open_target` / `classify_start_menu_app` | App, URI, URL, Datei zum Öffnen | PowerShell, cmd, regedit, python …, unbekannte URI-Schemata, Adressen dieses PCs (rote Linie) |
 | `classify_process` | Prozess beenden | System-, Sicherheits- und Cypher-Prozesse |
 
 Jedes Urteil (`Verdict`) trägt Stufe, Gründe (stehen auf der Freigabekarte) und Kategorien. Fünf Kategorien bilden die **rote Linie** (`CRITICAL_RED_LINE`): `format`, `system_folders`, `boot`, `defender_firewall`, `cypher_secrets`.
+
+**Dieser PC als Netzwerkziel** (`security/this_pc.py`): `classify_powershell` (der ganze Befehlstext, auf allen Wegen, auch wenn der Rest nicht einstufbar ist), `classify_open_target` und getippter Text (`input_control`) werden darauf geprüft, ob sie diesen PC übers Netzwerk ansprechen. Treffer → `cypher_secrets`, also rote Linie, egal welches Programm (`curl`, `wget`, `python`, `node`, `Invoke-WebRequest`, `Start-Process` …).
+
+| erkannt | Beispiele |
+|---|---|
+| Loopback in jeder `inet_aton`-Schreibweise | `127.0.0.1`, `127.1`, `0x7f.1`, `0177.0.0.1`, `2130706433` als Host, ganz `127.0.0.0/8` |
+| Namen und IPv6 | `localhost`, `localhost.`, `*.localhost`, `[::1]`, `[::ffff:127.0.0.1]`, `0.0.0.0`, `[::]`, `\\localhost\…` |
+| Backend-Adresse | `API_HOST:API_PORT`, wenn `API_HOST` nicht Loopback ist. Bei `0.0.0.0` alle lokalen Adressen und der Rechnername mit `API_PORT` |
+| Tailscale | Name(n) und IPs des PCs im Tailnet, jeder Port. Gelesen mit `tailscale status --json` im Hintergrund (beim Start, danach alle 5 min), nie im Klassifizierungspfad |
+
+Vorher löst der Scan auf, was feste Regeln auflösen können: Backtick-Escapes, `'a' + 'b'`, `(…) -join '.'`, `%xx`, Vollbreiten-Ziffern (NFKC) und Base64 (`-EncodedCommand`, `FromBase64String`). Was erst zur Laufzeit entsteht (aus Dateien, Rechnungen, Skripten), sieht er nicht. Solche Befehle bleiben über die übrigen Regeln `critical`. Cyphers eigene interne Aufrufe (Ollama, Health, Startmenü-Index, Tailscale-Status) sind keine Werkzeugaufrufe und laufen nie durch den Klassifizierer.
 
 ### Policy (`security/policy.py`)
 
@@ -148,7 +159,9 @@ Entscheidet aus Stufe, Kategorien und Taint, ob gefragt wird (`approval_reason`)
 | `write` bei Tools mit `confirm_writes` (Notiz, Vergessen, Merken) | fragt | `write` |
 | `safe`, `control`, `write` der PC-Werkzeuge | läuft | – |
 
-**Der Schalter** „Sicherheitsabfrage für kritische Aktionen“: Standard an. „Aus nur für diese Sitzung“ lebt im Prozess (nach dem Neustart wieder an), „aus dauerhaft“ steht in `runtime_settings` (`security.critical_confirm`). Ändern nur über `PUT /api/security/critical-confirm`, und der verlangt Token, Loopback-Absender, lokalen Host-Header, keine Proxy-Header (Handy über `tailscale serve`) und `Sec-Fetch-Site: same-origin/same-site` (`api/security_api.py`). Kein Werkzeug ruft `set_critical_confirm` auf (statischer Test über alle Tool-Module), und der Sprachweg kennt den Schalter nicht. Jede Änderung landet im Audit-Log (`setting.critical_confirm`).
+**Sprachbestätigung:** Jede Karte der Stufe `critical` verlangt per Sprache „Ja, ausführen“ (`policy.needs_voice_phrase`), auch wenn sie als `untrusted` oder `red_line` entsteht. Entscheidend ist die Stufe, nicht die Kartenart oder die Herkunft des Auftrags. Ein einfaches „Ja“ löst bei `critical` nie aus. Klick und Tastatur (J/N) sind unverändert.
+
+**Der Schalter** „Sicherheitsabfrage für kritische Aktionen“: Standard an. „Aus nur für diese Sitzung“ lebt im Prozess (nach dem Neustart wieder an), „aus dauerhaft“ steht in `runtime_settings` (`security.critical_confirm`). Ändern nur über `PUT /api/security/critical-confirm`, und der verlangt Token, Loopback-Absender, lokalen Host-Header, keine Proxy-Header (Handy über `tailscale serve`) und `Sec-Fetch-Site: same-origin/same-site` (`api/security_api.py`). Kein Werkzeug ruft `set_critical_confirm` auf (statischer Test über alle Tool-Module), und der Sprachweg kennt den Schalter nicht. Jede Änderung landet im Audit-Log (`setting.critical_confirm`). **Grenze:** Ein anderes Programm unter demselben Windows-Konto kann die nötigen Header selbst setzen (und die Datenbank direkt ändern). Das lokale Sicherheitsmodell schützt nicht gegen Schadsoftware unter dem eigenen Konto. Es schützt gegen Handy und Netz, fremde Webseiten und Cyphers eigenes Modell.
 
 ### PC-Bausteine (`app/pc/`)
 
@@ -193,7 +206,7 @@ sequenceDiagram
         X->>A: approved + Ergebnis
         E->>M: Ergebnis → Antwort
     else „Ja“ allein
-        E-->>U: „Ein einfaches Ja reicht nicht. Sag: Ja, ausführen. Oder nein.“
+        E-->>U: „Ein einfaches Ja reicht hier nicht. Bitte sag: Ja, ausführen.“
     else „Nein“
         X->>A: rejected
     else keine Antwort
@@ -297,12 +310,12 @@ backend/
     memory/     Kern-Gedächtnis, Archiv, Budget
     ops/        Doktor, Backup, Stop, Tailscale (lesend)
     pc/         PowerShell, Startmenü-Index, App-Aliase, Fenster, SendInput, Adminrechte
-    security/   Klassifizierer, Policy (Sicherheitsabfrage, rote Linie), Token, Origin, Pfade, Rate-Limit, Untrusted-Marker
+    security/   Klassifizierer, this_pc (dieser PC als Ziel), Policy (Sicherheitsabfrage, rote Linie), Token, Origin, Pfade, Rate-Limit, Untrusted-Marker
     stt/ tts/   Whisper, Piper
     tools/      alle Tools + Executor + Freigaben + Audit
     voice/      Sitzung, VAD, Aktivierungswort, Satz-Zerlegung, „Ja, ausführen“
   eval/         Abnahmetest, Befehls-Suite, Sprach-Client, Benchmarks
-  tests/        pytest (~830)
+  tests/        pytest (~890)
 frontend/src/   React: audio/, components/ (+system/), hooks/, services/, styles/
 scripts/        start_cypher.ps1, setup.ps1, autostart.py, wake_pc.py
 docs/           diese Doku, MOBILE, ACCEPTANCE, DEPENDENCIES, overhaul/

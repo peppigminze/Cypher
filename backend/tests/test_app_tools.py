@@ -71,7 +71,7 @@ def test_ambiguous_and_unknown_app_names(start_menu):
     assert unknown.clarify and unknown.error.startswith("Welche App meinst du")  # a question, not a guess
 
 
-def test_urls_uris_and_paths(start_menu, tmp_path):
+def test_urls_uris_and_paths(start_menu, outside_tmp):
     web = resolve_target("youtube.com")
     assert web.launch == "https://youtube.com" and web.verdict.level == RiskTier.WRITE
     assert resolve_target("notepad.exe").kind == "app"  # a file name, not a domain
@@ -79,10 +79,10 @@ def test_urls_uris_and_paths(start_menu, tmp_path):
     assert resolve_target("evil-scheme:payload").verdict.level == RiskTier.CRITICAL
     own_api = resolve_target("http://127.0.0.1:8000/api/security/critical-confirm")
     assert "cypher_secrets" in own_api.verdict.categories  # red line
-    doc = tmp_path / "bericht.txt"
+    doc = outside_tmp / "bericht.txt"
     doc.write_text("x", encoding="utf-8")
     assert resolve_target(str(doc)).verdict.level == RiskTier.CONTROL
-    assert resolve_target(str(tmp_path / "fehlt.txt")).error
+    assert resolve_target(str(outside_tmp / "fehlt.txt")).error
 
 
 def test_env_aliases_still_work(start_menu):

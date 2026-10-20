@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import tempfile
 import sys
 from pathlib import Path
@@ -39,6 +40,17 @@ this_pc.set_tailscale_hosts((), pinned=True)
 
 USER_TOKEN = os.environ["USER_TOKEN"]
 AGENT_TOKEN = os.environ["AGENT_TOKEN"]
+
+
+@pytest.fixture()
+def outside_tmp():
+    """A fresh folder in the user's temp directory: inside the user profile,
+    outside Cypher's project and outside any git repository - wherever
+    pytest's own tmp_path lies (pytest.ini: backend/.pytest_tmp). For tests
+    whose meaning depends on that, e.g. "a file in your profile"."""
+    folder = Path(tempfile.mkdtemp(prefix="t-", dir=_TEST_TMP))
+    yield folder
+    shutil.rmtree(folder, ignore_errors=True)
 
 
 @pytest.fixture()

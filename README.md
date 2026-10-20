@@ -100,10 +100,16 @@ Menü → Einstellungen → **Sicherheitsabfrage für kritische Aktionen**. Stan
 
 - **Audit-Log:** Jede Aktion steht im Menü → Audit-Log. Eine kritische Aktion, die ohne Nachfrage lief, steht dort als `auto_unconfirmed`. Jede Änderung des Schalters wird ebenfalls protokolliert.
 - **Taint-Schutz:** Stammt ein Auftrag (auch) aus fremdem Inhalt (Webseite, Datei, Zwischenablage, Bildschirm), fragt alles ab `write` nach.
-- **Rote Linie:** fragt immer, egal wie der Schalter steht: Formatieren/Partitionieren, Löschen von Systemordnern, Boot-Konfiguration, Defender/Firewall abschalten oder ändern, Cyphers Token, Konfiguration und Audit-Log. Einstellbar über `CRITICAL_RED_LINE` in der `.env`.
-- **Sprachbestätigung:** Bei kritischen Aktionen und der roten Linie zählt per Sprache nur **„Ja, ausführen“**. Ein einfaches „Ja“ reicht nicht, und Cypher sagt dir das. Während die Frage läuft, ist das Mikrofon stumm (kein Selbst-Bestätigen durch das Echo). Am Bildschirm genügen Klick oder Taste **J**.
+- **Rote Linie:** fragt immer, egal wie der Schalter steht: Formatieren/Partitionieren, Löschen von Systemordnern, Boot-Konfiguration, Defender/Firewall abschalten oder ändern, Cyphers Token, Konfiguration und Audit-Log. Dazu gehört **jeder Zugriff auf diesen PC übers Netzwerk**, also auf Cyphers eigene API. Erkannt werden `127.0.0.1` (in jeder Schreibweise wie `127.1` oder `0x7f.1`), `localhost`, `[::1]`, `0.0.0.0`, die Backend-Adresse samt Port und der Tailscale-Name bzw. die Tailscale-IP des PCs. Das gilt egal mit welchem Programm (`curl`, `wget`, `python`, `node`, `Invoke-WebRequest`, `Start-Process` …), auch in Variablen, Verkettungen, Umleitungen, URL-Kodierung und Base64, soweit die festen Regeln sie auflösen. Darum fragt auch ein harmloses `ping localhost` nach. Einstellbar über `CRITICAL_RED_LINE` in der `.env`.
+- **Sprachbestätigung:** Jede Karte der Stufe `critical` verlangt per Sprache **„Ja, ausführen“**, egal ob sie vom Klassifizierer, der roten Linie oder einem Auftrag aus fremdem Inhalt kommt. Ein einfaches „Ja“ löst nie aus, Cypher fragt dann kurz nach („Bitte sag: Ja, ausführen“). Karten unterhalb von `critical` nehmen weiter ein einfaches „Ja“. Während die Frage läuft, ist das Mikrofon stumm (kein Selbst-Bestätigen durch das Echo). Am Bildschirm genügen Klick oder Taste **J**.
 
-Bekannte Grenzen stehen in [docs/overhaul/FIX2-report.md](docs/overhaul/FIX2-report.md#grenzen-ehrlich): unter anderem erkennt die rote Linie Cyphers eigene Adresse in PowerShell-Web-Befehlen und in `open_app`, aber nicht in fremden Programmen wie `curl.exe`, und bei einem Auftrag aus fremdem Inhalt reicht per Sprache ein einfaches „Ja“.
+**Grenzen:**
+
+- **Schadsoftware unter deinem Konto:** Ein anderes Programm, das unter demselben Windows-Konto läuft, kann die nötigen Header selbst setzen und so den Schalter ändern. Ebenso könnte es Cyphers Datenbank direkt ändern. Das lokale Sicherheitsmodell schützt gegen Handy und Netz, fremde Webseiten und gegen Cyphers eigenes Modell, **nicht gegen Schadsoftware unter dem eigenen Konto**.
+- Die rote Linie sieht nur, was im Befehl steht. Eine Adresse, die erst zur Laufzeit entsteht, aus einer Datei kommt oder in einem vorher geschriebenen Skript steht, erkennt sie nicht. Dasselbe gilt für einen DNS-Namen, der auf `127.0.0.1` zeigt. Solche Befehle bleiben `critical` und fragen, solange die Abfrage an ist.
+- Den Tailscale-Namen liest Cypher kurz nach dem Start im Hintergrund. Bis dahin ist er noch nicht bekannt.
+
+Mehr dazu: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#4-sicherheit) und [docs/overhaul/FIX2-report.md](docs/overhaul/FIX2-report.md#grenzen-ehrlich).
 
 ## Konfiguration
 
@@ -157,7 +163,7 @@ Tests:
 
 | Was | Befehl (aus `backend/` bzw. `frontend/`) |
 |---|---|
-| Backend (pytest, ~830 Tests, ~1 min) | `.venv\Scripts\python.exe -m pytest -q` |
+| Backend (pytest, ~890 Tests, ~1 min; aus `backend/`, Testdateien landen in `backend/.pytest_tmp`) | `.venv\Scripts\python.exe -m pytest -q` |
 | Frontend (Vitest) | `npm test` |
 | Lint, Typen, Format | `npm run lint`, `npx tsc -b`, `npm run format:check` |
 | Browser-Smoke-Test (Playwright, im installierten Edge) | `npm run test:e2e` |
