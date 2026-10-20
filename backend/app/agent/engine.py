@@ -24,7 +24,8 @@ Design points:
     number of LLM steps per turn is capped (AGENT_MAX_STEPS).
   * Date/time travels with the user message, so the system prompt stays
     byte-identical and Ollama's prompt cache keeps hitting.
-  * Short media/volume commands ("Pause.", "Leiser.") skip the LLM
+  * Short media/volume commands ("Pause.", "Leiser.") and "open X" with an
+    app word or exact app name skip the LLM
     (app/agent/quick_commands.py); "claimed but not done" answers are caught
     by app/agent/action_guard.py.
 """
@@ -41,7 +42,7 @@ from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
 from app.agent.action_guard import LOOKUP_HINT, NOT_DONE_REPLY, answered_without_lookup, guard_mode, obvious_tool, retry_hint, unverified_action_reply
-from app.agent.quick_commands import QuickCommand, match_quick_command
+from app.agent.quick_commands import QuickCommand, match_open_app, match_quick_command
 from app.config import Settings, get_settings
 from app.core import errors
 from app.core.context import pipeline_id_var
@@ -465,6 +466,8 @@ class ConversationEngine:
     # -------------------------------------------------------------- quick commands
     def _quick_command(self, user_text: str, ctx: ToolContext) -> Optional[QuickCommand]:
         quick = match_quick_command(user_text)
+        if quick is None and "open_app" in self.tool_names:
+            quick = match_open_app(user_text)
         if quick is None or quick.tool not in self.tool_names:
             return None
         plan = self.executor.plan(quick.tool, quick.arguments, ctx)

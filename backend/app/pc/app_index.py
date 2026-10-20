@@ -6,8 +6,8 @@ Two sources, read with ONE PowerShell call (about 1 s) and cached:
     Get-StartApps   every app Windows lists in Start, including Store apps
                     (AppUserModelID, launched via shell:AppsFolder\\<id>)
 
-APP_WHITELIST from .env is no longer a whitelist (FIX2): its entries are
-short names that win over the index ("rechner=calc.exe").
+App words like "Editor" or "Rechner" are not looked up here: the alias
+table (app/pc/app_aliases.py) wins over this index.
 
 The index is refreshed after INDEX_TTL seconds; a failed refresh keeps
 the old one.
@@ -46,7 +46,7 @@ class AppEntry:
     name: str
     launch: str  # what os.startfile gets: .lnk path, shell:AppsFolder\<id>, exe, URI
     target: str  # the .exe behind it if known (for the risk classifier), else ""
-    source: str  # "alias" | "shortcut" | "start_apps"
+    source: str  # "shortcut" | "start_apps"
 
 
 def normalize(text: str) -> str:
@@ -113,16 +113,18 @@ def set_entries_for_tests(items: List[AppEntry]) -> None:
         _cache.update(at=time.monotonic(), entries=list(items))
 
 
-def _aliases() -> List[AppEntry]:
-    from app.config import get_settings  # noqa: PLC0415
-
-    return [AppEntry(name=k, launch=v, target=v if v.lower().endswith(".exe") else "", source="alias") for k, v in get_settings().app_whitelist_map.items()]
-
-
 @dataclass
 class Match:
     entry: Optional[AppEntry]
     candidates: List[str]
+
+
+def exact(query: str, items: Optional[List[AppEntry]] = None) -> Optional[AppEntry]:
+    """The app whose name is exactly `query` (after normalize), else None."""
+    wanted = normalize(query)
+    if not wanted:
+        return None
+    return next((e for e in (entries() if items is None else items) if normalize(e.name) == wanted), None)
 
 
 def find(query: str) -> Match:
@@ -130,13 +132,10 @@ def find(query: str) -> Match:
     wanted = normalize(query)
     if not wanted:
         return Match(None, [])
-    for alias in _aliases():
-        if normalize(alias.name) == wanted:
-            return Match(alias, [])
     items = entries()
-    exact = [e for e in items if normalize(e.name) == wanted]
-    if exact:
-        return Match(exact[0], [])
+    hit = exact(wanted, items)
+    if hit is not None:
+        return Match(hit, [])
     words = wanted.split()
     scored = []
     for entry in items:

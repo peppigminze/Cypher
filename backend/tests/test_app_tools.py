@@ -68,7 +68,7 @@ def test_ambiguous_and_unknown_app_names(start_menu):
     ambiguous = resolve_target("Visual Studio")
     assert ambiguous.error and "Visual Studio Code" in ambiguous.error and "Installer" in ambiguous.error
     unknown = resolve_target("Gibtsnicht App 3000")
-    assert unknown.error and "Keine App" in unknown.error
+    assert unknown.clarify and unknown.error.startswith("Welche App meinst du")  # a question, not a guess
 
 
 def test_urls_uris_and_paths(start_menu, tmp_path):
@@ -86,7 +86,7 @@ def test_urls_uris_and_paths(start_menu, tmp_path):
 
 
 def test_env_aliases_still_work(start_menu):
-    target = resolve_target("rechner")  # APP_WHITELIST default: rechner=calc.exe
+    target = resolve_target("rechner")  # built-in alias table (app/pc/app_aliases.py)
     assert target.launch == "calc.exe" and target.verdict.level == RiskTier.CONTROL
 
 

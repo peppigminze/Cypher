@@ -129,13 +129,14 @@ class Settings(BaseSettings):
     WEB_SEARCH_MAX_RESULTS: int = Field(5, ge=1, le=20)
     # Characters of page text handed to the LLM (the context window is small).
     FETCH_MAX_CHARS: int = Field(6000, ge=500, le=100_000)
-    # Short names for open_app: name=target pairs (target: .exe, URI or URL).
-    # Since FIX2 NOT a whitelist any more - open_app starts every installed
-    # app from the Start menu; these names just win over the index.
-    APP_WHITELIST: str = (
-        "rechner=calc.exe,taschenrechner=calc.exe,editor=notepad.exe,notepad=notepad.exe,"
-        "explorer=explorer.exe,spotify=spotify:,browser=https://duckduckgo.com,einstellungen=ms-settings:"
-    )
+    # App words for open_app: name=target pairs that add to / override the
+    # built-in alias table (app/pc/app_aliases.py: editor, rechner, browser,
+    # explorer, taskmanager, einstellungen ...). Target: .exe, URI, URL,
+    # app:<Start menu name> or @standardbrowser. Aliases win over the
+    # Start-menu search.
+    APP_ALIASES: str = ""
+    # Old name of APP_ALIASES (before FIX2 a whitelist); still read, APP_ALIASES wins.
+    APP_WHITELIST: str = ""
     WEATHER_DEFAULT_LOCATION: str = ""
     # Screen description via the local vision model (qwen3.5 can see). Images
     # never leave the PC: the tool refuses while the cloud provider is active.
@@ -317,7 +318,7 @@ class Settings(BaseSettings):
             return v
         raise ValueError(f"unbekannte Modellgröße - erlaubt sind z. B. {', '.join(sorted(['tiny', 'base', 'small', 'medium', 'large-v3', 'large-v3-turbo']))}")
 
-    @field_validator("APP_WHITELIST")
+    @field_validator("APP_ALIASES", "APP_WHITELIST")
     @classmethod
     def _check_whitelist(cls, v: str) -> str:
         for pair in [p for p in v.split(",") if p.strip()]:
@@ -377,9 +378,9 @@ class Settings(BaseSettings):
         return [t.strip() for t in self.TOOLS_DISABLED.split(",") if t.strip()]
 
     @property
-    def app_whitelist_map(self) -> dict[str, str]:
+    def app_alias_map(self) -> dict[str, str]:
         out: dict[str, str] = {}
-        for pair in self.APP_WHITELIST.split(","):
+        for pair in f"{self.APP_WHITELIST},{self.APP_ALIASES}".split(","):
             if "=" in pair:
                 name, target = pair.split("=", 1)
                 if name.strip() and target.strip():

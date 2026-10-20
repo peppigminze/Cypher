@@ -11,12 +11,22 @@ und erklär mir..." still goes to the LLM.
 
 The call still goes through the ToolExecutor (validation, risk tier, audit
 log) - quick commands are a shortcut for the decision, not for security.
+
+"Open X" (FIX2): "Mach mir den Editor auf", "Öffne den Rechner", "Spotify
+starten". When the whole utterance is such a command and X is an alias
+(app/pc/app_aliases.py) or the exact name of an installed app, open_app
+runs with the user's own word - the model never gets to reinterpret
+"Editor" as VS Code. Anything else (unknown word, website, file, longer
+sentence) goes to the LLM as before; open_app answers an unknown app name
+with a question, not a guess.
 """
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
+
+from app.pc import app_aliases, app_index
 
 
 @dataclass(frozen=True)
@@ -71,3 +81,47 @@ def match_quick_command(text: str) -> Optional[QuickCommand]:
     if len(text) > 60:
         return None
     return _COMMANDS.get(normalize(text))
+
+
+# ------------------------------------------------------------------ open X
+_OPEN_PATTERNS = (
+    re.compile(r"^(?:öffne|oeffne|starte|open|launch)\s+(?P<term>.+)$"),
+    re.compile(r"^(?:mach|mache)\s+(?P<term>.+?)\s+auf$"),
+    re.compile(r"^(?:kannst|könntest|würdest)\s+du\s+(?P<term>.+?)\s+(?:öffnen|oeffnen|starten|aufmachen)$"),
+    re.compile(r"^(?P<term>.+?)\s+(?:öffnen|oeffnen|starten|aufmachen)$"),
+)
+# Not app names: "Starte die Musik", "Starte einen Timer" mean something else.
+_NOT_APPS = re.compile(r"\b(musik|song|lied|titel|playlist|wiedergabe|timer|wecker|countdown|stoppuhr|erinnerung)\b")
+_OPEN_FILLER = re.compile(r"\b(bitte|mal|kurz|doch|jetzt|schnell|danke|hey|cypher|okay|ok|mir|uns|ein|eine|einen|mein|meine|meinen)\b")
+
+
+def open_term(text: str) -> Optional[str]:
+    """'Mach mir bitte den Editor auf!' -> 'editor'. None if it is not a
+    plain open command for one app word (max. four words, no path/URL)."""
+    if len(text) > 80:
+        return None
+    lowered = re.sub(r"[,!?;„“\"']", " ", text.lower())
+    lowered = " ".join(_OPEN_FILLER.sub(" ", lowered).split()).strip(" .")
+    for pattern in _OPEN_PATTERNS:
+        match = pattern.match(lowered)
+        if match:
+            raw = match.group("term")
+            term = app_index.normalize(raw)
+            if not term or len(term.split()) > 4 or re.search(r"[\\/:]|\.\w", raw) or _NOT_APPS.search(term):
+                return None
+            return term
+    return None
+
+
+def match_open_app(text: str) -> Optional[QuickCommand]:
+    """open_app for "open <alias | exact app name>", else None (-> LLM)."""
+    term = open_term(text)
+    if term is None:
+        return None
+    alias = app_aliases.lookup(term)
+    if alias is not None:
+        return QuickCommand("open_app", {"name": term}, f"{alias.label} wird geöffnet.")
+    entry = app_index.exact(term)
+    if entry is not None:
+        return QuickCommand("open_app", {"name": entry.name}, f"{entry.name} wird geöffnet.")
+    return None

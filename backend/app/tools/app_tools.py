@@ -3,7 +3,9 @@ Apps, windows and processes (FIX2 point 3).
 
     open_app    any installed app (Start menu index, no whitelist), a web
                 page in the default browser, a URI (spotify:, ms-settings:),
-                a file or folder
+                a file or folder. App words ("Editor", "Rechner", "Browser")
+                come from the alias table (app/pc/app_aliases.py) first; an
+                unknown name gets a question back, never a guess.
     windows     list / focus / minimize / maximize / restore / close windows
     processes   list / end processes
 
@@ -25,7 +27,7 @@ from typing import Any, Dict, List, Literal, Optional
 import psutil
 from pydantic import Field
 
-from app.pc import app_index
+from app.pc import app_aliases, app_index
 from app.pc import windows as win
 from app.security.classifier import (
     CONTROL,
@@ -33,6 +35,7 @@ from app.security.classifier import (
     SAFE,
     WRITE,
     Verdict,
+    classify_executable,
     classify_open_target,
     classify_process,
     classify_program_name,
@@ -61,6 +64,7 @@ class Target:
     kind: str = ""  # "url" | "uri" | "path" | "app"
     verdict: Optional[Verdict] = None
     error: str = ""
+    clarify: bool = False  # the error is a question to the user ("Welche App meinst du ...?")
 
 
 def resolve_target(name: str) -> Target:
@@ -80,24 +84,44 @@ def resolve_target(name: str) -> Target:
     if _DOMAIN_RE.match(text) and suffix not in _FILE_EXTENSIONS:
         url = "https://" + text
         return Target(launch=url, label=url, kind="url", verdict=classify_open_target(url))
+    alias = app_aliases.lookup(text)
+    if alias is not None:
+        return _alias_target(alias)
     match = app_index.find(text)
     if match.entry is not None:
-        entry = match.entry
-        if entry.source == "alias":
-            # .env short names may point at URIs, URLs or programs.
-            alias_verdict = classify_open_target(entry.launch) if ":" in entry.launch else classify_program_name(entry.launch)
-            return Target(launch=entry.launch, label=entry.name, kind="app", verdict=alias_verdict)
-        return Target(launch=entry.launch, label=entry.name, kind="app", verdict=classify_start_menu_app(entry.target, entry.name))
+        return _app_target(match.entry)
     if match.candidates:
-        return Target(error=f"'{text}' ist nicht eindeutig. Meinst du: {', '.join(match.candidates)}?", verdict=verdict(SAFE))
+        return Target(error=f"'{text}' ist nicht eindeutig. Meinst du: {', '.join(match.candidates)}?", verdict=verdict(SAFE), clarify=True)
     exe = shutil.which(text)
     if exe:
         return Target(launch=exe, label=os.path.basename(exe), kind="app", verdict=classify_program_name(exe))
-    return Target(error=f"Keine App namens '{text}' gefunden (Startmenü durchsucht).", verdict=verdict(SAFE))
+    return Target(error=f"Welche App meinst du mit '{text}'? Im Startmenü gibt es keine App mit diesem Namen.", verdict=verdict(SAFE), clarify=True)
+
+
+def _app_target(entry: app_index.AppEntry) -> Target:
+    return Target(launch=entry.launch, label=entry.name, kind="app", verdict=classify_start_menu_app(entry.target, entry.name))
+
+
+def _alias_target(alias: app_aliases.Alias) -> Target:
+    target = alias.target
+    if target == app_aliases.DEFAULT_BROWSER:
+        exe = app_aliases.default_browser()
+        if not exe:
+            return Target(error="Ich finde keinen Standardbrowser. In den Windows-Einstellungen unter Apps > Standard-Apps einen festlegen.", verdict=verdict(SAFE))
+        return Target(launch=exe, label=alias.label, kind="app", verdict=classify_executable(exe))
+    if target.lower().startswith(app_aliases.APP_PREFIX):
+        name = target[len(app_aliases.APP_PREFIX):].strip()
+        entry = app_index.exact(name)
+        if entry is None:
+            return Target(error=f"'{alias.word}' steht für die App '{name}', die gibt es im Startmenü aber nicht.", verdict=verdict(SAFE))
+        return _app_target(entry)
+    # .exe name, URI or URL
+    alias_verdict = classify_open_target(target) if ":" in target else classify_program_name(target)
+    return Target(launch=target, label=alias.label, kind="app", verdict=alias_verdict)
 
 
 class OpenAppArgs(ArgsModel):
-    name: str = Field(..., min_length=1, max_length=500, description="App-Name (z. B. 'Discord', 'Rechner'), Webseite, URI wie 'ms-settings:' oder Datei-/Ordnerpfad")
+    name: str = Field(..., min_length=1, max_length=500, description="App-Name so, wie der Nutzer ihn sagt (z. B. 'Editor', 'Rechner', 'Discord'), Webseite, URI wie 'ms-settings:' oder Datei-/Ordnerpfad")
 
 
 @register_tool
@@ -121,7 +145,7 @@ class OpenAppTool(Tool):
     async def execute(self, db=None, name: str = "", **_) -> ToolResult:
         target = await asyncio.to_thread(resolve_target, name)
         if target.error:
-            return ToolResult(success=False, error=target.error)
+            return ToolResult(success=False, data={"needs_clarification": True} if target.clarify else None, error=target.error)
         try:
             await asyncio.to_thread(os.startfile, target.launch)  # type: ignore[attr-defined]
         except (OSError, AttributeError) as exc:
