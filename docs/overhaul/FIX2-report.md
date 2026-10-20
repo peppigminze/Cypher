@@ -149,6 +149,23 @@ Teststand der vollen Läufe: siehe Abschluss unten.
 
 **Vom Nutzer von Hand durchgeführt**, nicht von Claude und von keinem Skript. Ein Ergebnis ist bekannt: der Fund „Editor → VS Code“ (oben, behoben). Die übrigen Prüfungen und die Nachprüfung stehen als Checkliste mit leeren Ergebnisfeldern in [ACCEPTANCE.md](../ACCEPTANCE.md#pc-steuerung-und-sicherheitsabfrage-fix2-vom-nutzer-durchgeführt).
 
+### Prüfung: Schalter nur über die lokale Oberfläche (ohne Ausführung)
+
+Geprüft wurde der Code und die Einstufung durch den Klassifizierer. Kein Versuch lief gegen eine laufende Instanz.
+
+| Frage | Befund |
+|---|---|
+| Wer schreibt den Schalter? | Nur `policy.set_critical_confirm`, und das ruft im ganzen Backend nur `PUT /api/security/critical-confirm` auf (Suche über `app/`). `settings_store` schreibt nur zwei andere, feste Schlüssel (`active_llm_provider`, `voice.followup_window_seconds`) |
+| Was verlangt der Endpunkt? | Token, Absender Loopback, lokaler `Host` (gegen DNS-Rebinding), keine Proxy-Header (Handy über `tailscale serve`), `Origin` lokal und erlaubt, `Sec-Fetch-Site` = `same-origin`/`same-site` |
+| Werkzeuge? | Kein Tool-Modul enthält `set_critical_confirm` oder den Schlüssel (statischer Test). Kein Werkzeug wird dem Modell dafür angeboten |
+| Sprache? | Ein Sprach-Turn erreicht nur die Engine, die keinen Weg zum Schalter hat |
+| Datenbank direkt? | Ein Pfad auf `jarvis.db` in einem Befehl oder Dateiwerkzeug ist rote Linie (`sqlite3.exe …jarvis.db`, `Set-Content`, `Copy-Item`, `write_file`: alle `cypher_secrets`) |
+| Cyphers API über PowerShell/`open_app`? | rote Linie (`Invoke-RestMethod`/`Invoke-WebRequest` auf `127.0.0.1`/`localhost`, `open_app` auf eine lokale Adresse) |
+
+Tests, alle grün: `test_api_local_ui_can_switch`, `test_api_refuses_everything_but_the_local_ui` (Skript ohne Browser-Header, fremde Webseite, Handy über Proxy, DNS-Rebinding), `test_api_needs_the_token`, `test_no_tool_can_change_the_setting`, `test_injection_from_a_file_cannot_switch_it_off`, `test_injection_works_even_with_the_prompt_already_off`, `test_a_voice_turn_cannot_switch_it_off` (10 Fälle), dazu Vitest `SafetyPrompt.test.tsx` (9, u. a. Ablehnung vom Handy) und Playwright `safety.spec.ts`.
+
+Ergebnis: Das hält für Handy, fremde Webseiten, DNS-Rebinding, Anfragen ohne Browser-Header, Cyphers Werkzeuge, Sprache und Injection. Zwei Einschränkungen stehen unten unter Grenzen 1 und 2. „Skript ohne Browser“ im Test heisst „Anfrage ohne die Header eines Browsers“: Ein lokales Programm, das die Header selbst setzt, kommt durch.
+
 ### Grenzen (ehrlich)
 
 1. **Rote Linie und fremde Programme.** Cyphers eigene Adresse wird bei PowerShell-Web-Befehlen (`Invoke-RestMethod`, `Invoke-WebRequest`) und bei `open_app` als rote Linie erkannt, bei anderen Programmen nicht: `curl.exe -X PUT http://127.0.0.1:8000/api/security/critical-confirm …` ist nur `critical` (`unknown_command`). Das wurde mit dem Klassifizierer geprüft, kein Befehl ausgeführt. Bei eingeschalteter Abfrage fragt das trotzdem. Bei **ausgeschalteter** Abfrage und ohne fremden Inhalt im Turn liefe es ohne Nachfrage. `/api/auth/session` gibt einem lokalen Aufrufer ohne Browser-Header den Token, und `Sec-Fetch-Site` kann ein lokales Programm selbst setzen. So könnte das Modell den Schalter z. B. von „aus (Sitzung)“ auf „aus (dauerhaft)“ stellen. Empfehlung: Loopback-Adressen in jedem Befehlstext als `cypher_secrets` (rote Linie) werten, eine Regel mit Test.
