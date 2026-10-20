@@ -69,8 +69,9 @@ class Settings(BaseSettings):
     # Context window sent with every request. Ollama's own default is
     # derived from free VRAM (4096 here), which silently truncates long
     # prompts - so Cypher always sets it explicitly. See docs/overhaul/AUDIT.md H2.
-    # 12288 since FIX2: the PC-control tools need ~1500 more tokens; measured
-    # +0.14 GB VRAM and no extra latency (docs/overhaul/FIX2-report.md).
+    # 12288 since FIX2: the tool definitions grew from ~2300 to ~4000 tokens
+    # (memory/budget.py estimate), the budget went from 7468 to 9154 > 8192.
+    # VRAM/latency effect not measured yet (docs/overhaul/FIX2-report.md).
     LOCAL_LLM_NUM_CTX: int = Field(12288, ge=2048, le=131072)
     # How long Ollama keeps the model in VRAM after the last request.
     # Ollama's default (5m) caused 7-14 s cold starts after short pauses (AUDIT K2).

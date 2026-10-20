@@ -1,6 +1,6 @@
 # FIX2 – Folge-Zuhörfenster, lokale Schriften, volle PC-Steuerung
 
-Branch `fix/followup-fonts-pccontrol`, drei Punkte, je ein Commit.
+Branch `fix/followup-fonts-pccontrol`, drei Punkte. Punkt 1 und 2 sind je ein Commit, Punkt 3 besteht aus mehreren (siehe Abschnitt 3).
 
 ## 1. Folge-Zuhörfenster
 
@@ -78,3 +78,84 @@ Ein erster Testlauf war rot, weil der Vergleichstext Gewicht 400 nutzte. Space G
 ### Smoke-Test (echt)
 
 Die laufende Instanz (`http://127.0.0.1:8000`) im eingebauten Browser: **keine** Anfrage mit „google“, die woff2-Dateien kommen von `127.0.0.1:8000` (200). `document.fonts` meldet Inter 400, Space Grotesk 700 und Share Tech Mono 400 als geladen. Das Aussehen ist unverändert.
+
+## 3. Volle PC-Steuerung mit abschaltbarer Sicherheitsabfrage
+
+### Ausgangslage (belegt)
+
+Vor Punkt 3 (Stand `678719f`, Standardwerte) bot Cypher dem Modell **22 Werkzeuge** an. Keines davon war für Dateien, Fenster, Prozesse, PowerShell, Energie oder Software. `open_app` startete nur die 8 Kurznamen aus `APP_WHITELIST`. Die Datei-Werkzeuge galten nur in `ALLOWED_DIRECTORIES` (Standard leer, also aus). Der alte Terminal-Befehl war `destructive` und wurde nicht angeboten. Das Risiko war eine feste Stufe pro Werkzeug, nicht pro Aufruf.
+
+### Umsetzung
+
+| Teil | Umsetzung |
+|---|---|
+| Werkzeuge | **36 statt 22** angeboten. Neu bzw. erweitert: `run_command` + `command_status` (PowerShell, Vorder-/Hintergrund), `open_app` (jede installierte App aus dem Startmenü, Webseite, URI, Datei), `windows`, `processes`, `list_files`, `read_file`, `write_file`, `file_op` (alle Laufwerke, Löschen = Papierkorb), `input_control` (Tastatur/Maus), `screenshot`, `power`, `set_brightness`, `software` (winget), `network_status` |
+| Klassifizierer | `app/security/classifier.py`: feste Regeln für PowerShell-Zeilen (Ketten, Skriptblöcke, Aliase, `-EncodedCommand`), Pfade, Programme, URIs, Prozesse. Unbekanntes wird `critical`. Stufen `safe < control < write < critical < blocked` |
+| Policy | `app/security/policy.py`: fremder Inhalt + ab `write` → fragt immer. Rote Linie → fragt immer. `critical` → fragt, solange die Abfrage an ist. Sonst läuft es |
+| Schalter | Menü → Einstellungen, Standard an. Aus nur in zwei Schritten (Warnung, „Nur für diese Sitzung“ / „Dauerhaft“). Nur aus der lokalen Oberfläche änderbar (`PUT /api/security/critical-confirm`: Token, Loopback, lokaler Host, keine Proxy-Header, `Sec-Fetch-Site`). Jede Änderung im Audit-Log, Kopfzeile ⚠ ABFRAGE AUS, Doktor warnt |
+| Sprache | Kritische und Rote-Linie-Karten nur mit „Ja, ausführen“. Whisper bekommt die Phrase als Prompt, ein einfaches „Ja“ bekommt einen Hinweis. Das Mikrofon ist stumm, solange die Frage läuft |
+| Karte | genaues Werkzeug und Argumente (z. B. der PowerShell-Befehl), Stufe, Grund des Klassifizierers, Art (`critical` / `red_line` / `untrusted`) |
+| PowerShell | `-EncodedCommand`, UTF-8, Fehler aus CLIXML lesbar, Unterbrechen oder Zeitlimit beendet den ganzen Prozessbaum, Cyphers Token nicht in der Kind-Umgebung, jeder Befehl in `command_logs` |
+| Adminrechte | Cypher erhöht sich nie (`-Verb RunAs` ist `blocked`). Läuft der Prozess erhöht, verweigert `run_command`. Braucht ein Befehl Adminrechte, erklärt Cypher, wie du es selbst als Administrator ausführst |
+| App-Begriffe (Abschluss) | Alias-Tabelle `app/pc/app_aliases.py` mit Vorrang vor dem Startmenü, konfigurierbar über `APP_ALIASES`. Kurzer „öffne X“-Satz ohne LLM. Unbekannt oder mehrdeutig → Rückfrage |
+| Kontextfenster | `LOCAL_LLM_NUM_CTX` 8192 → **12288**, siehe Messung |
+
+### Commits
+
+| Commit | Inhalt |
+|---|---|
+| `6145cbb` | WIP: Klassifizierer, Policy, PC-Werkzeuge, Sprachbestätigung, Schalter, HUD, Tests |
+| `c8e2bd4` | PowerShell-Tests unabhängig von Adminrechten des Testlaufs |
+| `ba59568` | Alias-Tabelle für App-Begriffe |
+| Doku-Commit | README, ARCHITECTURE, `.env.example`, DEPENDENCIES, ACCEPTANCE, dieser Abschnitt |
+
+### Funde beim Abschluss (behoben)
+
+1. **Tests hingen an den Rechten des Testlaufs.** Nachgestellt mit `IsUserAnAdmin() = 1`: Nicht nur ein Test, sondern **10 von 13** in `test_shell_tools.py` scheiterten, weil `run_command` im erhöhten Prozess richtig ablehnt. Die übrigen 781 Backend-Tests blieben grün, es gab also keine weitere Abhängigkeit. Jetzt wird die Prüfung in diesen Tests durch eine Attrappe ersetzt. Zwei neue Tests belegen, dass ein erhöhter Prozess weder im Vorder- noch im Hintergrund etwas startet oder protokolliert. Gegenprobe: Ohne die Prüfung in `shell_tools.py` werden beide rot.
+2. **„Mach mir den Editor auf“ → VS Code** (Fund aus dem Smoke-Test des Nutzers, `qwen3.5:4b`). Ursache: Das Werkzeug löste „Editor“ schon richtig auf Notepad auf. Bis Punkt 3 nannte die Werkzeugbeschreibung aber „Editor“ ausdrücklich als Beispiel („z. B. Spotify, Rechner, Editor …“), und in M5 übergab das Modell `editor`/`notepad`. Seit Punkt 3 stand dort nur noch „z. B. 'Discord', 'Rechner'“. Das Modell wählte den App-Namen also selbst. Jetzt geht ein kurzer „öffne X“-Satz mit Alias oder exaktem App-Namen ohne LLM an `open_app`, mit dem Wort des Nutzers. Gegenprobe: Ohne den Schnellweg wird der Test rot (das Skript-Modell hätte „Visual Studio Code“ geöffnet). Live nachgeprüft ist das noch nicht (ACCEPTANCE Nr. 14).
+3. **Unbelegte Messung im Code.** `config.py` behauptete „measured +0.14 GB VRAM and no extra latency“ mit Verweis auf diesen Bericht. Eine solche Messung gibt es hier nicht. Der Kommentar nennt jetzt nur das nachgerechnete Budget.
+
+### Messung: Kontextfenster
+
+Schätzung mit `app/memory/budget.py` (3,5 Zeichen pro Token), Standardwerte, je aus `git archive` des Stands:
+
+| | vor Punkt 3 (`678719f`) | jetzt |
+|---|---|---|
+| angebotene Werkzeuge | 22 | 36 |
+| Werkzeug-Definitionen | 2305 Tokens | 3991 Tokens |
+| Budget gesamt (inkl. Verlauf, Gedächtnis, Webseite, Antwort-Reserve) | 7468 | 9154 |
+| passt in 8192? | ja | **nein** → `num_ctx` 12288 |
+
+**Nicht gemessen:** Grafikspeicher und Latenz mit 12288 sowie eine neue Befehls-Suite mit 36 Werkzeugen. Die M5-Messungen unter `docs/overhaul/bench/` bleiben die Referenz und wurden nicht überschrieben.
+
+### Tests
+
+Alle Tests laufen gegen Attrappen. Echt sind nur harmlose PowerShell-Befehle (`Write-Output`, `Start-Sleep`, `ping 127.0.0.1`), ein eigener Dummy-Prozess, Registry- und Netzwerkstatus lesen.
+
+| Datei | Tests | Inhalt |
+|---|---|---|
+| `tests/test_classifier.py` | 116 | 101 PowerShell-Befehle (harmlos, ändernd, kritisch, verschleiert), Pfade, Prozesse, Öffnen-Ziele, rote Linie |
+| `tests/test_security_policy.py` | 20 | Standard an, Sitzung/dauerhaft, rote Linie, Taint, Audit, nur lokale Oberfläche (Handy, Skript, fremde Seite, DNS-Rebinding), kein Werkzeug, Injection aus Datei, Sprach-Turn |
+| `tests/test_shell_tools.py` | 15 | echte PowerShell: UTF-8, Exit-Code, Zeitlimit, Unterbrechen beendet den Prozessbaum, Hintergrund, Adminrechte, erhöhter Prozess |
+| `tests/test_voice_critical.py` | 5 | nur „Ja, ausführen“, „Ja“ allein reicht nicht, Nein, Mikrofon stumm, Klick |
+| `tests/test_app_tools.py`, `tests/test_file_tools.py` | 25 + 12 | Apps, Fenster, Prozesse, Energie, Software, Eingabe, Dateien (Papierkorb) |
+| `tests/test_app_aliases.py` | 39 | Alias-Auflösung, Vorrang, exakter Name, Unbekanntes, Konfiguration, Standardbrowser, Freigabe bleibt |
+| `frontend/src/components/__tests__/SafetyPrompt.test.tsx` | 9 | Schalter, Warnung, Fehlermeldung, HUD, Karte mit Befehl und Phrase |
+| `frontend/e2e/safety.spec.ts` | 1 | Ausschalten nur nach Warnung, HUD-Hinweis, wieder einschalten |
+
+Teststand der vollen Läufe: siehe Abschluss unten.
+
+### Smoke-Test mit echten Aktionen
+
+**Vom Nutzer von Hand durchgeführt**, nicht von Claude und von keinem Skript. Ein Ergebnis ist bekannt: der Fund „Editor → VS Code“ (oben, behoben). Die übrigen Prüfungen und die Nachprüfung stehen als Checkliste mit leeren Ergebnisfeldern in [ACCEPTANCE.md](../ACCEPTANCE.md#pc-steuerung-und-sicherheitsabfrage-fix2-vom-nutzer-durchgeführt).
+
+### Grenzen (ehrlich)
+
+1. **Rote Linie und fremde Programme.** Cyphers eigene Adresse wird bei PowerShell-Web-Befehlen (`Invoke-RestMethod`, `Invoke-WebRequest`) und bei `open_app` als rote Linie erkannt, bei anderen Programmen nicht: `curl.exe -X PUT http://127.0.0.1:8000/api/security/critical-confirm …` ist nur `critical` (`unknown_command`). Das wurde mit dem Klassifizierer geprüft, kein Befehl ausgeführt. Bei eingeschalteter Abfrage fragt das trotzdem. Bei **ausgeschalteter** Abfrage und ohne fremden Inhalt im Turn liefe es ohne Nachfrage. `/api/auth/session` gibt einem lokalen Aufrufer ohne Browser-Header den Token, und `Sec-Fetch-Site` kann ein lokales Programm selbst setzen. So könnte das Modell den Schalter z. B. von „aus (Sitzung)“ auf „aus (dauerhaft)“ stellen. Empfehlung: Loopback-Adressen in jedem Befehlstext als `cypher_secrets` (rote Linie) werten, eine Regel mit Test.
+2. **„Nur die lokale Oberfläche“** schützt gegen Handy und Proxy, andere Webseiten, DNS-Rebinding, Sprache und Cyphers Werkzeuge (mit der Lücke aus 1.). Nicht geschützt ist gegen ein anderes Programm, das unter deinem Windows-Konto läuft. Es kann die Header setzen und könnte ebenso direkt die Datenbank ändern. Das kann ein Prozess ohne Adminrechte gegen den eigenen Benutzer nicht verhindern.
+3. **„Ja“ bei fremdem Inhalt.** Kommt ein kritischer Auftrag (auch einer der roten Linie) aus einem Turn mit fremdem Inhalt, heisst die Karte `untrusted`, und per Sprache reicht dann ein einfaches „Ja“ statt „Ja, ausführen“. Gefragt wird trotzdem, und die Karte nennt den fremden Inhalt. Nicht getestet. Empfehlung: Die Phrase an die Stufe `critical` binden statt an die Kartenart, eine Zeile mit Test.
+4. **Klassifizierer:** regelbasiert. Er erkennt so viel Verschleierung, wie die 101 Testbefehle abdecken. Was er nicht versteht, wird `critical`. Das ist sicher, fragt aber auch bei harmlosen, ungewöhnlichen Befehlen.
+5. **App-Begriffe:** deterministisch nur für kurze „öffne X“-Sätze. In längeren Sätzen wählt weiter das Modell den Namen (die Beschreibung bittet um das Wort des Nutzers). Das Werkzeug rät dann nicht, aber das Modell kann einen anderen, existierenden App-Namen übergeben. Die eingebauten Begriffe sind eine feste Liste, erweiterbar über `APP_ALIASES`.
+6. **Startmenü-Index:** Nach 10 Minuten wird er beim nächsten Gebrauch synchron neu gelesen (laut Modul etwa 1 s, nicht gemessen). Dieser Turn kann dadurch spürbar langsamer sein.
+7. **Tastatur/Maus** über `SendInput` ist fragil (Fokus, Fensterlage). Fenster werden über Titel oder Programmname gefunden, mehrdeutig führt zu einer Rückfrage.
+8. **Testumgebung:** Ein früherer Testlauf als Administrator hat in `%LOCALAPPDATA%\Temp\pytest-of-Silvan` die Einträge `pytest-current` und `pytest-123` mit Administrator-Besitz hinterlassen. Ein normaler `pytest`-Lauf meldet danach am Ende einen `PermissionError` beim Aufräumen, obwohl alle Tests grün sind. Die Läufe hier nutzen deshalb `--basetemp` in einem eigenen Ordner. Entfernen geht nur in einer Administrator-Shell.

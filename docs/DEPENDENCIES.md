@@ -16,7 +16,7 @@ Geprüft über die installierten Paket-Metadaten (`importlib.metadata` bzw. `nod
 | SQLAlchemy | 2.0.52 | MIT | Datenbank (SQLite) |
 | python-dotenv | 1.2.3 | BSD-3-Clause | `.env`-Parsing |
 | httpx | 0.28.1 | BSD-3-Clause | HTTP-Client (Ollama, Web-Tools) |
-| psutil | 7.2.2 | BSD-3-Clause | Systeminfos |
+| psutil | 7.2.2 | BSD-3-Clause | Systeminfos, Prozesse auflisten/beenden, Prozessbaum eines PowerShell-Befehls beenden |
 | faster-whisper | 1.2.1 | MIT | Spracherkennung (bringt Silero-VAD-v6-ONNX mit, MIT) |
 | ctranslate2 | 4.8.2 | MIT | Whisper-Inferenz (transitiv) |
 | av (PyAV) | 18.1.0 | BSD-3-Clause | Audio-Decoding (transitiv) |
@@ -24,6 +24,7 @@ Geprüft über die installierten Paket-Metadaten (`importlib.metadata` bzw. `nod
 | python-multipart | 0.0.32 | Apache-2.0 | Datei-Uploads |
 | sherpa-onnx | 1.13.8 | Apache-2.0 | Sprachausgabe (Piper-VITS) |
 | numpy | 2.5.3 | BSD-3-Clause (+ MIT/Zlib/CC0 Teile) | Audio-Arrays |
+| Send2Trash | 2.1.0 | BSD-3-Clause | Dateien löschen = Papierkorb, nie endgültig (`file_op`, Überschreiben in `write_file`). Unter Windows ohne weitere Abhängigkeit (das optionale `pywin32` wird nicht installiert) |
 
 Testwerkzeuge: pytest 9.1.1 (MIT), pytest-asyncio 1.4.0 (Apache-2.0).
 
@@ -88,12 +89,15 @@ Zusammen 125 KB. Vorher kamen sie von Google Fonts, jetzt geht beim Öffnen kein
 | M7 | segno 1.6.6 | BSD-3-Clause (LICENSE im Wheel geprüft) | QR-Code fürs Handy-Koppeln (Menü → Handy), reines Python, keine weiteren Abhängigkeiten |
 | M8 | – (keine neue Abhängigkeit) | – | Abnahmetest nutzt nur vorhandene Pakete (httpx, websockets, numpy, openai) |
 | FIX2 | Schriftdateien Inter, Space Grotesk, Share Tech Mono (aus @fontsource 5.3.0, nur woff2) | SIL OFL 1.1 (für Fonts erlaubt) | lokal statt Google Fonts, siehe Abschnitt Schriften |
+| FIX2 | Send2Trash 2.1.0 | BSD-3-Clause (Paket-Metadaten `License-Expression`) | PC-Steuerung: Löschen nur in den Papierkorb. Sonst keine neue Abhängigkeit: PowerShell-Aufrufe, Startmenü-Index, Fenster, SendInput, Adminrechte-Prüfung, Helligkeit (DDC/CI) und Standardbrowser (Registry) nutzen `subprocess`, `ctypes` und `winreg` aus der Standardbibliothek sowie das schon vorhandene `psutil` |
 
 Externe Programme (keine Code-Abhängigkeit, vom Nutzer installiert):
 
 | Programm | Lizenz | Wofür |
 |---|---|---|
 | Tailscale (optional) | Client BSD-3-Clause, Dienst mit kostenlosem Personal-Plan | Handy-Zugriff über `tailscale serve` (HTTPS im eigenen Tailnet), siehe docs/MOBILE.md |
+| Windows PowerShell 5.1 (`powershell.exe`) | Teil von Windows | `run_command`, Startmenü-Index, Helligkeit (WMI). Aufgerufen, nicht mitgeliefert |
+| winget (App Installer) | Teil von Windows, Quellcode winget-cli MIT | `software`: suchen, installieren, deinstallieren (installieren/deinstallieren ist `critical`). Aufgerufen, nicht mitgeliefert |
 
 Externe Dienste (keine Code-Abhängigkeit, ohne Account/Key):
 

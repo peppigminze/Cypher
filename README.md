@@ -9,7 +9,8 @@ flowchart LR
     Backend --> STT["Whisper<br/>(hört zu)"]
     Backend --> Engine["Gesprächs-Engine"]
     Engine --> LLM["Ollama<br/>qwen3.5:9b auf der GPU"]
-    Engine --> Tools["Tools<br/>Lautstärke, Musik, Notizen,<br/>Timer, Wetter, Suche …"]
+    Engine --> Guard["Klassifizierer + Policy<br/>(feste Regeln, fragt bei kritisch)"]
+    Guard --> Tools["Tools<br/>Apps, Fenster, Dateien, PowerShell,<br/>Lautstärke, Musik, Notizen, Wetter …"]
     Engine --> Mem["Gedächtnis<br/>(Kern + Archiv)"]
     Engine -. "nur nach deinem „Ja“" .-> Cloud["Cloud-Modell<br/>(optional)"]
     Backend --> TTS["Piper<br/>(spricht)"]
@@ -22,13 +23,13 @@ Wie das im Detail zusammenspielt: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | Bereich | Beispiele |
 |---|---|
 | Sprechen | „Hey Cypher, wie spät ist es?“, „Hey Cypher“ … Pause … „Wie wird das Wetter morgen in Bern?“. Unterbrechen per Tippen, Leertaste oder „Hey Cypher, stopp“. |
-| PC steuern | „Mach die Musik leiser“, „Pause“, „Nächster Titel“, „Stell einen Timer auf 10 Minuten“, „Öffne den Rechner“, „Kopier das in die Zwischenablage“ |
+| PC steuern | „Mach die Musik leiser“, „Pause“, „Nächster Titel“, „Stell einen Timer auf 10 Minuten“, „Mach mir den Editor auf“, „Öffne Discord“, Fenster und Prozesse, Dateien auf allen Laufwerken (Löschen = Papierkorb), PowerShell-Befehle, Software über winget, Sperren/Herunterfahren, Helligkeit, Tastatur/Maus |
 | Wissen & Nachschauen | Allgemeinwissen direkt; Wetter, Websuche, Webseiten zusammenfassen, Dateien finden, „Was läuft gerade?“, „Was siehst du auf meinem Bildschirm?“ |
 | Notizen | „Schreib eine Notiz: Milch kaufen“ (mit Freigabekarte), „Zeig meine Notizen“ |
 | Gedächtnis | „Merk dir, dass ich freitags Berufsschule habe“, „Vergiss das mit dem Kaffee“. Alles sichtbar und editierbar im Menü → Gedächtnis. |
 | Handy | Über Tailscale mit HTTPS, Kopplung per QR-Code ([docs/MOBILE.md](docs/MOBILE.md)) |
 
-Riskante Aktionen (Notiz schreiben, Datei ändern, App schliessen …) brauchen deine Freigabe per Klick, Taste **J/N** oder „ja“/„nein“. Alles, was Cypher tut, steht im Audit-Log.
+Kritische Aktionen (endgültig löschen, installieren, herunterfahren …) brauchen deine Freigabe per Klick, Taste **J/N** oder per Sprache mit „Ja, ausführen“. Alles, was Cypher tut, steht im Audit-Log. Wie das genau entschieden wird: [Sicherheitsmodell der PC-Steuerung](#sicherheitsmodell-der-pc-steuerung).
 
 ## Schnellstart
 
@@ -66,12 +67,43 @@ backend\.venv\Scripts\python.exe scripts\autostart.py install
 
 - Das Backend hört nur auf `127.0.0.1`. Das Handy kommt über `tailscale serve` (HTTPS, nur deine Geräte).
 - Jede Anfrage braucht einen Zugangscode. Am PC holt die Oberfläche ihn selbst, andere Geräte koppeln sich einmal.
-- Jedes Tool hat eine **Risikostufe**: lesen = sofort, steuern = sofort, schreiben/löschen = nur mit deiner Freigabe, manche Tools sind gar nicht freigeschaltet.
-- **Prompt-Injection:** Was aus Dateien, Webseiten, Zwischenablage oder Bildschirm kommt, gilt als unsicher. Danach sind Gedächtnis und Zwischenablage-Schreiben für diesen Turn gesperrt, auch per Freigabe nicht zu öffnen. Alles andere, das etwas verändert, zeigt dir ohnehin erst eine Freigabekarte mit genau dem, was passieren würde.
+- Jede Aktion bekommt pro Aufruf eine **Stufe** (`safe`, `control`, `write`, `critical`), festgelegt von festen Regeln, nie vom Sprachmodell. Kritisches fragt vorher nach (siehe unten).
+- **Prompt-Injection:** Was aus Dateien, Webseiten, Zwischenablage oder Bildschirm kommt, gilt als unsicher. Danach sind Gedächtnis und Zwischenablage-Schreiben für diesen Turn gesperrt, auch per Freigabe nicht zu öffnen. Alles ab `write` fragt in so einem Turn nach, auch bei ausgeschalteter Sicherheitsabfrage.
 - **Cloud** nur, wenn du sie einschaltest (Einstellungen) oder bei einem Ausfall die angebotene Rückfrage mit „Ja“ beantwortest. Monatsbudget und Kostenzähler sind eingebaut.
 - Kein Schlüssel im Repo: `.env` ist gitignored, `.env.example` beschreibt alle Einstellungen.
 
-Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#sicherheit).
+Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#4-sicherheit).
+
+## Sicherheitsmodell der PC-Steuerung
+
+Cypher darf auf deinem PC fast alles, läuft aber **ohne Administratorrechte** und erhöht sich nie selbst. Das Sprachmodell schlägt nur vor. Ob etwas sofort läuft oder nachfragt, entscheidet ein fester Klassifizierer (`backend/app/security/classifier.py`) zusammen mit der Policy (`backend/app/security/policy.py`). Was der Klassifizierer nicht sicher einordnen kann, gilt als `critical`.
+
+| Stufe | Bedeutung | Beispiele | Verhalten |
+|---|---|---|---|
+| `safe` | nur lesen | Uhrzeit, Ordner auflisten, Datei lesen, `Get-Process`, Fenster auflisten | läuft sofort |
+| `control` | harmlos, umkehrbar | Lautstärke, Musik, App öffnen, Fenster minimieren, PC sperren, Helligkeit | läuft sofort |
+| `write` | ändert Daten in deinem Benutzerordner | Datei schreiben, Datei löschen (in den Papierkorb), App beenden, Notiz | PC-Werkzeuge: läuft sofort. Notizen und Gedächtnis-Löschen: Freigabekarte |
+| `critical` | kann echten Schaden anrichten | siehe nächste Liste | fragt nach, solange die Sicherheitsabfrage an ist |
+| `blocked` | läuft nie | Selbst-Erhöhung (`Start-Process -Verb RunAs`), Eingaben in Cyphers eigene Oberfläche | wird abgelehnt |
+
+**Kritisch** ist unter anderem: endgültig löschen (`Remove-Item`, ganze Ordner, ausserhalb deines Benutzerordners), schreiben ausserhalb deines Benutzerordners oder in den Autostart, Software installieren/deinstallieren, Herunterfahren, Neustart, Energiesparmodus, Dienste, geplante Aufgaben, Netzwerk- und Firewall-Einstellungen, Benutzerkonten und Berechtigungen, Zugangsdaten lesen (`.ssh`, `.env`, Browser-Cookies …), Programme oder Skripte aus Downloads/Temp, Kommandozeilen und Code-Hosts starten (PowerShell, cmd, regedit, python …), unbekannte Programme und URI-Schemata, Eingaben in ein Terminal, System- und Sicherheitsprozesse beenden, Cyphers eigene Dateien ändern und jeder PowerShell-Befehl, den der Klassifizierer nicht kennt.
+
+### Sicherheitsabfrage an/aus
+
+Menü → Einstellungen → **Sicherheitsabfrage für kritische Aktionen**. Standard: **an**.
+
+- **Ausschalten** geht nur in zwei Schritten: erst „Ausschalten …“, dann eine Warnung mit der Wahl **„Nur für diese Sitzung“** (gilt bis zum nächsten Neustart von Cypher, danach ist sie wieder an) oder **„Dauerhaft ausschalten“** (in der Datenbank gespeichert, übersteht Neustarts). „Wieder einschalten“ gilt sofort und dauerhaft.
+- Solange sie aus ist, zeigt die Kopfzeile **⚠ ABFRAGE AUS**, und `doctor.bat` meldet es als Warnung.
+- Ändern lässt sie sich **nur in der Oberfläche im Browser direkt an diesem PC**: nicht vom Handy, nicht per Sprache, nicht durch ein Werkzeug von Cypher, nicht von einer anderen Webseite. Es gibt keine `.env`-Einstellung dafür.
+
+**Was auch bei ausgeschalteter Abfrage bleibt:**
+
+- **Audit-Log:** Jede Aktion steht im Menü → Audit-Log. Eine kritische Aktion, die ohne Nachfrage lief, steht dort als `auto_unconfirmed`. Jede Änderung des Schalters wird ebenfalls protokolliert.
+- **Taint-Schutz:** Stammt ein Auftrag (auch) aus fremdem Inhalt (Webseite, Datei, Zwischenablage, Bildschirm), fragt alles ab `write` nach.
+- **Rote Linie:** fragt immer, egal wie der Schalter steht: Formatieren/Partitionieren, Löschen von Systemordnern, Boot-Konfiguration, Defender/Firewall abschalten oder ändern, Cyphers Token, Konfiguration und Audit-Log. Einstellbar über `CRITICAL_RED_LINE` in der `.env`.
+- **Sprachbestätigung:** Bei kritischen Aktionen und der roten Linie zählt per Sprache nur **„Ja, ausführen“**. Ein einfaches „Ja“ reicht nicht, und Cypher sagt dir das. Während die Frage läuft, ist das Mikrofon stumm (kein Selbst-Bestätigen durch das Echo). Am Bildschirm genügen Klick oder Taste **J**.
+
+Bekannte Grenzen stehen in [docs/overhaul/FIX2-report.md](docs/overhaul/FIX2-report.md#grenzen-ehrlich): unter anderem erkennt die rote Linie Cyphers eigene Adresse in PowerShell-Web-Befehlen und in `open_app`, aber nicht in fremden Programmen wie `curl.exe`, und bei einem Auftrag aus fremdem Inhalt reicht per Sprache ein einfaches „Ja“.
 
 ## Konfiguration
 
@@ -86,7 +118,10 @@ Alle Einstellungen stehen kommentiert in `.env.example`; `setup.bat` kopiert sie
 | `MEMORY_CORE_MAX_TOKENS` | `400` | Grösse des Kern-Gedächtnisses |
 | `CLOUD_LLM_ENABLED`, `CLOUD_LLM_API_KEY`, `CLOUD_LLM_MODEL` | aus, –, `gpt-6-luna` | Optionale Cloud (OpenAI Responses API) |
 | `CLOUD_MONTHLY_BUDGET_USD` | `5` | Harte Kostengrenze pro Monat |
-| `ALLOWED_DIRECTORIES` | leer | Ordner, in denen Cypher Dateien lesen/schreiben darf (leer = aus). Die Suche nach Dateinamen nutzt `SEARCH_DIRECTORIES` (leer = dein Benutzerordner). |
+| `CRITICAL_RED_LINE` | `format,system_folders,boot,defender_firewall,cypher_secrets` | Rote Linie: fragt immer, auch bei ausgeschalteter Sicherheitsabfrage |
+| `APP_ALIASES` | leer | Eigene App-Begriffe für „öffne …“ (`name=ziel`), ergänzen oder ersetzen die eingebaute Tabelle (Editor, Rechner, Browser …) |
+| `TERMINAL_TIMEOUT_SECONDS` | `30` | Zeitlimit für einen PowerShell-Befehl im Vordergrund |
+| `ALLOWED_DIRECTORIES` | leer | Begrenzt nur noch die Git-Werkzeuge. Die Datei-Werkzeuge arbeiten auf allen Laufwerken, bewertet vom Klassifizierer. Die Suche nach Dateinamen nutzt `SEARCH_DIRECTORIES` (leer = dein Benutzerordner). |
 | `API_HOST` / `API_PORT` | `127.0.0.1` / `8000` | Adresse des Backends |
 
 ## Wake-on-LAN
@@ -122,7 +157,7 @@ Tests:
 
 | Was | Befehl (aus `backend/` bzw. `frontend/`) |
 |---|---|
-| Backend (pytest, ~590 Tests, ~1 min) | `.venv\Scripts\python.exe -m pytest -q` |
+| Backend (pytest, ~830 Tests, ~1 min) | `.venv\Scripts\python.exe -m pytest -q` |
 | Frontend (Vitest) | `npm test` |
 | Lint, Typen, Format | `npm run lint`, `npx tsc -b`, `npm run format:check` |
 | Browser-Smoke-Test (Playwright, im installierten Edge) | `npm run test:e2e` |
