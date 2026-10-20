@@ -146,6 +146,17 @@ def approval_reason(level: RiskTier, categories: Iterable[str], *, tainted: bool
     return None
 
 
+def needs_voice_phrase(risk: Any) -> bool:
+    """By voice, every CRITICAL card - rated so by the classifier, on the red
+    line or from untrusted content - is approved only with "Ja, ausführen".
+    It depends on the tier, never on the kind of card or where the request
+    came from. Click and keyboard (J/N) are unchanged."""
+    try:
+        return RiskTier(risk) == RiskTier.CRITICAL
+    except ValueError:
+        return False
+
+
 REASON_TEXT = {
     "untrusted": "Der Auftrag kommt (auch) aus fremdem Inhalt (Webseite, Datei, Zwischenablage).",
     "red_line": "Rote Linie: fragt immer, auch wenn die Sicherheitsabfrage aus ist.",

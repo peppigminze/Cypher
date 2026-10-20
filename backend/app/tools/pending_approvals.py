@@ -58,6 +58,8 @@ class PendingApproval:
         return max(0.0, ttl_seconds() - (time.monotonic() - self.created_at))
 
     def public(self) -> Dict[str, Any]:
+        from app.security.policy import needs_voice_phrase  # noqa: PLC0415
+
         return {
             "approval_id": self.approval_id,
             "tool_name": self.tool_name,
@@ -66,7 +68,7 @@ class PendingApproval:
             "summary": self.summary,
             "reason": self.reason,
             "kind": self.kind,
-            "voice_phrase": "Ja, ausführen" if self.kind in ("critical", "red_line") else "Ja",
+            "voice_phrase": "Ja, ausführen" if needs_voice_phrase(self.risk) else "Ja",
             "expires_in_seconds": int(self.expires_in),
             "created_at": self.created_wall,
             "conversation_id": self.conversation_id,

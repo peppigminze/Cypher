@@ -50,6 +50,7 @@ from app.core.metrics import metrics
 from app.database.models import ConversationHistory
 from app.llm.base import LLMProvider, LLMUnavailableError, StreamDone, TextDelta as LLMTextDelta, ToolCall, ToolCallEvent, stream_events
 from app.persona import system_prompt
+from app.security import policy
 from app.security.untrusted import tool_result_message_content
 from app.tools import pending_approvals
 from app.tools.base import ToolResult
@@ -114,8 +115,9 @@ class ApprovalRequired:
 
     @property
     def needs_phrase(self) -> bool:
-        """Critical actions: by voice only "Ja, ausführen" counts, not a plain "Ja"."""
-        return self.kind in CRITICAL_KINDS
+        """Every critical card (classifier, red line or untrusted content):
+        by voice only "Ja, ausführen" counts, never a plain "Ja"."""
+        return policy.needs_voice_phrase(self.risk)
 
     def card(self) -> Dict[str, Any]:
         """What the UI (PC and phone) shows on the approval card."""
@@ -335,14 +337,15 @@ def _tool_message(call_id: str, name: str, result: ToolResult) -> Dict[str, Any]
     return {"role": "tool", "tool_call_id": call_id, "name": name, "content": tool_result_message_content(name, result.success, result.data, result.error, result.untrusted)}
 
 
-def spoken_approval_prompt(summary: str, kind: str = "", reason: str = "") -> str:
+def spoken_approval_prompt(summary: str, kind: str = "", reason: str = "", risk: str = "") -> str:
     summary = summary.strip().rstrip(".")
     if len(summary) > 140:
         summary = summary[:137] + "…"
-    if kind in CRITICAL_KINDS:
+    if kind in CRITICAL_KINDS or policy.needs_voice_phrase(risk):
         why = reason.split(";")[0].strip().rstrip(".")
         why = f" ({why[:100]})" if why else ""
-        return f"{summary}. Das ist kritisch{why}. Wenn ich das wirklich machen soll, sag: {CRITICAL_VOICE_PHRASE}."
+        origin = " Der Auftrag stammt aus fremdem Inhalt." if kind == "untrusted" else ""
+        return f"{summary}. Das ist kritisch{why}.{origin} Wenn ich das wirklich machen soll, sag: {CRITICAL_VOICE_PHRASE}."
     if kind == "untrusted":
         return f"{summary}. Der Auftrag stammt aus fremdem Inhalt. Soll ich das machen?"
     return f"{summary}. Soll ich das machen?"
@@ -655,7 +658,7 @@ class ConversationEngine:
                         kind=plan.approval or "",
                     )
                     await self.executor.record_decision(plan, "approval_requested", ctx, approval_id=approval_id)
-                    prompt = spoken_approval_prompt(plan.summary, plan.approval or "", plan.reason)
+                    prompt = spoken_approval_prompt(plan.summary, plan.approval or "", plan.reason, plan.risk.value if plan.risk else "")
                     # Only the spoken question goes into the history; the full
                     # working state (incl. the tool call) lives in the approval
                     # and resume() continues from there.

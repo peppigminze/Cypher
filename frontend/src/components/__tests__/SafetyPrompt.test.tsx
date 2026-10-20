@@ -103,6 +103,12 @@ describe("Approval card for critical actions", () => {
     expect(screen.getByText(/Rote Linie/)).toBeInTheDocument();
   });
 
+  it("a critical card from untrusted content still asks for the phrase", () => {
+    render(<ApprovalCard card={{ ...card, kind: "untrusted" }} onDecide={() => undefined} />);
+    expect(screen.getByText(/stammt \(auch\) aus fremdem Inhalt/)).toBeInTheDocument();
+    expect(screen.getByText(/Per Sprache: „Ja, ausführen“/)).toBeInTheDocument();
+  });
+
   it("a normal write card keeps the plain yes", () => {
     render(<ApprovalCard card={{ ...card, risk: "write", kind: "write", voicePhrase: "Ja", reason: "" }} onDecide={() => undefined} />);
     expect(screen.getByRole("button", { name: "Ja" })).toBeInTheDocument();

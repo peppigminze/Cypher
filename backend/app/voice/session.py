@@ -89,7 +89,7 @@ FOLLOWUP_ECHO_TAIL_SECONDS = 0.35
 SLEEP_ACK = "Gut."
 # Critical approvals (FIX2): Whisper is primed for the phrase; a plain "Ja" gets a hint.
 CRITICAL_STT_PROMPT = "Ja, ausführen. Nein, abbrechen."
-CRITICAL_PLAIN_YES_HINT = "Das ist eine kritische Aktion. Ein einfaches Ja reicht nicht. Sag: Ja, ausführen. Oder nein."
+CRITICAL_PLAIN_YES_HINT = "Ein einfaches Ja reicht hier nicht. Bitte sag: Ja, ausführen. Oder nein."
 CRITICAL_UNCLEAR_HINT = "Bitte sag: Ja, ausführen. Oder nein."
 # Whisper sometimes "hears" these in near-silence; never treat them as commands.
 _HALLUCINATIONS = re.compile(
