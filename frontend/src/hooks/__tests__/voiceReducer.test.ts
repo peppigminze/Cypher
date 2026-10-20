@@ -51,6 +51,41 @@ describe("voiceReducer", () => {
     expect(s2.approval).toBeNull();
   });
 
+  it("a critical approval carries reason and the voice phrase (FIX2)", () => {
+    const s = run([
+      ...open,
+      server({
+        type: "approval",
+        card: {
+          approval_id: "a2",
+          tool_name: "run_command",
+          summary: "PowerShell: Remove-Item -Recurse alt",
+          risk: "critical",
+          expires_in_seconds: 300,
+          reason: "löscht endgültig (ohne Papierkorb)",
+          kind: "critical",
+          voice_phrase: "Ja, ausführen",
+        },
+      }),
+      server({ type: "state", state: "confirming" }),
+    ]);
+    expect(s.approval).toMatchObject({
+      risk: "critical",
+      reason: "löscht endgültig (ohne Papierkorb)",
+      kind: "critical",
+      voicePhrase: "Ja, ausführen",
+    });
+    expect(caption(s)).toBe("Sag „Ja, ausführen“ oder „nein“ - oder tippe unten.");
+  });
+
+  it("old cards without the new fields still work", () => {
+    const s = run([
+      ...open,
+      server({ type: "approval", card: { approval_id: "a3", tool_name: "save_note", summary: "x", risk: "write" } }),
+    ]);
+    expect(s.approval).toMatchObject({ reason: "", kind: "", voicePhrase: "Ja" });
+  });
+
   it("a new listening phase clears the old subtitles", () => {
     const s = run([
       ...open,

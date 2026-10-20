@@ -85,7 +85,7 @@ class OllamaProvider(LLMProvider):
         timeout_seconds: float = 60.0,
         *,
         connect_timeout_seconds: float = 3.0,
-        num_ctx: int = 8192,
+        num_ctx: int = 12288,
         keep_alive: str = "30m",
         think: bool = False,
         temperature: float = 0.3,

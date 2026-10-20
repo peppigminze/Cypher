@@ -1,16 +1,15 @@
 """
-Tests for the PC-tool safety layer (Phase 5): ALLOWED_DIRECTORIES
-sandboxing (app/tools/paths.py) and the command denylist
-(app/tools/command_safety.py). These are the most safety-critical
-pieces in the whole project - a bug here means a path or command
-escapes the sandbox Cypher is supposed to be confined to.
+Tests for the PC-tool safety layer: the ALLOWED_DIRECTORIES sandbox
+(app/tools/paths.py - since FIX2 only used by the git tools) and the
+commands the old denylist blocked, which the classifier must rate critical.
 """
 from __future__ import annotations
 
 import pytest
 
 from app.config import get_settings
-from app.tools.command_safety import is_blocked_command
+from app.security.classifier import classify_powershell
+from app.tools.base import RiskTier
 from app.tools.paths import PathNotAllowedError, resolve_allowed_path
 
 
@@ -90,37 +89,33 @@ def test_second_allowed_directory_also_works(tmp_path, monkeypatch):
         get_settings.cache_clear()
 
 
-# ---------------------------------------------------------------- is_blocked_command
+# ---------------------------------------------------------------- dangerous commands
+# The old hard denylist (command_safety.py) is replaced by the classifier
+# (FIX2): every pattern it blocked must still be rated critical - i.e. it
+# asks (and the red-line ones ask even with the safety prompt off).
 
 
 @pytest.mark.parametrize(
-    "command",
+    ("command", "category"),
     [
-        "rm -rf /",
-        "RM -RF /",
-        "format c:",
-        "del /s /q C:\\",
-        "mkfs.ext4 /dev/sda1",
-        "shutdown /s /t 0",
-        "Restart-Computer -Force",
-        ":(){ :|:& };:",
-        "reg delete HKLM\\Software\\Whatever /f",
+        ("rm -rf /", "system_folders"),
+        ("RM -RF /", "system_folders"),
+        ("format c:", "format"),
+        ("del /s /q C:\\", "system_folders"),
+        ("mkfs.ext4 /dev/sda1", "unknown_command"),
+        ("shutdown /s /t 0", None),
+        ("Restart-Computer -Force", None),
+        (":(){ :|:& };:", None),
+        (r"reg delete HKLM\Software\Whatever /f", None),
     ],
 )
-def test_dangerous_commands_are_blocked(command):
-    assert is_blocked_command(command) is not None
+def test_formerly_blocked_commands_are_critical(command, category):
+    result = classify_powershell(command)
+    assert result.level in (RiskTier.CRITICAL, RiskTier.BLOCKED), (command, result)
+    if category:
+        assert category in result.categories, (command, result.categories)
 
 
-@pytest.mark.parametrize(
-    "command",
-    [
-        "echo hello",
-        "git status",
-        "npm install",
-        "ls -la",
-        "python script.py",
-        "dir",
-    ],
-)
-def test_benign_commands_are_not_blocked(command):
-    assert is_blocked_command(command) is None
+@pytest.mark.parametrize("command", ["echo hello", "git status", "dir", "ls"])
+def test_benign_commands_run_without_asking(command):
+    assert classify_powershell(command).level == RiskTier.SAFE, command

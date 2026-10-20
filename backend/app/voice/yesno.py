@@ -20,3 +20,19 @@ def match_yes_no(text: str) -> Optional[bool]:
     if is_no and not is_yes:
         return False
     return None
+
+
+# Critical actions (FIX2): only the explicit phrase "Ja, ausführen" approves.
+# Whisper writes it as "Ja, ausführen.", "Ja ausführen", "Ja, aus führen" ...
+_CRITICAL_YES = re.compile(r"^\W*ja\W+aus\s?f(ü|ue|u)hr(e|)n\W*$", re.IGNORECASE)
+
+
+def match_critical_confirmation(text: str) -> Optional[bool]:
+    """True only for "Ja, ausführen" (nothing else in the utterance), False
+    for a clear no, None otherwise - including a plain "Ja"."""
+    cleaned = (text or "").strip()
+    if _CRITICAL_YES.match(cleaned):
+        return True
+    if match_yes_no(cleaned) is False:
+        return False
+    return None

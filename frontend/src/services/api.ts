@@ -280,3 +280,30 @@ export async function getVoicePrefs(): Promise<VoicePrefs> {
 export async function setVoicePrefs(prefs: VoicePrefs): Promise<VoicePrefs> {
   return request<VoicePrefs>("/api/settings/voice", { method: "PUT", body: JSON.stringify(prefs) });
 }
+
+// ------------------------------------------------------------------ Safety prompt (FIX2)
+
+export interface CriticalConfirmState {
+  /** true = critical actions ask first (default). */
+  enabled: boolean;
+  mode: "on" | "off_session" | "off_permanent";
+  /** Categories that ALWAYS ask, even when the prompt is off ("rote Linie"). */
+  red_line: string[];
+  red_line_labels: string[];
+}
+
+export const CRITICAL_CONFIRM_EVENT = "cypher:critical-confirm";
+
+export async function getCriticalConfirm(): Promise<CriticalConfirmState> {
+  return request<CriticalConfirmState>("/api/security/critical-confirm");
+}
+
+/** Only works in the browser on the PC itself (the backend refuses the phone, scripts and Cypher's own tools). */
+export async function setCriticalConfirm(enabled: boolean, scope: "session" | "permanent"): Promise<CriticalConfirmState> {
+  const state = await request<CriticalConfirmState>("/api/security/critical-confirm", {
+    method: "PUT",
+    body: JSON.stringify({ enabled, scope }),
+  });
+  window.dispatchEvent(new CustomEvent(CRITICAL_CONFIRM_EVENT, { detail: state }));
+  return state;
+}

@@ -6,11 +6,12 @@ Every tool call - from the voice agent, text chat, tests - goes through
 
   1. looks the tool up (unknown name -> error the LLM can recover from)
   2. validates arguments with the tool's pydantic model
-  3. computes the per-call risk tier
+  3. computes the per-call risk with reasons (tool.classify - the
+     deterministic classifier for PC control, never the LLM)
   4. refuses BLOCKED tools
-  5. refuses write/destructive tools unless the caller passes an approval
-     (defence in depth: even a buggy caller cannot skip the approval gate)
-  6. refuses taint-sensitive tools once untrusted content entered the turn
+  5. refuses taint-sensitive tools once untrusted content entered the turn
+  6. refuses calls that need approval (app/security/policy.py) unless the
+     caller passes one (defence in depth: even a buggy caller cannot skip it)
   7. runs the tool with a timeout; exceptions become a failed ToolResult
   8. marks external content as untrusted
   9. writes the audit log and the latency metric
@@ -27,6 +28,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from app.core.metrics import metrics
+from app.security import policy
 from app.tools.audit import AuditLog, AuditRecord, get_audit_log
 from app.tools.base import RiskTier, Tool, ToolArgumentError, ToolResult
 from app.tools.context import ToolContext
@@ -48,10 +50,15 @@ class PlannedCall:
     summary: str = ""
     error: Optional[str] = None
     error_kind: Optional[str] = None  # "unknown_tool" | "invalid"
+    # Why the classifier rated it so (German, for the card) and its categories.
+    reason: str = ""
+    categories: frozenset = frozenset()
+    # policy.approval_reason(): "untrusted" | "red_line" | "critical" | "write" | None
+    approval: Optional[str] = None
 
     @property
     def needs_approval(self) -> bool:
-        return self.error is None and self.risk is not None and self.risk.needs_approval
+        return self.error is None and self.approval is not None
 
 
 def to_openai_tools(registry: ToolRegistry, names: List[str]) -> List[Dict[str, Any]]:
@@ -94,8 +101,9 @@ class ToolExecutor:
             args = tool.validate_args(raw_arguments or {})
         except ToolArgumentError as exc:
             return PlannedCall(name, tool, raw_arguments or {}, error=str(exc), error_kind="invalid")
-        risk = tool.risk_for(args, ctx)
-        return PlannedCall(name, tool, args, risk=risk, summary=tool.describe(args))
+        result = tool.classify(args, ctx)
+        approval = policy.approval_reason(result.level, result.categories, tainted=bool(ctx and ctx.tainted), confirm_writes=tool.confirm_writes)
+        return PlannedCall(name, tool, args, risk=result.level, summary=tool.describe(args), reason=result.reason, categories=result.categories, approval=approval)
 
     # ------------------------------------------------------------ execution
     async def execute(
@@ -130,7 +138,7 @@ class ToolExecutor:
         tool = plan.tool
         assert tool is not None and plan.risk is not None
         if plan.risk == RiskTier.BLOCKED:
-            error = f"Tool '{name}' is blocked and cannot be run."
+            error = f"Tool '{name}' is blocked and cannot be run." + (f" ({plan.reason})" if plan.reason else "")
             await self._audit_write(base, decision="blocked", success=False, error=error)
             return ToolResult(success=False, error=error)
         # Taint first: no approval can unlock these, so say the real reason.
@@ -141,7 +149,7 @@ class ToolExecutor:
             )
             await self._audit_write(base, decision="tainted_blocked", success=False, error=error)
             return ToolResult(success=False, error=error)
-        if plan.risk.needs_approval and not approval_id:
+        if plan.needs_approval and not approval_id:
             error = f"Tool '{name}' needs the user's approval before it can run."
             await self._audit_write(base, decision="needs_approval", success=False, error=error)
             return ToolResult(success=False, error=error)
@@ -153,9 +161,12 @@ class ToolExecutor:
         if tool.untrusted_output:
             result.untrusted = True
 
+        # "auto_unconfirmed": a critical action ran WITHOUT asking because the
+        # safety prompt is switched off - the audit log says so.
+        decision = "approved" if approval_id else ("auto_unconfirmed" if plan.risk == RiskTier.CRITICAL else "auto")
         await self._audit_write(
             base,
-            decision="approved" if approval_id else "auto",
+            decision=decision,
             success=result.success,
             error=result.error,
             duration_ms=int(duration * 1000),

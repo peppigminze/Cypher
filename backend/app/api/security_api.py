@@ -9,17 +9,25 @@ Auth bootstrap, audit log, pending approvals and tool catalog endpoints.
   GET /api/audit          recent tool decisions
   GET /api/approvals      approvals currently waiting for the user
   GET /api/tools          every tool with risk tier and whether the LLM sees it
+  GET /api/security/critical-confirm   "Sicherheitsabfrage für kritische Aktionen"
+  PUT /api/security/critical-confirm   switch it - LOCAL UI ONLY (FIX2 3c): not
+                          from the phone, not from scripts without a browser,
+                          and no LLM tool, voice command or tool result can
+                          reach this; every change is written to the audit log
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 
 import segno
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel
 
 from app.auth import require_user
 from app.config import get_settings
+from app.core.events import bus
 from app.ops import tailscale
+from app.security import policy
 from app.security.origin import is_trusted_local_browser_request
 from app.security.rate_limit import rate_limit
 from app.security.tokens import get_tokens
@@ -99,3 +107,34 @@ def list_approvals(_user=Depends(require_user)) -> dict:
 @router.get("/api/tools")
 def list_tools(_user=Depends(require_user)) -> dict:
     return {"tools": describe_catalog()}
+
+
+class CriticalConfirmIn(BaseModel):
+    enabled: bool
+    scope: Literal["session", "permanent"] = "session"
+
+
+_LOCAL_UI_ONLY = (
+    "Die Sicherheitsabfrage lässt sich nur direkt am PC in der Cypher-Oberfläche ändern "
+    "(nicht vom Handy, nicht per Sprache und nicht durch Cypher selbst)."
+)
+
+
+@router.get("/api/security/critical-confirm")
+def get_critical_confirm(_user=Depends(require_user)) -> dict:
+    return policy.confirm_state()
+
+
+@router.put("/api/security/critical-confirm", dependencies=[Depends(rate_limit("auth_session"))])
+async def put_critical_confirm(payload: CriticalConfirmIn, request: Request, _user=Depends(require_user)) -> dict:
+    peer = request.client.host if request.client else None
+    # Stricter than _require_local: the browser MUST say it is a same-origin
+    # fetch (page scripts cannot forge Sec-Fetch-Site; scripts without a
+    # browser simply don't send it).
+    fetch_site = request.headers.get("sec-fetch-site")
+    if fetch_site not in ("same-origin", "same-site") or not is_trusted_local_browser_request(peer, request.headers, get_settings()):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_LOCAL_UI_ONLY)
+    state = await policy.set_critical_confirm(payload.enabled, payload.scope, actor="ui")
+    bus.publish("security.critical_confirm", **state)
+    return state
+

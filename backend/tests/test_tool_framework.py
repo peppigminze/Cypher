@@ -194,8 +194,10 @@ def test_catalog_discovers_all_tools_and_exposes_curated_set():
     for expected in ("set_volume", "media_control", "set_timer", "save_note", "web_search", "fetch_url", "open_app", "get_weather", "read_clipboard", "run_command"):
         assert expected in names
     exposed = exposed_tool_names(Settings(_env_file=None, ALLOWED_DIRECTORIES=""), reg)
-    assert "set_volume" in exposed and "run_command" not in exposed
-    assert "read_file" not in exposed  # no allowed directory configured
+    assert "set_volume" in exposed
+    # FIX2: PC control is exposed by default - no ALLOWED_DIRECTORIES needed
+    for name in ("run_command", "read_file", "write_file", "file_op", "open_app", "windows", "processes", "power", "software"):
+        assert name in exposed, name
 
 
 def test_catalog_extra_and_disabled(tmp_path):
@@ -203,6 +205,7 @@ def test_catalog_extra_and_disabled(tmp_path):
     s = Settings(_env_file=None, TOOLS_EXTRA="list_tasks", TOOLS_DISABLED="web_search", ALLOWED_DIRECTORIES=str(tmp_path))
     exposed = exposed_tool_names(s, reg)
     assert "list_tasks" in exposed and "web_search" not in exposed and "read_file" in exposed
+    assert "git_status" not in exposed  # the git tools stay opt-in (and sandboxed)
 
 
 def test_every_registered_tool_has_valid_metadata():
@@ -216,9 +219,19 @@ def test_every_registered_tool_has_valid_metadata():
 
 def test_registered_risk_tiers_for_dangerous_tools():
     reg = build_registry()
-    for name in ("run_command", "delete_file", "move_file", "git_push", "open_application", "close_application", "delete_task"):
-        assert reg.get(name).base_risk() == RiskTier.DESTRUCTIVE, name
-    for name in ("save_note", "write_file", "git_commit"):
+    for name in ("run_command", "git_push", "delete_task", "power"):
+        assert reg.get(name).base_risk() == RiskTier.CRITICAL, name
+    for name in ("save_note", "write_file", "file_op", "git_commit"):
         assert reg.get(name).base_risk() == RiskTier.WRITE, name
-    for name in ("set_volume", "media_control", "set_timer", "open_app", "write_clipboard"):
+    for name in ("set_volume", "media_control", "set_timer", "open_app", "write_clipboard", "windows", "input_control"):
         assert reg.get(name).base_risk() == RiskTier.CONTROL, name
+    # PC-control tools: the per-call rating comes from the classifier, and
+    # only critical asks there (write runs directly)
+    for name in ("run_command", "write_file", "file_op", "open_app", "windows", "processes", "power", "software", "input_control"):
+        assert reg.get(name).confirm_writes is False, name
+
+
+def test_old_risk_names_still_load():
+    """Audit entries and approvals stored before FIX2 say read_only/destructive."""
+    assert RiskTier("read_only") is RiskTier.SAFE and RiskTier("destructive") is RiskTier.CRITICAL
+    assert RiskTier.READ_ONLY is RiskTier.SAFE and RiskTier.DESTRUCTIVE is RiskTier.CRITICAL

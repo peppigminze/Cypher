@@ -3,6 +3,7 @@ import type { ActiveProviderInfo, LlmProviderName, Settings, UsageSummary } from
 import { formatUsd } from "../utils/format";
 import { getActiveProvider, getSettingsOverview, getUsageSummary, setActiveProvider } from "../services/api";
 import { usePolling } from "../hooks/usePolling";
+import { SafetyPromptSection } from "./SafetyPromptSection";
 import { VoicePrefsSection } from "./VoicePrefsSection";
 
 /** Rough "might be on a phone/PWA" signal for the Phase 7 cloud hint -
@@ -177,6 +178,7 @@ export function SettingsView() {
         )}
       </section>
 
+      <SafetyPromptSection />
       <VoicePrefsSection />
 
       <section className="settings__section">

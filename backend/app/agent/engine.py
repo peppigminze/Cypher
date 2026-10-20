@@ -106,6 +106,27 @@ class ApprovalRequired:
     expires_in_seconds: int
     spoken_prompt: str
     steps_used: int
+    # Why the classifier rated it so ("löscht einen ganzen Ordner") and why
+    # it asks (app/security/policy.py: "critical" | "red_line" | "untrusted" | "write").
+    reason: str = ""
+    kind: str = ""
+
+    @property
+    def needs_phrase(self) -> bool:
+        """Critical actions: by voice only "Ja, ausführen" counts, not a plain "Ja"."""
+        return self.kind in CRITICAL_KINDS
+
+    def card(self) -> Dict[str, Any]:
+        """What the UI (PC and phone) shows on the approval card."""
+        return {
+            "approval_id": self.approval_id, "tool_name": self.tool_name, "arguments": self.arguments, "summary": self.summary,
+            "risk": self.risk, "expires_in_seconds": self.expires_in_seconds, "reason": self.reason, "kind": self.kind,
+            "voice_phrase": CRITICAL_VOICE_PHRASE if self.needs_phrase else "Ja",
+        }
+
+
+CRITICAL_KINDS = ("critical", "red_line")
+CRITICAL_VOICE_PHRASE = "Ja, ausführen"
 
 
 @dataclass
@@ -313,10 +334,16 @@ def _tool_message(call_id: str, name: str, result: ToolResult) -> Dict[str, Any]
     return {"role": "tool", "tool_call_id": call_id, "name": name, "content": tool_result_message_content(name, result.success, result.data, result.error, result.untrusted)}
 
 
-def spoken_approval_prompt(summary: str) -> str:
+def spoken_approval_prompt(summary: str, kind: str = "", reason: str = "") -> str:
     summary = summary.strip().rstrip(".")
     if len(summary) > 140:
         summary = summary[:137] + "…"
+    if kind in CRITICAL_KINDS:
+        why = reason.split(";")[0].strip().rstrip(".")
+        why = f" ({why[:100]})" if why else ""
+        return f"{summary}. Das ist kritisch{why}. Wenn ich das wirklich machen soll, sag: {CRITICAL_VOICE_PHRASE}."
+    if kind == "untrusted":
+        return f"{summary}. Der Auftrag stammt aus fremdem Inhalt. Soll ich das machen?"
     return f"{summary}. Soll ich das machen?"
 
 
@@ -621,14 +648,17 @@ class ConversationEngine:
                         conversation_id=ctx.conversation_id,
                         user_message=ctx.user_message,
                         tainted=ctx.tainted,
+                        reason=plan.reason,
+                        kind=plan.approval or "",
                     )
                     await self.executor.record_decision(plan, "approval_requested", ctx, approval_id=approval_id)
-                    prompt = spoken_approval_prompt(plan.summary)
+                    prompt = spoken_approval_prompt(plan.summary, plan.approval or "", plan.reason)
                     # Only the spoken question goes into the history; the full
                     # working state (incl. the tool call) lives in the approval
                     # and resume() continues from there.
                     self._commit(conv, new_messages, partial_reply=prompt, text_only=True)
-                    yield ApprovalRequired(approval_id, call.name, plan.arguments, plan.summary, plan.risk.value if plan.risk else "write", pending_approvals.ttl_seconds(), prompt, step)
+                    yield ApprovalRequired(approval_id, call.name, plan.arguments, plan.summary, plan.risk.value if plan.risk else "write", pending_approvals.ttl_seconds(), prompt, step,
+                                           reason=plan.reason, kind=plan.approval or "")
                     return
                 else:
                     seen_calls.add(signature)

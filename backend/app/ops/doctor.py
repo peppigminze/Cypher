@@ -94,7 +94,28 @@ def check_config():
     else:
         where = "nur auf diesem PC" if not exposed else f"über {settings.API_HOST}"
         checks.append(Check("Sicherheit", OK, f"Backend erreichbar {where}, Token {'erzeugt' if tokens.user_source == 'generated' else 'aus .env'}"))
+    checks.extend(check_pc_control(settings))
     return checks, settings
+
+
+def check_pc_control(settings) -> List[Check]:
+    """FIX2: Cypher never runs elevated; show the safety-prompt state."""
+    from app.pc.elevation import is_elevated  # noqa: PLC0415
+    from app.security import policy  # noqa: PLC0415
+
+    checks: List[Check] = []
+    if is_elevated():
+        checks.append(Check("PC-Steuerung", WARN, "Läuft mit Administratorrechten.", "Cypher und doctor normal starten (nicht 'Als Administrator ausführen') - run_command verweigert sonst."))
+    try:
+        state = policy.confirm_state()
+    except Exception as exc:  # noqa: BLE001 - doctor must report, not crash
+        return checks + [Check("PC-Steuerung", WARN, f"Sicherheitsabfrage nicht lesbar: {exc}")]
+    red = ", ".join(state["red_line_labels"]) or "keine"
+    if state["enabled"]:
+        checks.append(Check("PC-Steuerung", OK, f"Sicherheitsabfrage für kritische Aktionen: AN (rote Linie: {red})"))
+    else:
+        checks.append(Check("PC-Steuerung", WARN, f"Sicherheitsabfrage für kritische Aktionen: AUS (dauerhaft). Rote Linie fragt weiter: {red}", "Wieder einschalten: Cypher-Menü > Einstellungen > Sicherheitsabfrage."))
+    return checks
 
 
 def check_backend(settings) -> List[Check]:

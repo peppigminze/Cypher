@@ -7,6 +7,13 @@ import type { Settings } from "../../types";
 
 vi.mock("../../services/api");
 
+const SAFETY_ON: api.CriticalConfirmState = {
+  enabled: true,
+  mode: "on",
+  red_line: ["format"],
+  red_line_labels: ["Formatieren / Partitionieren"],
+};
+
 function makeSettings(overrides: Partial<Settings> = {}): Settings {
   return {
     llm_provider: "local",
@@ -23,6 +30,7 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
 describe("SettingsView - provider toggle", () => {
   beforeEach(() => {
     vi.mocked(api.getVoicePrefs).mockResolvedValue({ followup_window_seconds: 10 });
+    vi.mocked(api.getCriticalConfirm).mockResolvedValue(SAFETY_ON);
   });
 
   afterEach(() => {
@@ -131,6 +139,7 @@ describe("SettingsView - follow-up window", () => {
     vi.mocked(api.getActiveProvider).mockResolvedValue({ provider: "local", cloud_configured: false });
     vi.mocked(api.getUsageSummary).mockRejectedValue(new Error("x"));
     vi.mocked(api.getVoicePrefs).mockResolvedValue({ followup_window_seconds: 10 });
+    vi.mocked(api.getCriticalConfirm).mockResolvedValue(SAFETY_ON);
     vi.mocked(api.setVoicePrefs).mockResolvedValue({ followup_window_seconds: 0 });
 
     render(<SettingsView />);

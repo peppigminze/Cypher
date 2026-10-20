@@ -96,9 +96,7 @@ async def _stream(events: AsyncIterator[Any], conversation_id: str, offer: Optio
             elif isinstance(event, ToolFinished):
                 yield _sse({"type": "tool", "phase": "end", "name": event.name, "summary": event.summary, "success": event.success, "error": event.error})
             elif isinstance(event, ApprovalRequired):
-                yield _sse({"type": "approval", "card": {
-                    "approval_id": event.approval_id, "tool_name": event.tool_name, "arguments": event.arguments,
-                    "summary": event.summary, "risk": event.risk, "expires_in_seconds": event.expires_in_seconds}})
+                yield _sse({"type": "approval", "card": event.card()})
             elif isinstance(event, TurnDone):
                 yield _sse({"type": "reply", "text": event.reply, "metrics": event.metrics})
             elif isinstance(event, TurnFailed):

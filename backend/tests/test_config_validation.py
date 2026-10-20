@@ -49,7 +49,7 @@ def test_defaults_match_m0_benchmark_decisions(fresh_settings):
     s = Settings(_env_file=None)
     assert s.LOCAL_LLM_MODEL == "qwen3.5:9b"
     assert s.LOCAL_LLM_FALLBACK_MODEL == "qwen3.5:4b"
-    assert s.LOCAL_LLM_NUM_CTX == 8192
+    assert s.LOCAL_LLM_NUM_CTX == 12288
     assert s.LOCAL_LLM_THINK is False
     assert s.WHISPER_MODEL_SIZE == "small"
     assert s.WHISPER_LANGUAGE == "de"

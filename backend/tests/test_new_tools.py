@@ -11,8 +11,7 @@ from app import scheduler
 from app.config import get_settings
 from app.core.events import bus
 from app.database.db import Base, engine
-from app.tools import app_tools, clipboard_tools, screen_tools, volume_tools, weather_tools
-from app.tools.app_tools import OpenAppTool, _match_app
+from app.tools import clipboard_tools, screen_tools, volume_tools, weather_tools
 from app.tools.base import RiskTier
 from app.tools.clipboard_tools import ReadClipboardTool, WriteClipboardTool
 from app.tools.context import ToolContext
@@ -145,23 +144,7 @@ def test_clipboard_read_needs_approval_only_in_cloud_mode():
     assert WriteClipboardTool.allow_when_tainted is False
 
 
-# ------------------------------------------------------------------ open_app
-def test_app_name_matching():
-    whitelist = {"rechner": "calc.exe", "taschenrechner": "calc.exe", "spotify": "spotify:", "editor": "notepad.exe"}
-    assert _match_app("Spotify", whitelist) == "spotify"
-    assert _match_app("den Taschenrechner", whitelist) == "taschenrechner"
-    assert _match_app("Word", whitelist) is None
-    assert _match_app("powershell -c rm", whitelist) is None
-
-
-async def test_open_app_only_launches_whitelisted_targets(monkeypatch):
-    launched = []
-    monkeypatch.setattr(app_tools.os, "startfile", lambda target: launched.append(target), raising=False)
-    ok = await OpenAppTool().execute(name="Spotify")
-    assert ok.success and launched == ["spotify:"]
-    refused = await OpenAppTool().execute(name="cmd /c del *")
-    assert refused.success is False and "nicht freigegeben" in refused.error
-    assert launched == ["spotify:"]
+# open_app (Start menu index, FIX2): tests/test_app_tools.py
 
 
 # ------------------------------------------------------------------ weather

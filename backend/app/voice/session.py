@@ -78,7 +78,7 @@ from app.tools import pending_approvals
 from app.voice.protocols import SAMPLE_RATE, SpeechToText, TextToSpeech, WakeWordDetector
 from app.voice.segmenter import Endpointer, SpeechEnd, SpeechPause, SpeechStart
 from app.voice.sleep import match_sleep_command
-from app.voice.yesno import match_yes_no
+from app.voice.yesno import match_critical_confirmation, match_yes_no
 
 logger = logging.getLogger("cypher.voice.session")
 
@@ -87,6 +87,10 @@ MODES = ("wake", "auto", "ptt")
 # in the browser): ignore the mic this long when the follow-up window opens.
 FOLLOWUP_ECHO_TAIL_SECONDS = 0.35
 SLEEP_ACK = "Gut."
+# Critical approvals (FIX2): Whisper is primed for the phrase; a plain "Ja" gets a hint.
+CRITICAL_STT_PROMPT = "Ja, ausführen. Nein, abbrechen."
+CRITICAL_PLAIN_YES_HINT = "Das ist eine kritische Aktion. Ein einfaches Ja reicht nicht. Sag: Ja, ausführen. Oder nein."
+CRITICAL_UNCLEAR_HINT = "Bitte sag: Ja, ausführen. Oder nein."
 # Whisper sometimes "hears" these in near-silence; never treat them as commands.
 _HALLUCINATIONS = re.compile(
     r"^(untertitel.*|vielen dank( fürs zuschauen)?\.?|danke\.?|tschüss\.?|amara\.org.*|\.+|you)$", re.IGNORECASE
@@ -501,6 +505,9 @@ class VoiceSession:
         if approval is None:
             await self._set_state(self._resting_state())
             return
+        if approval.needs_phrase:
+            await self._handle_critical_confirmation(approval, audio)
+            return
         transcript = await self.stt.transcribe(audio)
         if self._is_echo(transcript.text):
             # Our own question ("... Soll ich das machen?") came back through the mic.
@@ -511,6 +518,29 @@ class VoiceSession:
             await self._speak_standalone("Bitte sag ja oder nein.")
             return
         await self._resolve_approval(approval.approval_id, decision, via="voice")
+
+    async def _handle_critical_confirmation(self, approval: ApprovalRequired, audio: np.ndarray) -> None:
+        """Critical action: only "Ja, ausführen" approves (FIX2 3c). No text
+        echo check here - the question itself contains the phrase, so the
+        real answer would look like echo. Instead the mic is muted while the
+        question plays (_mute_for_question), and the phrase must be the whole
+        utterance, so an echo of the full question never matches."""
+        transcript = await self.stt.transcribe(audio, initial_prompt=CRITICAL_STT_PROMPT)
+        decision = match_critical_confirmation(transcript.text)
+        await self._send({"type": "transcript", "text": transcript.text, "turn_id": self.turn_id})
+        if decision is None:
+            plain_yes = match_yes_no(transcript.text) is True
+            await self._speak_standalone(CRITICAL_PLAIN_YES_HINT if plain_yes else CRITICAL_UNCLEAR_HINT)
+            return
+        await self._resolve_approval(approval.approval_id, decision, via="voice")
+
+    def _mute_for_question(self) -> None:
+        """While a critical approval question plays, the mic is ignored."""
+        approval = self._pending_approval
+        if approval is None or not approval.needs_phrase:
+            return
+        self._mute_until = max(self._playback_expected_until, time.monotonic()) + FOLLOWUP_ECHO_TAIL_SECONDS
+        self.endpointer.reset()
 
     # ================================================================ turns
     async def _begin_turn(self, text: str, stt_seconds: Optional[float] = None) -> None:
@@ -564,9 +594,7 @@ class VoiceSession:
                 elif isinstance(event, ApprovalRequired):
                     approval_pending = True
                     self._pending_approval = event
-                    await self._send({"type": "approval", "turn_id": turn, "card": {
-                        "approval_id": event.approval_id, "tool_name": event.tool_name, "arguments": event.arguments,
-                        "summary": event.summary, "risk": event.risk, "expires_in_seconds": event.expires_in_seconds}})
+                    await self._send({"type": "approval", "turn_id": turn, "card": event.card()})
                     await self._sentences.put(event.spoken_prompt)
                 elif isinstance(event, TurnDone):
                     self._turn_metrics.update({f"engine_{k}": v for k, v in event.metrics.items()})
@@ -639,6 +667,7 @@ class VoiceSession:
         if confirming:
             self._listen_deadline = time.monotonic() + max(self.settings.LISTEN_TIMEOUT_SECONDS, 15)
             await self._set_state("confirming")
+            self._mute_for_question()
         elif not self._first_audio_sent:
             await self._set_state(self._resting_state())
         # Otherwise stay "speaking" until the client reports playback_done (or
@@ -646,6 +675,9 @@ class VoiceSession:
 
     async def _on_playback_done(self) -> None:
         self._playback_expected_until = 0.0
+        if self.state == "confirming":
+            self._mute_for_question()  # the real end of playback: short echo tail from now
+            return
         if self.state == "speaking":
             if self._followup_after_playback and await self._open_followup():
                 return
@@ -797,6 +829,7 @@ class VoiceSession:
         await self._send({"type": "audio_end", "turn_id": turn})
         if previous == "confirming":
             await self._set_state("confirming")
+            self._mute_for_question()
 
     async def _reminder_listener(self) -> None:
         async for event in bus.subscribe():

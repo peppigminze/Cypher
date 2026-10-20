@@ -3,6 +3,7 @@ import { ApprovalCard } from "./ApprovalCard";
 import { CoreVisualizer } from "./CoreVisualizer";
 import { HealthBanner } from "./HealthBanner";
 import { HudBar } from "./HudBar";
+import { useCriticalConfirm } from "../hooks/useCriticalConfirm";
 import { useHealth } from "../hooks/useHealth";
 import { useVoiceSession } from "../hooks/useVoiceSession";
 import { bubbleState, type VoiceMode } from "../hooks/voiceReducer";
@@ -39,6 +40,7 @@ function isTyping(target: EventTarget | null): boolean {
 export function CypherVoiceView({ onOpenMenu, menuOpen }: Props) {
   const voice = useVoiceSession();
   const health = useHealth();
+  const [safety] = useCriticalConfirm();
   const { state, input } = voice;
   const [provider, setProvider] = useState<LlmProviderName | null>(null);
   const [text, setText] = useState("");
@@ -83,7 +85,7 @@ export function CypherVoiceView({ onOpenMenu, menuOpen }: Props) {
 
   return (
     <div className={`voice-view voice-view--${look}`}>
-      <HudBar state={state} provider={provider} onOpenMenu={onOpenMenu} />
+      <HudBar state={state} provider={provider} onOpenMenu={onOpenMenu} safety={safety} />
       <HealthBanner health={health} />
 
       <main className="voice-view__stage">

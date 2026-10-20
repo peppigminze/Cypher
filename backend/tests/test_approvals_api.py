@@ -79,5 +79,5 @@ def test_rejected_note_is_not_written_and_reply_is_honest(client, user_headers, 
 
 def test_tools_endpoint_lists_risk_tiers(client, user_headers):
     tools = {t["name"]: t for t in client.get("/api/tools", headers=user_headers).json()["tools"]}
-    assert tools["run_command"]["risk"] == "destructive" and tools["run_command"]["exposed"] is False
+    assert tools["run_command"]["risk"] == "critical" and tools["run_command"]["exposed"] is True
     assert tools["set_volume"]["risk"] == "control"

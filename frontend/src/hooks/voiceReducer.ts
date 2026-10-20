@@ -22,6 +22,28 @@ export interface ApprovalCard {
   risk: string;
   arguments: Record<string, unknown>;
   expiresAt: number;
+  /** Why the classifier rated it so, e.g. "löscht einen ganzen Ordner". */
+  reason: string;
+  /** Why it asks: "critical" | "red_line" | "untrusted" | "write" (backend policy). */
+  kind: string;
+  /** What to say to approve by voice: "Ja, ausführen" for critical actions. */
+  voicePhrase: string;
+}
+
+/** Backend card (snake_case) -> ApprovalCard. Shared by voice and text chat. */
+export function parseApprovalCard(raw: unknown, now: number): ApprovalCard {
+  const card = (raw ?? {}) as Record<string, unknown>;
+  return {
+    approvalId: str(card.approval_id),
+    toolName: str(card.tool_name),
+    summary: str(card.summary),
+    risk: str(card.risk, "write") || "write",
+    arguments: (card.arguments as Record<string, unknown>) ?? {},
+    expiresAt: now + num(card.expires_in_seconds, 300) * 1000,
+    reason: str(card.reason),
+    kind: str(card.kind),
+    voicePhrase: str(card.voice_phrase, "Ja") || "Ja",
+  };
 }
 
 export interface VoiceError {
@@ -173,20 +195,8 @@ function serverReducer(state: VoiceUiState, msg: ServerMessage, now: number): Vo
           success: msg.phase === "end" ? msg.success === true : undefined,
         },
       };
-    case "approval": {
-      const card = (msg.card ?? {}) as Record<string, unknown>;
-      return {
-        ...state,
-        approval: {
-          approvalId: str(card.approval_id),
-          toolName: str(card.tool_name),
-          summary: str(card.summary),
-          risk: str(card.risk, "write"),
-          arguments: (card.arguments as Record<string, unknown>) ?? {},
-          expiresAt: now + num(card.expires_in_seconds, 300) * 1000,
-        },
-      };
-    }
+    case "approval":
+      return { ...state, approval: parseApprovalCard(msg.card, now) };
     case "conversation_reset":
       return { ...state, transcript: "", reply: "", tool: null, approval: null, error: null, notice: null };
     case "approval_resolved":

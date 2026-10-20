@@ -4,15 +4,26 @@ import type { ApprovalCard as Card } from "../hooks/voiceReducer";
 const RISK_LABEL: Record<string, string> = {
   control: "Steuert etwas am PC",
   write: "Speichert oder ändert Daten",
-  destructive: "Nicht rückgängig zu machen",
+  critical: "Kritische Aktion",
+  destructive: "Kritische Aktion",
   cloud: "Verlässt deinen PC",
 };
 
+const KIND_LABEL: Record<string, string> = {
+  red_line: "Rote Linie - fragt immer, auch wenn die Sicherheitsabfrage aus ist",
+  untrusted: "Der Auftrag stammt (auch) aus fremdem Inhalt (Webseite, Datei, Zwischenablage)",
+};
+
+function argumentText(value: unknown): string {
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+
 /**
- * "Soll ich das machen?" - shown when a tool needs the user's approval
- * (risk tier write/destructive, see backend app/tools/base.py). Used by the
- * voice view and the text chat; the summary comes from the tool itself and
- * names exactly what would happen.
+ * "Soll ich das machen?" - shown when a tool call needs the user's approval
+ * (backend app/security/policy.py). Shows the tool, the EXACT arguments
+ * (e.g. the PowerShell command), the risk tier and why it was rated so.
+ * Critical actions: by voice only "Ja, ausführen" counts (shown as a hint).
+ * Used by the voice view and the text chat, on the PC and the phone.
  */
 export function ApprovalCard({
   card,
@@ -31,9 +42,11 @@ export function ApprovalCard({
   const seconds = Math.max(0, Math.round((card.expiresAt - now) / 1000));
   const titleId = `approval-title-${card.approvalId}`;
   const summaryId = `approval-summary-${card.approvalId}`;
+  const critical = card.risk === "critical" || card.risk === "destructive";
+  const args = Object.entries(card.arguments ?? {});
   return (
     <section
-      className={`voice-view__confirm voice-view__confirm--${card.risk}`}
+      className={`voice-view__confirm voice-view__confirm--${critical ? "critical" : card.risk}`}
       role="alertdialog"
       aria-labelledby={titleId}
       aria-describedby={summaryId}
@@ -44,6 +57,23 @@ export function ApprovalCard({
       <p id={summaryId} className="voice-view__confirm-summary">
         {card.summary || card.toolName}
       </p>
+      {card.reason && <p className="voice-view__confirm-reason">Grund: {card.reason}</p>}
+      {KIND_LABEL[card.kind] && <p className="voice-view__confirm-reason">{KIND_LABEL[card.kind]}</p>}
+      {args.length > 0 && (
+        <details className="voice-view__confirm-details" open={critical}>
+          <summary>Werkzeug {card.toolName} - genaue Argumente</summary>
+          <dl>
+            {args.map(([key, value]) => (
+              <div key={key}>
+                <dt>{key}</dt>
+                <dd>
+                  <code>{argumentText(value)}</code>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </details>
+      )}
       <div className="voice-view__confirm-actions">
         <button
           type="button"
@@ -52,7 +82,8 @@ export function ApprovalCard({
           disabled={seconds === 0}
           onClick={() => onDecide(true)}
         >
-          Ja{showKeys && <kbd>J</kbd>}
+          {critical ? "Ausführen" : "Ja"}
+          {showKeys && <kbd>J</kbd>}
         </button>
         <button
           type="button"
@@ -63,6 +94,9 @@ export function ApprovalCard({
           Nein{showKeys && <kbd>N</kbd>}
         </button>
       </div>
+      {critical && card.voicePhrase !== "Ja" && (
+        <p className="voice-view__confirm-voice">Per Sprache: „{card.voicePhrase}“ - ein einfaches „Ja“ reicht nicht.</p>
+      )}
       <p className="voice-view__confirm-expiry">{seconds > 0 ? `Läuft in ${seconds} s ab` : "Abgelaufen - sag es einfach nochmal."}</p>
     </section>
   );

@@ -21,6 +21,8 @@ pycaw>=20240316; sys_platform == "win32"
 winrt-Windows.Media.Control>=3.0; sys_platform == "win32"
 winrt-Windows.Foundation>=3.0; sys_platform == "win32"
 winrt-Windows.Foundation.Collections>=3.0; sys_platform == "win32"
+# Deleting files = recycle bin, never permanent (FIX2 file_op) - BSD-3-Clause
+send2trash>=2.1,<3
 
 # Cloud LLM (OpenAI Responses API, optional - only used when CLOUD_LLM_ENABLED=true)
 openai>=3.26,<4

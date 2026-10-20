@@ -3,6 +3,8 @@ import { getAudit, type AuditEntry } from "../../services/api";
 
 const DECISION_LABEL: Record<string, string> = {
   auto: "ausgeführt",
+  auto_unconfirmed: "ausgeführt - Abfrage war aus",
+  setting_changed: "Einstellung geändert",
   approved: "bestätigt + ausgeführt",
   approval_requested: "Freigabe gefragt",
   rejected: "abgelehnt",
@@ -18,6 +20,7 @@ const DECISION_LABEL: Record<string, string> = {
 const FILTERS: { id: string; label: string; match: (e: AuditEntry) => boolean }[] = [
   { id: "all", label: "Alle", match: () => true },
   { id: "approvals", label: "Freigaben", match: (e) => ["approval_requested", "approved", "rejected", "expired"].includes(e.decision) },
+  { id: "unconfirmed", label: "Abfrage aus", match: (e) => ["auto_unconfirmed", "setting_changed"].includes(e.decision) },
   {
     id: "refused",
     label: "Verweigert",

@@ -100,6 +100,14 @@
 .hud__item--warn {
   color: var(--danger);
 }
+.hud__item--danger {
+  color: var(--danger);
+  font-weight: 700;
+  border: 1px solid rgba(255, 84, 112, 0.6);
+  border-radius: 4px;
+  padding: 0 6px;
+  background: rgba(255, 84, 112, 0.12);
+}
 .hud__menu {
   display: grid;
   place-items: center;
@@ -255,12 +263,52 @@
   text-transform: uppercase;
   color: var(--amber);
 }
-.voice-view__confirm--destructive {
+.voice-view__confirm--destructive,
+.voice-view__confirm--critical {
   border-color: rgba(255, 84, 112, 0.5);
   background: rgba(255, 84, 112, 0.1);
 }
-.voice-view__confirm--destructive .voice-view__confirm-risk {
+.voice-view__confirm--destructive .voice-view__confirm-risk,
+.voice-view__confirm--critical .voice-view__confirm-risk {
   color: var(--danger);
+}
+.voice-view__confirm-reason,
+.voice-view__confirm-voice {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-dim, var(--text));
+}
+.voice-view__confirm-voice {
+  font-weight: 600;
+  color: var(--danger);
+}
+.voice-view__confirm-details {
+  font-size: 12px;
+  color: var(--text-dim, var(--text));
+}
+.voice-view__confirm-details summary {
+  cursor: pointer;
+}
+.voice-view__confirm-details dl {
+  margin: 6px 0 0;
+  display: grid;
+  gap: 4px;
+}
+.voice-view__confirm-details dt {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  opacity: 0.7;
+}
+.voice-view__confirm-details dd {
+  margin: 0;
+}
+.voice-view__confirm-details code {
+  display: block;
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 9em;
+  overflow: auto;
 }
 .voice-view__confirm--cloud {
   border-color: rgba(124, 92, 255, 0.55);

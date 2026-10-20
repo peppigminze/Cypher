@@ -42,7 +42,13 @@ _ACTION_REQUEST = re.compile(
     r"stell\w*|dreh\w*|brich\w*|abbrechen|"
     # found by the M5 suite: "Gib mir in 90 Sekunden Bescheid", "Ruf die
     # Seite ... ab", "Mach mir den Editor auf"
-    r"bescheid|ruf\w*\s.*\sab|mach\w*\s+(mir\s+)?(den|die|das)\s+\w+\s+(auf|an|zu)"
+    r"bescheid|ruf\w*\s.*\sab|mach\w*\s+(mir\s+)?(den|die|das)\s+\w+\s+(auf|an|zu)|"
+    # PC control (FIX2)
+    r"lösch\w*|beend\w*|schließ\w*|schliess\w*|minimier\w*|maximier\w*|sperr\w*|herunterfahr\w*|fahr\w*\s.*\s(herunter|runter)|"
+    r"neu\s*start\w*|installier\w*|deinstallier\w*|verschieb\w*|umbenenn\w*|benenn\w*|erstell\w*|leg\w*\s.*\san|"
+    r"screenshot|bildschirmfoto|helligkeit|heller|dunkler|tipp\w*|drück\w*|klick\w*|scroll\w*|führ\w*\s.*\saus|"
+    r"papierkorb|hol\w*\s.*\s(vor|nach\s+vorne)|wechsel\w*\s+zu|"
+    r"zeig\w*\s+(mir\s+)?(die|den|alle|meine)?\s*(fenster|prozesse|programme|dateien|ordner)"
     r")\b",
     re.IGNORECASE,
 )
@@ -57,10 +63,13 @@ _CLAIM = re.compile(
     r"pausiert|angehalten|gestoppt|fortgesetzt|übersprungen|abgebrochen|"
     r"leiser|lauter|stumm|reduziert|erhöht|gesenkt|\w*gedreht|"
     r"kopiert|eingefügt|geöffnet|geschlossen|"
-    r"gefunden|nachgesehen|nachgeschaut|geprüft|überprüft|gelöscht|entfernt|erledigt|gemacht|ausgeführt|mach\s+ich"
+    r"gefunden|nachgesehen|nachgeschaut|geprüft|überprüft|gelöscht|entfernt|erledigt|gemacht|ausgeführt|mach\s+ich|"
+    r"beendet|minimiert|maximiert|gesperrt|heruntergefahren|neu\s*gestartet|installiert|deinstalliert|verschoben|umbenannt|"
+    r"erstellt|angelegt|getippt|geklickt|gescrollt|aufgenommen|papierkorb|ausgeschaltet|eingeschaltet"
     r")\b"
     # announcing instead of doing: "Ich stelle die Lautstärke runter."
-    r"|\bich\s+(stelle?|schalte?|mache?|setze?|starte?|öffne|kopiere?|speichere?|notiere?|pausiere?|drehe?|merke?|suche?|schaue?|prüfe?)\b",
+    r"|\bich\s+(stelle?|schalte?|mache?|setze?|starte?|öffne|kopiere?|speichere?|notiere?|pausiere?|drehe?|merke?|suche?|schaue?|prüfe?"
+    r"|beende|schließe|lösche|verschiebe|installiere|sperre|fahre|tippe|klicke|minimiere|maximiere|erstelle|lege)\b",
     re.IGNORECASE,
 )
 _MAX_CLAIM_CHARS = 200
@@ -80,6 +89,13 @@ _OBVIOUS_TOOL = (
     (re.compile(r"\bnotiz\w*|\bnotier\w*|\bschreib\w*\s+(dir|mir)?\s*\w*\s*auf\b", re.IGNORECASE), "save_note"),
     (re.compile(r"\btimer\b.*\b(ab|abbrechen|stopp\w*|lösch\w*)\b|\b(brich|stopp\w*|lösch\w*)\b.*\btimer\b", re.IGNORECASE), "cancel_timer"),
     (re.compile(r"\bzu\s+(laut|leise)\b", re.IGNORECASE), "set_volume"),
+    # PC control (FIX2)
+    (re.compile(r"\bscreenshot\b|\bbildschirmfoto\b", re.IGNORECASE), "screenshot"),
+    (re.compile(r"\bfahr\w*\s.*\s(herunter|runter)\b|\bherunterfahr\w*|\bneu\s*start\w*|\bsperr\w*\s.*\b(pc|computer|bildschirm)\b|\benergiesparmodus\b", re.IGNORECASE), "power"),
+    (re.compile(r"\bhelligkeit\b|\b(heller|dunkler)\b", re.IGNORECASE), "set_brightness"),
+    (re.compile(r"\b(de)?installier\w*", re.IGNORECASE), "software"),
+    (re.compile(r"\bpapierkorb\b|\b(umbenenn|verschieb)\w*", re.IGNORECASE), "file_op"),
+    (re.compile(r"\b(minimier|maximier)\w*", re.IGNORECASE), "windows"),
 )
 
 
@@ -110,7 +126,8 @@ LOOKUP_HINT = (
 _LOOKUP_TOPIC = re.compile(
     r"\b(lautstärke|wie\s+laut|läuft|spielt|lied|song|titel|timer|wecker|erinnerung\w*|zwischenablage|"
     r"wetter|regn\w*|regen|schirm|schnee|temperatur|grad|auslastung|ausgelastet|arbeitsspeicher|ram|cpu|"
-    r"notiz\w*|notiert|bildschirm)\b",
+    r"notiz\w*|notiert|bildschirm|wlan|netzwerk|internet|verbunden|ip-adresse|prozess\w*|fenster|programm\w*|"
+    r"installiert|helligkeit|speicherplatz|festplatte)\b",
     re.IGNORECASE,
 )
 _LOOKUP_NOW = re.compile(r"\b(gerade|aktuell|jetzt|momentan|heute|morgen|noch|mein\w*|eingestellt|draussen|draußen)\b", re.IGNORECASE)

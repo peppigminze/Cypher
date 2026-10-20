@@ -1,16 +1,10 @@
 """
 Local file search (Phase 6) - find_files.
 
-Deliberately a distinct tool/name from app/tools/file_tools.py's
-SearchFilesTool: that one is scoped to ALLOWED_DIRECTORIES (the same
-read/write sandbox as read_file/write_file, empty and opt-in by
-default) and both tools would otherwise collide on the "search_files"
-name in the shared registry (app/tools/defaults.py - ToolRegistry
-rejects registering two tools under the same name). find_files instead
-searches its own configured SEARCH_DIRECTORIES (app/config.py) and
-never touches file content, only path/filename/modified-date - lower
-risk, so it defaults to something useful (the user's home directory)
-instead of being opt-in-only.
+Searches SEARCH_DIRECTORIES (default: the user's home directory) or,
+since FIX2, any local folder or drive given as `folder` (rated by
+app/security/classifier.py - credential folders stay critical). It never
+touches file content, only path/filename/modified-date.
 
 Windows Search Index integration (COM via pywin32) was considered per
 the Phase 6 spec ("nutze den vorhandenen Windows-Suchindex falls
@@ -32,6 +26,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.security.classifier import classify_path, resolve_path, verdict
 from app.tools.base import RiskTier, Tool, ToolResult, register_tool
 
 # Hard cap on how many files the walk will even inspect, independent of
@@ -65,6 +60,7 @@ class FindFilesTool(Tool):
         "type": "object",
         "properties": {
             "query": {"type": "string"},
+            "folder": {"type": "string", "description": "Ordner oder Laufwerk, z. B. D: (Standard: Benutzerordner)"},
             "max_results": {"type": "integer"},
         },
         "required": ["query"],
@@ -74,7 +70,12 @@ class FindFilesTool(Tool):
     exposed_by_default = True
     spoken_progress = "Ich suche."
 
-    async def execute(self, db: Session | None = None, query: str = "", max_results: int = 10, **_) -> ToolResult:
+    def classify(self, args, ctx=None):
+        # Any local folder or drive (FIX2); credential folders etc. stay critical.
+        folder = (args.get("folder") or "").strip()
+        return classify_path(folder, "list") if folder else verdict(RiskTier.SAFE)
+
+    async def execute(self, db: Session | None = None, query: str = "", max_results: int = 10, folder: str | None = None, **_) -> ToolResult:
         query = query.strip()
         if not query:
             return ToolResult(success=False, error="'query' must not be empty.")
@@ -85,7 +86,7 @@ class FindFilesTool(Tool):
         except (TypeError, ValueError):
             return ToolResult(success=False, error=f"'max_results' must be a number, got {max_results!r}.")
 
-        roots = [Path(d) for d in settings.search_directories_list]
+        roots = [Path(resolve_path(folder))] if folder and folder.strip() else [Path(d) for d in settings.search_directories_list]
 
         try:
             matches, warnings = await asyncio.to_thread(self._walk, roots, query.lower(), limit)

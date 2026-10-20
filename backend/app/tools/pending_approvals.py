@@ -48,6 +48,8 @@ class PendingApproval:
     conversation_id: Optional[str] = None
     user_message: str = ""
     tainted: bool = False
+    reason: str = ""  # classifier reason (shown on the card)
+    kind: str = ""  # policy: "critical" | "red_line" | "untrusted" | "write"
     created_at: float = field(default_factory=time.monotonic)
     created_wall: float = field(default_factory=time.time)
 
@@ -62,6 +64,9 @@ class PendingApproval:
             "arguments": self.arguments,
             "risk": self.risk,
             "summary": self.summary,
+            "reason": self.reason,
+            "kind": self.kind,
+            "voice_phrase": "Ja, ausführen" if self.kind in ("critical", "red_line") else "Ja",
             "expires_in_seconds": int(self.expires_in),
             "created_at": self.created_wall,
             "conversation_id": self.conversation_id,
@@ -100,6 +105,8 @@ def create(
     conversation_id: Optional[str] = None,
     user_message: str = "",
     tainted: bool = False,
+    reason: str = "",
+    kind: str = "",
 ) -> str:
     approval_id = uuid.uuid4().hex
     entry = PendingApproval(
@@ -118,6 +125,8 @@ def create(
         conversation_id=conversation_id,
         user_message=user_message,
         tainted=tainted,
+        reason=reason,
+        kind=kind,
     )
     with _lock:
         _evict_expired()

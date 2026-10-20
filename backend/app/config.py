@@ -69,7 +69,9 @@ class Settings(BaseSettings):
     # Context window sent with every request. Ollama's own default is
     # derived from free VRAM (4096 here), which silently truncates long
     # prompts - so Cypher always sets it explicitly. See docs/overhaul/AUDIT.md H2.
-    LOCAL_LLM_NUM_CTX: int = Field(8192, ge=2048, le=131072)
+    # 12288 since FIX2: the PC-control tools need ~1500 more tokens; measured
+    # +0.14 GB VRAM and no extra latency (docs/overhaul/FIX2-report.md).
+    LOCAL_LLM_NUM_CTX: int = Field(12288, ge=2048, le=131072)
     # How long Ollama keeps the model in VRAM after the last request.
     # Ollama's default (5m) caused 7-14 s cold starts after short pauses (AUDIT K2).
     LOCAL_LLM_KEEP_ALIVE: str = "30m"
@@ -105,8 +107,13 @@ class Settings(BaseSettings):
     AGENT_TOKEN: str = "change-me-agent-token"
 
     # --- PC control tools -----------------------------------------------
+    # Sandbox for the git tools only (FIX2: file tools work on all drives,
+    # rated by app/security/classifier.py).
     ALLOWED_DIRECTORIES: str = ""
     TERMINAL_TIMEOUT_SECONDS: float = Field(30.0, gt=0, le=600)
+    # "Rote Linie" (FIX2): critical actions in these categories ALWAYS ask,
+    # even with the safety prompt switched off in the menu. Empty = none.
+    CRITICAL_RED_LINE: str = "format,system_folders,boot,defender_firewall,cypher_secrets"
     SEARCH_DIRECTORIES: str = ""
     SEARCH_MAX_RESULTS: int = Field(50, ge=1, le=1000)
 
@@ -122,8 +129,9 @@ class Settings(BaseSettings):
     WEB_SEARCH_MAX_RESULTS: int = Field(5, ge=1, le=20)
     # Characters of page text handed to the LLM (the context window is small).
     FETCH_MAX_CHARS: int = Field(6000, ge=500, le=100_000)
-    # Apps open_app may start: name=target pairs. Target is an .exe name/path,
-    # a URI (spotify:, ms-settings:) or a URL. Nothing else can be launched.
+    # Short names for open_app: name=target pairs (target: .exe, URI or URL).
+    # Since FIX2 NOT a whitelist any more - open_app starts every installed
+    # app from the Start menu; these names just win over the index.
     APP_WHITELIST: str = (
         "rechner=calc.exe,taschenrechner=calc.exe,editor=notepad.exe,notepad=notepad.exe,"
         "explorer=explorer.exe,spotify=spotify:,browser=https://duckduckgo.com,einstellungen=ms-settings:"

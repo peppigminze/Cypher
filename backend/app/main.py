@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -93,6 +94,13 @@ async def lifespan(app: FastAPI):
     if pruned:
         logger.info("Deleted %d conversation histories older than %d days.", pruned, settings.CONVERSATION_KEEP_DAYS)
 
+    from app.pc import app_index, elevation, powershell  # noqa: PLC0415
+
+    if elevation.is_elevated():
+        logger.warning("SECURITY: Cypher runs with administrator rights. It is meant to run as a normal user - run_command refuses until restarted normally.")
+    if sys.platform == "win32":
+        app_index.warm_up()  # Start menu index for open_app (about 1 s, in the background)
+
     runtime = Runtime(settings)
     set_runtime(runtime)
     await runtime.start()
@@ -107,6 +115,7 @@ async def lifespan(app: FastAPI):
         except (asyncio.CancelledError, Exception):  # noqa: BLE001 - shutting down
             pass
         await runtime.stop()
+        powershell.stop_all()  # background commands do not outlive Cypher
         set_runtime(None)
         conversations.flush()
 

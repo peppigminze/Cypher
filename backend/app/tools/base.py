@@ -13,20 +13,23 @@ one class - no list to maintain elsewhere. Execution ALWAYS goes through
 app/tools/executor.py, which validates arguments, enforces the risk tier,
 applies timeouts and writes the audit log.
 
-Risk tiers (enforced by the executor, not by politeness of the LLM):
-    read_only    no side effects                       -> runs automatically
-    control      harmless, instantly reversible PC     -> runs automatically
-                 control (volume, media keys, timer,
-                 whitelisted app start, clipboard write)
-    write        creates/changes data (note, file,     -> needs the user's approval
-                 memory entry)
-    destructive  overwrites/deletes, arbitrary         -> approval + warning
-                 commands, git push
-    blocked      never runs
+Risk tiers (FIX2; enforced by the executor, never by the LLM):
+    safe       no side effects (reading, listing)          -> runs
+    control    harmless, reversible PC control (volume,    -> runs
+               media keys, starting an app, a window)
+    write      creates/changes data (note, file in your    -> PC tools: runs;
+               profile -> recycle bin, ending an app)         notes/memory: asks
+    critical   see app/security/classifier.py: permanent    -> asks while the
+               delete, system changes, installs, shutdown,     "Sicherheitsabfrage"
+               credentials, unknown commands ...               is on (default)
+    blocked    never runs (e.g. self-elevation)
 
-`control` exists because "mach leiser" must act immediately - asking
-"Bist du sicher?" before every volume change would make the assistant
-unusable. It is still fully audited.
+Whether a call asks is decided by app/security/policy.py (red line and
+untrusted content ask always). PC-control tools rate every call with the
+deterministic classifier (Tool.classify); `confirm_writes = False` lets
+their write-level calls run directly. `control` exists because "mach
+leiser" must act immediately. Everything is audited. The old names
+READ_ONLY/DESTRUCTIVE are aliases of SAFE/CRITICAL.
 
 Legacy: the older `security` attribute (SAFE / CONFIRM_REQUIRED /
 BLOCKED) is kept in sync with `risk` so the old pipeline keeps working
@@ -43,6 +46,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Dict, Literal, Optional, Tuple,
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, create_model
 
 if TYPE_CHECKING:
+    from app.security.classifier import Verdict
     from app.tools.context import ToolContext
 
 
@@ -53,23 +57,39 @@ class ToolSecurity(str, enum.Enum):
 
 
 class RiskTier(str, enum.Enum):
-    READ_ONLY = "read_only"
+    """safe < control < write < critical (FIX2). Whether a call needs the
+    user's approval is decided by app/security/policy.py, not by the tier alone."""
+
+    SAFE = "safe"
     CONTROL = "control"
     WRITE = "write"
-    DESTRUCTIVE = "destructive"
+    CRITICAL = "critical"
     BLOCKED = "blocked"
+    # Names used until FIX2 - the same members, so old code keeps working.
+    READ_ONLY = "safe"
+    DESTRUCTIVE = "critical"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "RiskTier | None":
+        # Values stored before FIX2 (audit log, pending approvals).
+        return {"read_only": cls.SAFE, "destructive": cls.CRITICAL}.get(str(value))
+
+    @property
+    def rank(self) -> int:
+        return {RiskTier.SAFE: 0, RiskTier.CONTROL: 1, RiskTier.WRITE: 2, RiskTier.CRITICAL: 3, RiskTier.BLOCKED: 4}[self]
 
     @property
     def needs_approval(self) -> bool:
-        return self in (RiskTier.WRITE, RiskTier.DESTRUCTIVE)
+        """Legacy default (write and critical); the real rule is policy.approval_needed()."""
+        return self in (RiskTier.WRITE, RiskTier.CRITICAL)
 
     @property
     def label_de(self) -> str:
         return {
-            RiskTier.READ_ONLY: "nur lesen",
+            RiskTier.SAFE: "nur lesen",
             RiskTier.CONTROL: "steuern",
-            RiskTier.WRITE: "schreiben",
-            RiskTier.DESTRUCTIVE: "verändert/löscht Daten",
+            RiskTier.WRITE: "ändert etwas",
+            RiskTier.CRITICAL: "kritisch",
             RiskTier.BLOCKED: "gesperrt",
         }[self]
 
@@ -188,6 +208,11 @@ class Tool(ABC):
     # Short sentence spoken while a slow tool runs ("Ich schaue nach."), so
     # voice users don't sit in silence for seconds. None for fast tools.
     spoken_progress: ClassVar[Optional[str]] = None
+    # write-level calls ask for approval (notes, forgetting memories ...).
+    # PC-control tools (FIX2) set False: only critical actions ask there.
+    confirm_writes: ClassVar[bool] = True
+    # UI automation that may break with app updates (FIX2: marked, last resort).
+    fragile: ClassVar[bool] = False
 
     _args_model_cache: ClassVar[Optional[Type[BaseModel]]] = None
 
@@ -244,6 +269,13 @@ class Tool(ABC):
         arguments and dangerous for others (e.g. writing a new file vs.
         overwriting one)."""
         return self.base_risk()
+
+    def classify(self, args: Dict[str, Any], ctx: Optional["ToolContext"] = None) -> "Verdict":
+        """Risk with reasons and categories. PC-control tools override this
+        with the deterministic classifier (app/security/classifier.py)."""
+        from app.security.classifier import verdict  # noqa: PLC0415
+
+        return verdict(self.risk_for(args, ctx))
 
     def describe(self, args: Dict[str, Any]) -> str:
         """One German line for the approval card / audit log."""

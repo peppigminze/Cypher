@@ -19,6 +19,9 @@ export function caption(state: VoiceUiState): string {
     case "speaking":
       return "Tippen zum Unterbrechen";
     case "confirming":
+      // Critical actions: a plain "ja" is not enough (backend app/voice/yesno.py).
+      if (state.approval && state.approval.voicePhrase !== "Ja")
+        return `Sag „${state.approval.voicePhrase}“ oder „nein“ - oder tippe unten.`;
       return "Sag „ja“ oder „nein“ - oder tippe unten.";
     default:
       return "Tippen zum Sprechen";

@@ -82,7 +82,7 @@ def test_diagnostics_requires_token(client):
 def test_diagnostics_contains_details_latency_and_config(client, user_headers, fake_runtime):
     body = client.get("/api/diagnostics", headers=user_headers).json()
     assert body["component_details"]["llm_model"]["model"] == "qwen3.5:9b"
-    assert body["config"]["num_ctx"] == 8192
+    assert body["config"]["num_ctx"] == 12288
     assert "latency" in body
     assert "USER_TOKEN" not in json.dumps(body)
 

@@ -158,7 +158,7 @@ flowchart LR
 ## 6. LLM-Schicht
 
 - `llm/base.py`: `LLMProvider` mit `stream_chat()` (Text, Tool-Aufrufe, Nutzung, Zeiten). `llm/ollama.py` spricht Ollamas native API. `llm/cloud_provider.py` nutzt das offizielle `openai`-SDK (Responses API, Reasoning-Items werden für Folgeaufrufe mitgegeben).
-- `llm/model_manager.py`: Warm-up mit genau den Optionen der echten Anfragen (`num_ctx` 8192, `keep_alive` 30 min). **Ein-Modell-Politik:** Andere geladene Modelle werden entladen, damit nichts in den geteilten Speicher rutscht. Status für `/api/health` (geladen, % GPU). Kommt Ollama zurück, wird automatisch neu aufgewärmt, ohne Neustart.
+- `llm/model_manager.py`: Warm-up mit genau den Optionen der echten Anfragen (`num_ctx` 12288, `keep_alive` 30 min). **Ein-Modell-Politik:** Andere geladene Modelle werden entladen, damit nichts in den geteilten Speicher rutscht. Status für `/api/health` (geladen, % GPU). Kommt Ollama zurück, wird automatisch neu aufgewärmt, ohne Neustart.
 - **Prompt-Cache:** qwen3.5 ist ein Hybridmodell. Ollama kann den Cache nur an Checkpoints fortsetzen. Ein neues Gespräch verarbeitet ~1000 Tokens neu (~0,3–0,6 s), ab dem zweiten Turn kommt fast alles aus dem Cache.
 - **Fehler** (`core/errors.py`): Jeder Fehler hat einen Code, eine deutsche Meldung und einen Hinweis, was zu tun ist („Ollama läuft nicht … Starte Ollama, Cypher verbindet sich danach automatisch neu“). Die Stimme spricht nur die Meldung, der Hinweis steht auf dem Bildschirm.
 

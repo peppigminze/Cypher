@@ -40,7 +40,7 @@ describe("chatReducer", () => {
     ]);
     const last = paused.turns[1];
     expect(last.tools).toEqual([{ name: "get_weather", summary: "Wetter", running: false, success: true }]);
-    expect(last.approval).toMatchObject({ approvalId: "a1", expiresAt: 61000 });
+    expect(last.approval).toMatchObject({ approvalId: "a1", expiresAt: 61000, voicePhrase: "Ja", reason: "" });
     const resumed = run([{ type: "resume" }, ev({ type: "reply", text: "Notiz gespeichert." }), { type: "finished" }], paused);
     expect(resumed.turns).toHaveLength(2);
     expect(resumed.turns[1].approval).toBeNull();

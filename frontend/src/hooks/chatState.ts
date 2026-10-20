@@ -3,7 +3,7 @@
  * the stream events of /api/chat are applied to the last assistant turn.
  */
 import type { ChatEvent } from "../services/chatStream";
-import type { ApprovalCard } from "./voiceReducer";
+import { parseApprovalCard, type ApprovalCard } from "./voiceReducer";
 
 export interface ToolChip {
   name: string;
@@ -96,21 +96,8 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
                 : [...t.tools, chip];
             return { ...t, tools };
           });
-        case "approval": {
-          const card = (e.card ?? {}) as Record<string, unknown>;
-          return updateLast(state, (t) => ({
-            ...t,
-            streaming: false,
-            approval: {
-              approvalId: str(card.approval_id),
-              toolName: str(card.tool_name),
-              summary: str(card.summary),
-              risk: str(card.risk) || "write",
-              arguments: (card.arguments as Record<string, unknown>) ?? {},
-              expiresAt: action.now + (typeof card.expires_in_seconds === "number" ? card.expires_in_seconds : 300) * 1000,
-            },
-          }));
-        }
+        case "approval":
+          return updateLast(state, (t) => ({ ...t, streaming: false, approval: parseApprovalCard(e.card, action.now) }));
         case "error":
           return updateLast(state, (t) => ({
             ...t,

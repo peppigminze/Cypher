@@ -2,8 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import platform
+import re
 import shutil
+import socket
+import subprocess
+import sys
 from datetime import datetime, timezone
+from typing import Any, Dict
 
 import psutil
 from sqlalchemy.orm import Session
@@ -176,14 +181,48 @@ class GetSystemInfoTool(Tool):
         )
 
 
+def _decode(raw: bytes) -> str:
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw.decode("oem" if sys.platform == "win32" else "latin-1", errors="replace")
+
+
+def wlan_info() -> Dict[str, Any]:
+    """WLAN state from `netsh wlan show interfaces` (labels are the same in German and English)."""
+    if sys.platform != "win32":
+        return {}
+    try:
+        proc = subprocess.run(["netsh", "wlan", "show", "interfaces"], capture_output=True, timeout=10, creationflags=0x08000000)
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    text = _decode(proc.stdout)
+    info: Dict[str, Any] = {}
+    for key, pattern in (("ssid", r"^\s*SSID\s*:\s*(.+)$"), ("signal", r"^\s*Signal\s*:\s*(.+)$"), ("state", r"^\s*(?:Status|State)\s*:\s*(.+)$")):
+        match = re.search(pattern, text, re.MULTILINE)
+        if match:
+            info[key] = match.group(1).strip()
+    return info
+
+
 @register_tool
 class NetworkStatusTool(Tool):
     name = "network_status"
-    description = "List which network interfaces are currently up."
+    description = "Netzwerk- und WLAN-Status: aktive Verbindungen, IP-Adressen, WLAN-Name und Signal."
     parameters = {"type": "object", "properties": {}}
     risk = RiskTier.READ_ONLY
+    exposed_by_default = True
 
     async def execute(self, db: Session | None = None, **_) -> ToolResult:
         stats = psutil.net_if_stats()
-        interfaces = [{"name": name, "is_up": s.isup} for name, s in stats.items()]
-        return ToolResult(success=True, data={"interfaces": interfaces})
+        addrs = psutil.net_if_addrs()
+        interfaces = []
+        for name, stat in stats.items():
+            ipv4 = [a.address for a in addrs.get(name, []) if a.family == socket.AF_INET and not a.address.startswith("127.")]
+            if stat.isup and ipv4:
+                interfaces.append({"name": name, "ipv4": ipv4, "mbit": stat.speed or None})
+        data: Dict[str, Any] = {"connected": bool(interfaces), "interfaces": interfaces}
+        wlan = await asyncio.to_thread(wlan_info)
+        if wlan:
+            data["wlan"] = wlan
+        return ToolResult(success=True, data=data)
