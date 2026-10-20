@@ -12,7 +12,7 @@ import enum
 import json
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.db import Base, ensure_columns
@@ -346,6 +346,94 @@ class Project(Base):
         self.technologies_json = json.dumps(value or [])
 
 
+class RuntimeSetting(Base):
+    """Generic key/value store for settings that must be changeable at
+    runtime (via an API call) and survive a restart - unlike
+    app/config.py's Settings, which are static, read once from .env at
+    process start. First (and so far only) user: the native
+    tool-calling pipeline's active LLM provider ("local" | "cloud")
+    toggle (Phase 7, see app/settings_store.py). A new table - no
+    migration risk."""
+
+    __tablename__ = "runtime_settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class TokenUsageDaily(Base):
+    """Cumulative daily token usage per provider/model (Phase 7) - one
+    row per (date, provider, model), incremented after every LLM call
+    the native tool-calling pipeline makes that reports usage (see
+    app/settings_store.py.record_token_usage). `date` is a UTC calendar
+    day string ("YYYY-MM-DD"), not a DateTime column, so "today" and
+    "this month" are plain string comparisons (GET /api/usage) instead
+    of timezone-aware range math. A new table - no migration risk."""
+
+    __tablename__ = "token_usage_daily"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    date: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(16), nullable=False)
+    model: Mapped[str] = mapped_column(String(128), nullable=False)
+    prompt_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    completion_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    request_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # M5 (additive migration, see run_migrations): prompt tokens served from
+    # the provider's cache, and the cost in USD (cloud only, app/llm/pricing.py).
+    cached_prompt_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    cost_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.0, server_default="0")
+
+    __table_args__ = (UniqueConstraint("date", "provider", "model", name="uq_token_usage_daily"),)
+
+
+class ConversationHistory(Base):
+    """Recent messages of one conversation (M4), so a conversation survives
+    a backend restart or a reconnecting voice client. One row per
+    conversation with the last messages as JSON (rewritten on every turn -
+    simple, and the interrupted-answer correction just overwrites it).
+    Pruned after CONVERSATION_KEEP_DAYS. A new table - no migration risk."""
+
+    __tablename__ = "conversation_history"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    messages_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    message_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class ToolAuditEntry(Base):
+    """One row per tool-call decision (M2): every automatic run, every
+    approval request, approval, rejection, expiry and refusal. Never
+    deleted automatically - this is the record of what Cypher did (or was
+    stopped from doing) on this PC. A new table - no migration risk."""
+
+    __tablename__ = "tool_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    pipeline_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    conversation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    provider: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    tool: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    risk: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # auto | approval_requested | approved | rejected | expired | blocked |
+    # invalid | unknown_tool | needs_approval | tainted_blocked | error
+    decision: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    approval_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    arguments_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    success: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    result_preview: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 def run_migrations() -> None:
     """Additive, idempotent column migrations for tables that predate a
     field (see ensure_columns() in app/database/db.py). Called from
@@ -365,6 +453,10 @@ def run_migrations() -> None:
             "recurrence": f"VARCHAR(16) NOT NULL DEFAULT '{DEFAULT_RECURRENCE}'",
             "last_notified_at": "DATETIME",
         },
+    )
+    ensure_columns(
+        "token_usage_daily",
+        {"cached_prompt_tokens": "INTEGER NOT NULL DEFAULT 0", "cost_usd": "REAL NOT NULL DEFAULT 0"},
     )
     ensure_columns(
         "messages",

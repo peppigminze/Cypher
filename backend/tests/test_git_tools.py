@@ -22,10 +22,11 @@ from app.tools.git_tools import (
 
 
 @pytest.fixture()
-def sandbox(tmp_path, monkeypatch):
-    monkeypatch.setenv("ALLOWED_DIRECTORIES", str(tmp_path))
+def sandbox(outside_tmp, monkeypatch):
+    # outside any git repository, so "not a git directory" really holds
+    monkeypatch.setenv("ALLOWED_DIRECTORIES", str(outside_tmp))
     get_settings.cache_clear()
-    yield tmp_path
+    yield outside_tmp
     get_settings.cache_clear()
 
 
@@ -109,7 +110,7 @@ async def test_git_outside_allowed_directory_is_refused(sandbox, tmp_path_factor
     outside = tmp_path_factory.mktemp("outside")
     result = await GitStatusTool().execute(path=str(outside))
     assert result.success is False
-    assert "outside the allowed directories" in result.error
+    assert "außerhalb der freigegebenen Ordner" in result.error
 
 
 async def test_git_status_on_non_git_directory_fails_cleanly(sandbox):

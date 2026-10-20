@@ -44,9 +44,7 @@ describe("TasksView", () => {
   });
 
   it("shows a reminder bell for tasks with reminders enabled", async () => {
-    vi.mocked(api.listTasks).mockResolvedValue([
-      makeTask({ title: "Zahnarzt", reminder_enabled: true }),
-    ]);
+    vi.mocked(api.listTasks).mockResolvedValue([makeTask({ title: "Zahnarzt", reminder_enabled: true })]);
     render(<TasksView />);
     expect(await screen.findByText("🔔 Zahnarzt")).toBeInTheDocument();
   });
@@ -63,9 +61,7 @@ describe("TasksView", () => {
     await user.type(input, "Neue Aufgabe");
     await user.click(screen.getByRole("button", { name: "Hinzufügen" }));
 
-    expect(api.createTask).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Neue Aufgabe", priority: "medium" })
-    );
+    expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({ title: "Neue Aufgabe", priority: "medium" }));
     expect(await screen.findByText("Neue Aufgabe")).toBeInTheDocument();
     expect(input).toHaveValue("");
   });

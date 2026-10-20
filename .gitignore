@@ -6,6 +6,7 @@ __pycache__/
 venv/
 env/
 .pytest_cache/
+.pytest_tmp/
 *.egg-info/
 
 # --- SQLite DB ---
@@ -39,3 +40,12 @@ logs/
 
 # --- Local model weights (large binaries - fetched on demand, not committed) ---
 /backend/models/
+
+# --- Local tool config ---
+.claude/
+
+# --- Local runtime data (memory, notes, secrets, backups) ---
+/data/
+
+# --- Backups (contain memory, notes and the access token) ---
+/backups/

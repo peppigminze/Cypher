@@ -19,9 +19,11 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Response
 
 from app.auth import require_user
+from app.core import errors
+from app.security.rate_limit import rate_limit
 from app.schemas import SpeakIn
 from app.tts.piper_provider import VoiceNotFoundError, synthesize_speech
 
@@ -30,7 +32,7 @@ logger = logging.getLogger("cypher.api.speak")
 router = APIRouter(tags=["speak"])
 
 
-@router.post("/speak")
+@router.post("/speak", dependencies=[Depends(rate_limit("audio"))])
 async def speak(
     payload: SpeakIn,
     _user=Depends(require_user),
@@ -42,10 +44,10 @@ async def speak(
         # stall every other request the event loop is serving.
         result = await asyncio.to_thread(synthesize_speech, payload.text)
     except VoiceNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+        raise errors.tts_voice_missing() from exc
     except Exception as exc:  # noqa: BLE001
         logger.exception("Speech synthesis failed")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Synthesis failed: {exc}") from exc
+        raise errors.tts_failed() from exc
 
     logger.info(
         "SPEAK RESULT -> audio_duration=%.2fs generation_time=%.2fs sample_rate=%d",

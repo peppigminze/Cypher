@@ -9,7 +9,6 @@ re-marking a destructive tool as SAFE.
 """
 from __future__ import annotations
 
-from app.agent.core import CypherAgent, PlanDecision
 from app.tools.base import ToolSecurity
 from app.tools.defaults import build_default_registry
 
@@ -27,9 +26,10 @@ def test_create_and_list_and_complete_task_remain_safe():
         assert registry.is_executable_automatically(name) is True
 
 
-def test_agent_skips_confirm_required_tool_selected_by_the_model():
-    """Even if the LLM decides to call delete_task, the agent must not
-    hand it to execute_tools - see CypherAgent.select_tools."""
-    agent = CypherAgent(llm=None, tools=build_default_registry())  # type: ignore[arg-type]
-    decision = PlanDecision(tool="delete_task", arguments={"task_id": 1}, reply="Lösche Task 1.")
-    assert agent.select_tools(decision) is None
+async def test_executor_refuses_delete_task_without_approval():
+    """Even if the LLM decides to call delete_task, the single execution
+    path (ToolExecutor) must not run it without the user's approval."""
+    from app.tools.executor import ToolExecutor
+
+    result = await ToolExecutor(build_default_registry()).execute("delete_task", {"task_id": 1})
+    assert result.success is False and "approval" in result.error

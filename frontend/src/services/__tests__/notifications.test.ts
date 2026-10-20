@@ -1,22 +1,24 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const g = globalThis as unknown as { Notification?: unknown };
+
 describe("ensureNotificationPermission", () => {
-  const originalNotification = (globalThis as any).Notification;
+  const originalNotification = g.Notification;
 
   afterEach(() => {
-    (globalThis as any).Notification = originalNotification;
+    g.Notification = originalNotification;
     vi.resetModules();
   });
 
   it("returns true immediately when already granted", async () => {
-    (globalThis as any).Notification = { permission: "granted" };
+    g.Notification = { permission: "granted" };
     const { ensureNotificationPermission } = await import("../notifications");
     expect(await ensureNotificationPermission()).toBe(true);
   });
 
   it("returns false when denied, without prompting again", async () => {
     const requestPermission = vi.fn();
-    (globalThis as any).Notification = { permission: "denied", requestPermission };
+    g.Notification = { permission: "denied", requestPermission };
     const { ensureNotificationPermission } = await import("../notifications");
     expect(await ensureNotificationPermission()).toBe(false);
     expect(requestPermission).not.toHaveBeenCalled();
@@ -32,7 +34,7 @@ describe("ensureNotificationPermission", () => {
         return "granted";
       }),
     };
-    (globalThis as any).Notification = fakeNotification;
+    g.Notification = fakeNotification;
     const { ensureNotificationPermission } = await import("../notifications");
 
     const first = await ensureNotificationPermission();
@@ -45,7 +47,7 @@ describe("ensureNotificationPermission", () => {
 
   it("does not re-prompt on a later call even if the user never answered (still default)", async () => {
     const requestPermission = vi.fn().mockResolvedValue("default");
-    (globalThis as any).Notification = { permission: "default", requestPermission };
+    g.Notification = { permission: "default", requestPermission };
     const { ensureNotificationPermission } = await import("../notifications");
 
     const first = await ensureNotificationPermission();
@@ -57,7 +59,7 @@ describe("ensureNotificationPermission", () => {
   });
 
   it("returns false when the Notification API doesn't exist", async () => {
-    delete (globalThis as any).Notification;
+    delete g.Notification;
     const { ensureNotificationPermission } = await import("../notifications");
     expect(await ensureNotificationPermission()).toBe(false);
   });

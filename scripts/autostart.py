@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """
 Windows autostart for Cypher via a per-user logon Scheduled Task
-(project spec section 24). Starts scripts/start_jarvis.ps1 (backend +
-agent) a short delay after login.
+(project spec section 24). Starts scripts/start_cypher.ps1 -NoBrowser
+(Ollama if needed + backend, hidden) a short delay after login.
+
+install() also removes the task of the old name "JARVIS Autostart" (it
+pointed at start_jarvis.ps1, which now only forwards to start_cypher.ps1).
 
 Design note: registering a scheduled task needs a one-time elevation
 (UAC prompt) even for a per-user AtLogOn task targeting the current
@@ -35,7 +38,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-TASK_NAME = "JARVIS Autostart"
+TASK_NAME = "Cypher Autostart"
+LEGACY_TASK_NAMES = ("JARVIS Autostart",)
+_LAUNCHER_ARGS = "-NoBrowser"
 _LOGON_DELAY_SECONDS = 20
 _QUERY_SENTINEL = "<<<JARVIS_TASK>>>"
 
@@ -48,22 +53,34 @@ def _ps_lit(value: object) -> str:
     return str(value).replace("'", "''")
 
 
-def build_register_task_script(task_name: str, launcher_script: Path, delay_seconds: int = _LOGON_DELAY_SECONDS) -> str:
-    """Pure: the PowerShell that registers the logon task. No UAC/elevation -
-    a per-user AtLogOn task for the current user doesn't require it."""
+def build_register_task_script(
+    task_name: str,
+    launcher_script: Path,
+    delay_seconds: int = _LOGON_DELAY_SECONDS,
+    launcher_args: str = "",
+    replaces: tuple[str, ...] = (),
+) -> str:
+    """Pure: the PowerShell that registers the logon task (run elevated,
+    see the module docstring). `replaces`: older task names removed first."""
+    removals = "".join(
+        f"  Unregister-ScheduledTask -TaskName '{_ps_lit(name)}' -Confirm:$false -ErrorAction SilentlyContinue\n"
+        for name in replaces
+    )
+    args = f" {_ps_lit(launcher_args)}" if launcher_args else ""
     return (
         "$ErrorActionPreference = 'Stop'\n"
         "try {\n"
+        f"{removals}"
         "  $action = New-ScheduledTaskAction -Execute 'powershell.exe' "
         "-Argument '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden "
-        f"-File \"{_ps_lit(launcher_script)}\"'\n"
+        f"-File \"{_ps_lit(launcher_script)}\"{args}'\n"
         "  $trigger = New-ScheduledTaskTrigger -AtLogOn\n"
         f"  $trigger.Delay = 'PT{int(delay_seconds)}S'\n"
         "  $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries "
         "-DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew\n"
         f"  Register-ScheduledTask -TaskName '{_ps_lit(task_name)}' -Action $action "
         "-Trigger $trigger -Settings $settings "
-        "-Description 'Starts the Cypher backend and local PC agent at login.' -Force | Out-Null\n"
+        "-Description 'Starts Cypher (Ollama + backend) at login.' -Force | Out-Null\n"
         "  exit 0\n"
         "} catch { Write-Error $_; exit 1 }\n"
     )
@@ -156,7 +173,7 @@ def _run_powershell_elevated(script: str) -> bool:
 
 
 def _launcher_script_path() -> Path:
-    return Path(__file__).resolve().parent / "start_jarvis.ps1"
+    return Path(__file__).resolve().parent / "start_cypher.ps1"
 
 
 def status() -> dict | None:
@@ -167,7 +184,7 @@ def status() -> dict | None:
 def install() -> bool:
     """Registers the logon task. Triggers a UAC prompt - the user must
     approve it in the dialog that pops up."""
-    script = build_register_task_script(TASK_NAME, _launcher_script_path())
+    script = build_register_task_script(TASK_NAME, _launcher_script_path(), launcher_args=_LAUNCHER_ARGS, replaces=LEGACY_TASK_NAMES)
     return _run_powershell_elevated(script)
 
 
@@ -177,31 +194,38 @@ def uninstall() -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Manage Cypher's Windows logon autostart task.")
+    parser = argparse.ArgumentParser(description="Cypher-Autostart bei der Windows-Anmeldung verwalten.")
     parser.add_argument("command", choices=["install", "status", "uninstall"])
     args = parser.parse_args(argv)
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+    except (AttributeError, ValueError):
+        pass
 
     if args.command == "install":
-        print("Registering the autostart task needs a one-time admin confirmation (UAC prompt)...")
+        print("Für die Autostart-Aufgabe fragt Windows einmal nach Administrator-Bestätigung (UAC) ...")
         if install():
-            print(f"Autostart task '{TASK_NAME}' registered - Cypher starts a few seconds after login.")
+            print(f"Aufgabe '{TASK_NAME}' eingerichtet - Cypher startet kurz nach der Anmeldung (ohne Browser).")
             return 0
-        print("Could not register the autostart task (UAC prompt declined, or another error).", file=sys.stderr)
+        print("Autostart konnte nicht eingerichtet werden (UAC abgelehnt oder anderer Fehler).", file=sys.stderr)
         return 1
 
     if args.command == "uninstall":
         if uninstall():
-            print(f"Autostart task '{TASK_NAME}' removed.")
+            print(f"Aufgabe '{TASK_NAME}' entfernt.")
             return 0
-        print("Could not remove the autostart task.", file=sys.stderr)
+        print("Autostart konnte nicht entfernt werden.", file=sys.stderr)
         return 1
 
     info = status()
     if info is None:
-        print("No autostart task installed.")
+        print("Kein Autostart eingerichtet.")
+        for legacy in LEGACY_TASK_NAMES:
+            if parse_task_query(_run_powershell(build_query_task_script(legacy)).stdout):
+                print(f"Alte Aufgabe '{legacy}' ist noch aktiv - 'install' ersetzt sie.")
     else:
-        state = "enabled" if info["enabled"] else "disabled (won't fire)"
-        print(f"Autostart task '{TASK_NAME}': {state}\n  {info['execute']} {info['arguments']}")
+        state = "aktiv" if info["enabled"] else "deaktiviert (startet nicht)"
+        print(f"Aufgabe '{TASK_NAME}': {state}\n  {info['execute']} {info['arguments']}")
     return 0
 
 

@@ -2,31 +2,71 @@ from __future__ import annotations
 
 import asyncio
 import platform
+import re
 import shutil
+import socket
+import subprocess
+import sys
 from datetime import datetime, timezone
+from typing import Any, Dict
 
 import psutil
 from sqlalchemy.orm import Session
 
-from app.tools.base import Tool, ToolResult, ToolSecurity
+from app.config import get_settings
+from app.tools.base import RiskTier, Tool, ToolResult, register_tool
 
 
+_WEEKDAYS_DE = ("Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag")
+_MONTHS_DE = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember")
+
+
+def local_now() -> datetime:
+    """Current time in the user's time zone (TIMEZONE, else the PC's zone).
+
+    The old tool returned UTC only and the model then answered
+    "19:38 Uhr UTC" at 21:38 local time (docs/overhaul/AUDIT.md K3).
+    """
+    tz_name = get_settings().TIMEZONE
+    if tz_name:
+        from zoneinfo import ZoneInfo  # noqa: PLC0415
+
+        return datetime.now(ZoneInfo(tz_name))
+    return datetime.now().astimezone()
+
+
+def german_date(dt: datetime) -> str:
+    return f"{_WEEKDAYS_DE[dt.weekday()]}, {dt.day}. {_MONTHS_DE[dt.month - 1]} {dt.year}"
+
+
+@register_tool
 class GetCurrentTimeTool(Tool):
     name = "get_current_time"
-    description = "Get the current date and time (UTC)."
+    description = "Aktuelle lokale Uhrzeit und Datum des Nutzers abfragen."
     parameters = {"type": "object", "properties": {}}
-    security = ToolSecurity.SAFE
+    risk = RiskTier.READ_ONLY
+    exposed_by_default = True
 
     async def execute(self, db: Session | None = None, **_) -> ToolResult:
-        now = datetime.now(timezone.utc)
-        return ToolResult(success=True, data={"utc_iso": now.isoformat()})
+        now = local_now()
+        return ToolResult(
+            success=True,
+            data={
+                "local_time": now.strftime("%H:%M"),
+                "local_date": german_date(now),
+                "local_iso": now.isoformat(timespec="seconds"),
+                "timezone": now.tzname(),
+                "utc_iso": now.astimezone(timezone.utc).isoformat(),
+            },
+        )
 
 
+@register_tool
 class GetSystemStatusTool(Tool):
     name = "get_system_status"
     description = "Get basic status info about the machine Cypher is running on."
     parameters = {"type": "object", "properties": {}}
-    security = ToolSecurity.SAFE
+    risk = RiskTier.READ_ONLY
 
     async def execute(self, db: Session | None = None, **_) -> ToolResult:
         data = {
@@ -37,11 +77,12 @@ class GetSystemStatusTool(Tool):
         return ToolResult(success=True, data=data)
 
 
+@register_tool
 class CpuUsageTool(Tool):
     name = "cpu_usage"
     description = "Get current CPU usage as a percentage."
     parameters = {"type": "object", "properties": {}}
-    security = ToolSecurity.SAFE
+    risk = RiskTier.READ_ONLY
 
     async def execute(self, db: Session | None = None, **_) -> ToolResult:
         # A short blocking sample gives a real reading instead of the
@@ -52,11 +93,12 @@ class CpuUsageTool(Tool):
         return ToolResult(success=True, data={"cpu_percent": percent, "cpu_count": psutil.cpu_count()})
 
 
+@register_tool
 class RamUsageTool(Tool):
     name = "ram_usage"
     description = "Get current RAM usage."
     parameters = {"type": "object", "properties": {}}
-    security = ToolSecurity.SAFE
+    risk = RiskTier.READ_ONLY
 
     async def execute(self, db: Session | None = None, **_) -> ToolResult:
         vm = psutil.virtual_memory()
@@ -70,11 +112,12 @@ class RamUsageTool(Tool):
         )
 
 
+@register_tool
 class DiskUsageTool(Tool):
     name = "disk_usage"
     description = "Get disk usage for a drive/path (defaults to the system drive)."
     parameters = {"type": "object", "properties": {"path": {"type": "string"}}}
-    security = ToolSecurity.SAFE
+    risk = RiskTier.READ_ONLY
 
     async def execute(self, db: Session | None = None, path: str = "C:\\", **_) -> ToolResult:
         try:
@@ -92,13 +135,94 @@ class DiskUsageTool(Tool):
         )
 
 
+@register_tool
+class GetSystemInfoTool(Tool):
+    """Bundles get_current_time + cpu_usage + ram_usage into one call
+    (Phase 6) - reuses GetCurrentTimeTool directly instead of
+    re-deriving "now" itself, so there is exactly one place that decides
+    what "current time" means. Exists because the native tool-calling
+    pipeline's system prompt asks the model for at most one tool call
+    per step (app/agent/native_tool_agent.py) - without this, a single
+    "how's the PC doing" voice question would cost three separate
+    tool-call round trips instead of one."""
+
+    name = "get_system_info"
+    description = (
+        "Get a combined system snapshot: current date/time (UTC), CPU usage, and RAM "
+        "free/total - one call instead of separate get_current_time/cpu_usage/ram_usage "
+        "requests."
+    )
+    parameters = {"type": "object", "properties": {}}
+    risk = RiskTier.READ_ONLY
+    exposed_by_default = True
+
+    async def execute(self, db: Session | None = None, **_) -> ToolResult:
+        try:
+            time_result = await GetCurrentTimeTool().execute(db=db)
+            cpu_percent = await asyncio.to_thread(psutil.cpu_percent, 0.3)
+            vm = psutil.virtual_memory()
+        except Exception as exc:  # noqa: BLE001 - psutil/platform calls, be defensive
+            return ToolResult(success=False, error=f"Could not read system info: {exc}")
+
+        if not time_result.success:
+            return ToolResult(success=False, error=time_result.error or "Could not determine the current time.")
+
+        return ToolResult(
+            success=True,
+            data={
+                "utc_iso": time_result.data["utc_iso"],
+                "local_time": time_result.data.get("local_time"),
+                "local_date": time_result.data.get("local_date"),
+                "cpu_percent": cpu_percent,
+                "ram_total_gb": round(vm.total / 1e9, 2),
+                "ram_free_gb": round(vm.available / 1e9, 2),
+                "ram_percent_used": vm.percent,
+            },
+        )
+
+
+def _decode(raw: bytes) -> str:
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw.decode("oem" if sys.platform == "win32" else "latin-1", errors="replace")
+
+
+def wlan_info() -> Dict[str, Any]:
+    """WLAN state from `netsh wlan show interfaces` (labels are the same in German and English)."""
+    if sys.platform != "win32":
+        return {}
+    try:
+        proc = subprocess.run(["netsh", "wlan", "show", "interfaces"], capture_output=True, timeout=10, creationflags=0x08000000)
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    text = _decode(proc.stdout)
+    info: Dict[str, Any] = {}
+    for key, pattern in (("ssid", r"^\s*SSID\s*:\s*(.+)$"), ("signal", r"^\s*Signal\s*:\s*(.+)$"), ("state", r"^\s*(?:Status|State)\s*:\s*(.+)$")):
+        match = re.search(pattern, text, re.MULTILINE)
+        if match:
+            info[key] = match.group(1).strip()
+    return info
+
+
+@register_tool
 class NetworkStatusTool(Tool):
     name = "network_status"
-    description = "List which network interfaces are currently up."
+    description = "Netzwerk- und WLAN-Status: aktive Verbindungen, IP-Adressen, WLAN-Name und Signal."
     parameters = {"type": "object", "properties": {}}
-    security = ToolSecurity.SAFE
+    risk = RiskTier.READ_ONLY
+    exposed_by_default = True
 
     async def execute(self, db: Session | None = None, **_) -> ToolResult:
         stats = psutil.net_if_stats()
-        interfaces = [{"name": name, "is_up": s.isup} for name, s in stats.items()]
-        return ToolResult(success=True, data={"interfaces": interfaces})
+        addrs = psutil.net_if_addrs()
+        interfaces = []
+        for name, stat in stats.items():
+            ipv4 = [a.address for a in addrs.get(name, []) if a.family == socket.AF_INET and not a.address.startswith("127.")]
+            if stat.isup and ipv4:
+                interfaces.append({"name": name, "ipv4": ipv4, "mbit": stat.speed or None})
+        data: Dict[str, Any] = {"connected": bool(interfaces), "interfaces": interfaces}
+        wlan = await asyncio.to_thread(wlan_info)
+        if wlan:
+            data["wlan"] = wlan
+        return ToolResult(success=True, data=data)

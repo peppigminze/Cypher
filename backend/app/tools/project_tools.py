@@ -11,9 +11,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database.models import Project
-from app.tools.base import Tool, ToolResult, ToolSecurity
+from app.tools.base import RiskTier, Tool, ToolResult, register_tool
 
 
+@register_tool
 class ListProjectsTool(Tool):
     name = "list_projects"
     description = (
@@ -21,7 +22,7 @@ class ListProjectsTool(Tool):
         "repository, notes) - use this to resolve a project the user refers to by name."
     )
     parameters = {"type": "object", "properties": {"name": {"type": "string"}}}
-    security = ToolSecurity.SAFE
+    risk = RiskTier.READ_ONLY
 
     async def execute(self, db: Session, name: str | None = None, **_) -> ToolResult:
         stmt = select(Project).order_by(Project.name.asc())

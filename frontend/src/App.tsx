@@ -1,86 +1,54 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import "./App.css";
-import { Sidebar, type View } from "./components/Sidebar";
-import { StatusBadge } from "./components/StatusBadge";
-import { ConfirmBar } from "./components/ConfirmBar";
-import { ChatView } from "./components/ChatView";
-import { TasksView } from "./components/TasksView";
-import { MemoryView } from "./components/MemoryView";
-import { ProjectsView } from "./components/ProjectsView";
-import { SettingsView } from "./components/SettingsView";
+import "./styles/hud.css";
 import { CypherVoiceView } from "./components/CypherVoiceView";
-import { getStatus } from "./services/api";
-import { usePolling } from "./hooks/usePolling";
+import { PairingView } from "./components/PairingView";
+import { SystemMenu } from "./components/system/SystemMenu";
+import type { MenuSection } from "./components/system/menuSections";
 import { useReminderNotifications } from "./hooks/useReminderNotifications";
-import { useMessageNotifications } from "./hooks/useMessageNotifications";
-import type { SystemStatus } from "./types";
-
-const TITLES: Record<View, string> = {
-  voice: "Voice",
-  chat: "Chat",
-  tasks: "Tasks",
-  memory: "Memory",
-  projects: "Projects",
-  settings: "Settings",
-};
+import { AUTH_REQUIRED_EVENT, ensureToken, type AuthState } from "./services/auth";
 
 export default function App() {
-  // "voice" is the new landing view (the full-screen orb). Every other
-  // view is unchanged and still fully reachable - see the menu overlay
-  // below - nothing about /api/messages or the existing views changed.
-  const [view, setView] = useState<View>("voice");
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [status, setStatus] = useState<SystemStatus | null>(null);
+  const [auth, setAuth] = useState<AuthState | "checking">("checking");
 
-  const refreshStatus = useCallback(async () => {
-    try {
-      setStatus(await getStatus());
-    } catch {
-      setStatus((prev) => (prev ? { ...prev, pc_online: false } : prev));
-    }
+  const checkAuth = useCallback(() => {
+    setAuth("checking");
+    void ensureToken().then(setAuth);
   }, []);
 
-  usePolling(refreshStatus, 10000, []);
-  useReminderNotifications();
-  useMessageNotifications();
+  useEffect(() => {
+    let alive = true;
+    void ensureToken().then((state) => alive && setAuth(state));
+    const onAuthRequired = () => checkAuth();
+    window.addEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
+    return () => {
+      alive = false;
+      window.removeEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
+    };
+  }, [checkAuth]);
 
-  const navigate = useCallback((v: View) => {
-    setView(v);
-    setMenuOpen(false);
-  }, []);
-
-  if (view === "voice") {
-    return (
-      <>
-        <CypherVoiceView status={status} onOpenMenu={() => setMenuOpen(true)} />
-        {menuOpen && (
-          <div className="voice-menu-overlay" onClick={() => setMenuOpen(false)}>
-            <div className="voice-menu-drawer" onClick={(e) => e.stopPropagation()}>
-              <Sidebar active={view} onChange={navigate} pendingTaskCount={status?.pending_messages ?? 0} />
-            </div>
-          </div>
-        )}
-      </>
-    );
+  if (auth === "checking") {
+    return <main className="pairing" aria-busy="true" />;
   }
+  if (auth !== "ready") {
+    return <PairingView offline={auth === "offline"} onPaired={() => setAuth("ready")} onRetry={checkAuth} />;
+  }
+  return <AuthenticatedApp />;
+}
+
+function AuthenticatedApp() {
+  // One screen: the voice view. Everything else lives in the system menu
+  // (menu button or M), so talking to Cypher is never more than a tap away.
+  const [menuSection, setMenuSection] = useState<MenuSection | null>(null);
+  useReminderNotifications();
+
+  const openMenu = useCallback(() => setMenuSection((current) => current ?? "chat"), []);
+  const closeMenu = useCallback(() => setMenuSection(null), []);
 
   return (
-    <div className="shell">
-      <Sidebar active={view} onChange={navigate} pendingTaskCount={status?.pending_messages ?? 0} />
-      <div className="main">
-        <header className="topbar">
-          <span className="topbar__title">{TITLES[view]}</span>
-          <StatusBadge status={status} />
-        </header>
-        <ConfirmBar onResolved={refreshStatus} />
-        <div className={`panel ${view === "chat" ? "panel--flush" : ""}`}>
-          {view === "chat" && <ChatView />}
-          {view === "tasks" && <TasksView />}
-          {view === "memory" && <MemoryView />}
-          {view === "projects" && <ProjectsView />}
-          {view === "settings" && <SettingsView />}
-        </div>
-      </div>
-    </div>
+    <>
+      <CypherVoiceView onOpenMenu={openMenu} menuOpen={menuSection !== null} />
+      {menuSection && <SystemMenu section={menuSection} onSelect={setMenuSection} onClose={closeMenu} />}
+    </>
   );
 }

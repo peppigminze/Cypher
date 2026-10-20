@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from app.tools.system_tools import CpuUsageTool, DiskUsageTool, NetworkStatusTool, RamUsageTool
+from app.tools import system_tools
+from app.tools.base import ToolResult
+from app.tools.system_tools import CpuUsageTool, DiskUsageTool, GetSystemInfoTool, NetworkStatusTool, RamUsageTool
 
 
 async def test_cpu_usage():
@@ -32,3 +34,33 @@ async def test_network_status():
     result = await NetworkStatusTool().execute()
     assert result.success is True
     assert isinstance(result.data["interfaces"], list)
+
+
+async def test_get_system_info_combines_time_cpu_and_ram():
+    result = await GetSystemInfoTool().execute()
+    assert result.success is True
+    assert "utc_iso" in result.data
+    assert result.data["ram_total_gb"] > 0
+    assert 0.0 <= result.data["ram_percent_used"] <= 100.0
+    assert 0.0 <= result.data["cpu_percent"] <= 100.0
+
+
+async def test_get_system_info_reports_time_failure_cleanly(monkeypatch):
+    class FailingTimeTool:
+        async def execute(self, db=None, **_):
+            return ToolResult(success=False, error="clock unavailable")
+
+    monkeypatch.setattr(system_tools, "GetCurrentTimeTool", lambda: FailingTimeTool())
+    result = await GetSystemInfoTool().execute()
+    assert result.success is False
+    assert "clock unavailable" in result.error
+
+
+async def test_get_system_info_reports_psutil_failure_cleanly(monkeypatch):
+    def failing_cpu_percent(*_args, **_kwargs):
+        raise RuntimeError("psutil boom")
+
+    monkeypatch.setattr(system_tools.psutil, "cpu_percent", failing_cpu_percent)
+    result = await GetSystemInfoTool().execute()
+    assert result.success is False
+    assert "Could not read system info" in result.error

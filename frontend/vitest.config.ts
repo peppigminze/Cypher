@@ -9,5 +9,7 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     globals: true,
+    // e2e/ is Playwright (npm run test:e2e), not Vitest.
+    include: ["src/**/*.test.{ts,tsx}"],
   },
 });

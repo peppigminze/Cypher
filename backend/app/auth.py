@@ -1,29 +1,28 @@
 """
-Minimal token-based authentication for V1.
+Bearer-token authentication.
 
 Two tokens exist:
-    USER_TOKEN  - used by the frontend / PWA (human user)
-    AGENT_TOKEN - used by the local PC agent (agent/run_agent.py)
+    user token  - the UI (local PWA, paired phone)
+    agent token - the legacy PC-agent process (removed in M5)
 
-Both are read from environment variables (see .env.example). Nothing
-is hardcoded. This is intentionally simple for V1 - it is NOT a full
-OAuth/JWT system. That can be added later without touching callers,
-since everything goes through these two dependency functions.
+Token values come from app/security/tokens.py (.env value, or a token
+generated on first start). Every protected endpoint goes through the
+dependencies below; repeated failures lock the caller's address out for
+a while (app/security/rate_limit.py), which makes guessing the token over
+the network impractical.
 """
 from __future__ import annotations
 
-import secrets
+import logging
+from typing import Optional
 
-from fastapi import Header, HTTPException, status
+from fastapi import Header, HTTPException, Request, status
 
 from app.config import get_settings
+from app.security.rate_limit import client_key, limiter, too_many
+from app.security.tokens import get_tokens, tokens_match
 
-
-def _tokens_match(a: str, b: str) -> bool:
-    """Constant-time comparison - a plain `!=` leaks how many leading
-    characters matched via response timing, letting an attacker with
-    network access recover the token byte-by-byte over many requests."""
-    return secrets.compare_digest(a, b)
+logger = logging.getLogger("cypher.auth")
 
 
 def _extract_token(authorization: str | None) -> str:
@@ -38,31 +37,48 @@ def _extract_token(authorization: str | None) -> str:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authorization header must be 'Bearer <token>'.",
         )
-    return parts[1]
+    return parts[1].strip()
 
 
-def require_user(authorization: str | None = Header(default=None)) -> str:
+def role_for_token(token: str) -> Optional[str]:
+    """"user", "agent" or None. Used by HTTP dependencies and WebSockets."""
+    tokens = get_tokens(get_settings())
+    if token and tokens_match(token, tokens.user_token):
+        return "user"
+    if token and tokens_match(token, tokens.agent_token):
+        return "agent"
+    return None
+
+
+def _check(request: Optional[Request], authorization: str | None, allowed: tuple[str, ...]) -> str:
+    client = client_key(request) if request is not None else "unknown"
+    locked = limiter.locked_out(client)
+    if locked:
+        raise too_many(locked, "Zu viele fehlgeschlagene Anmeldeversuche – bitte später erneut versuchen.")
+    token = _extract_token(authorization)
+    role = role_for_token(token)
+    if role not in allowed:
+        limiter.record_auth_failure(client)
+        logger.warning("Rejected token from %s (expected %s)", client, "/".join(allowed))
+        detail = {"user": "Invalid user token.", "agent": "Invalid agent token."}.get(allowed[0], "Invalid token.") if len(allowed) == 1 else "Invalid token."
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
+    return token
+
+
+def require_user(request: Request, authorization: str | None = Header(default=None)) -> str:
     """Dependency for endpoints called by the human user's client (PWA)."""
-    settings = get_settings()
-    token = _extract_token(authorization)
-    if not _tokens_match(token, settings.USER_TOKEN):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user token.")
-    return token
+    return _check(request, authorization, ("user",))
 
 
-def require_agent(authorization: str | None = Header(default=None)) -> str:
+def require_agent(request: Request, authorization: str | None = Header(default=None)) -> str:
     """Dependency for endpoints called only by the local PC agent."""
-    settings = get_settings()
-    token = _extract_token(authorization)
-    if not _tokens_match(token, settings.AGENT_TOKEN):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid agent token.")
-    return token
+    return _check(request, authorization, ("agent",))
 
 
-def require_user_or_agent(authorization: str | None = Header(default=None)) -> str:
+def require_user_or_agent(request: Request, authorization: str | None = Header(default=None)) -> str:
     """Dependency for endpoints either side may call (e.g. reading tasks)."""
-    settings = get_settings()
-    token = _extract_token(authorization)
-    if not (_tokens_match(token, settings.USER_TOKEN) or _tokens_match(token, settings.AGENT_TOKEN)):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token.")
-    return token
+    return _check(request, authorization, ("user", "agent"))
+
+
+# Kept for callers/tests importing the old helper name.
+_tokens_match = tokens_match

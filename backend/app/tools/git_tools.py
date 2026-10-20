@@ -15,7 +15,7 @@ import asyncio
 
 from sqlalchemy.orm import Session
 
-from app.tools.base import Tool, ToolResult, ToolSecurity
+from app.tools.base import RiskTier, Tool, ToolResult, register_tool
 from app.tools.paths import PathNotAllowedError, resolve_allowed_path
 
 GIT_TIMEOUT_SECONDS = 20
@@ -56,16 +56,19 @@ async def _run_git(repo_path: str, args: list[str]) -> ToolResult:
     return ToolResult(success=True, data={"stdout": stdout.strip()})
 
 
+@register_tool
 class GitStatusTool(Tool):
     name = "git_status"
     description = "Show the working tree status of a git repository (like 'git status')."
     parameters = {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}
-    security = ToolSecurity.SAFE
+    risk = RiskTier.READ_ONLY
+    untrusted_output = True
 
     async def execute(self, db: Session | None = None, path: str = ".", **_) -> ToolResult:
         return await _run_git(path, ["status"])
 
 
+@register_tool
 class GitDiffTool(Tool):
     name = "git_diff"
     description = "Show uncommitted changes in a git repository (like 'git diff'). Set staged=true for 'git diff --staged'."
@@ -74,13 +77,15 @@ class GitDiffTool(Tool):
         "properties": {"path": {"type": "string"}, "staged": {"type": "boolean"}},
         "required": ["path"],
     }
-    security = ToolSecurity.SAFE
+    risk = RiskTier.READ_ONLY
+    untrusted_output = True
 
     async def execute(self, db: Session | None = None, path: str = ".", staged: bool = False, **_) -> ToolResult:
         args = ["diff", "--staged"] if staged else ["diff"]
         return await _run_git(path, args)
 
 
+@register_tool
 class GitLogTool(Tool):
     name = "git_log"
     description = "Show recent commit history of a git repository (like 'git log --oneline')."
@@ -89,22 +94,25 @@ class GitLogTool(Tool):
         "properties": {"path": {"type": "string"}, "limit": {"type": "integer"}},
         "required": ["path"],
     }
-    security = ToolSecurity.SAFE
+    risk = RiskTier.READ_ONLY
+    untrusted_output = True
 
     async def execute(self, db: Session | None = None, path: str = ".", limit: int = 10, **_) -> ToolResult:
         return await _run_git(path, ["log", f"-{max(1, min(limit, 100))}", "--oneline"])
 
 
+@register_tool
 class GitBranchTool(Tool):
     name = "git_branch"
     description = "List branches of a git repository and show which one is checked out."
     parameters = {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}
-    security = ToolSecurity.SAFE
+    risk = RiskTier.READ_ONLY
 
     async def execute(self, db: Session | None = None, path: str = ".", **_) -> ToolResult:
         return await _run_git(path, ["branch"])
 
 
+@register_tool
 class GitCommitTool(Tool):
     name = "git_commit"
     description = "Commit changes in a git repository with a message. Requires confirmation."
@@ -117,7 +125,7 @@ class GitCommitTool(Tool):
         },
         "required": ["path", "message"],
     }
-    security = ToolSecurity.CONFIRM_REQUIRED
+    risk = RiskTier.WRITE
 
     async def execute(
         self, db: Session | None = None, path: str = ".", message: str = "", add_all: bool = False, **_
@@ -131,21 +139,23 @@ class GitCommitTool(Tool):
         return await _run_git(path, ["commit", "-m", message])
 
 
+@register_tool
 class GitPushTool(Tool):
     name = "git_push"
     description = "Push committed changes to the remote. Requires confirmation."
     parameters = {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}
-    security = ToolSecurity.CONFIRM_REQUIRED
+    risk = RiskTier.DESTRUCTIVE
 
     async def execute(self, db: Session | None = None, path: str = ".", **_) -> ToolResult:
         return await _run_git(path, ["push"])
 
 
+@register_tool
 class GitPullTool(Tool):
     name = "git_pull"
     description = "Pull changes from the remote (can modify the working tree via a merge). Requires confirmation."
     parameters = {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}
-    security = ToolSecurity.CONFIRM_REQUIRED
+    risk = RiskTier.DESTRUCTIVE
 
     async def execute(self, db: Session | None = None, path: str = ".", **_) -> ToolResult:
         return await _run_git(path, ["pull"])

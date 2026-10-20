@@ -1,26 +1,35 @@
-import type {
-  ChatMessage,
-  MemoryEntry,
-  MemoryType,
-  PendingAction,
-  Project,
-  Settings,
-  SystemStatus,
-  Task,
-  ToolChatResult,
-  TranscribeResult,
-} from "../types";
+import type { ActiveProviderInfo, LlmProviderName, Project, Settings, Task, UsageSummary } from "../types";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-const USER_TOKEN = import.meta.env.VITE_USER_TOKEN || "";
+import { API_BASE_URL, AUTH_REQUIRED_EVENT, getStoredToken } from "./auth";
 
-const QUEUE_KEY = "jarvis.offline_queue.v1";
+const BASE_URL = API_BASE_URL;
+
+function bearer(): Record<string, string> {
+  const token = getStoredToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 function authHeaders(): HeadersInit {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${USER_TOKEN}`,
-  };
+  return { "Content-Type": "application/json", ...bearer() };
+}
+
+/** Prefer the backend's German error message ("detail") over raw status text. */
+async function errorFromResponse(resp: Response, fallback: string): Promise<Error> {
+  if (resp.status === 401) window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
+  const text = await resp.text().catch(() => "");
+  try {
+    const body = JSON.parse(text) as { detail?: string; error?: { message?: string; hint?: string } };
+    const message = body.error?.message ?? (typeof body.detail === "string" ? body.detail : null);
+    if (message) {
+      const err = new Error(message) as Error & { hint?: string; status?: number };
+      err.hint = body.error?.hint;
+      err.status = resp.status;
+      return err;
+    }
+  } catch {
+    // not JSON
+  }
+  return new Error(`${fallback} (${resp.status}): ${text || resp.statusText}`);
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -28,93 +37,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: { ...authHeaders(), ...(init?.headers || {}) },
   });
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => "");
-    throw new Error(`Request failed (${resp.status}): ${text || resp.statusText}`);
-  }
+  if (!resp.ok) throw await errorFromResponse(resp, "Anfrage fehlgeschlagen");
   if (resp.status === 204) return undefined as T;
   return (await resp.json()) as T;
-}
-
-function newClientId(): string {
-  if ("randomUUID" in crypto) return crypto.randomUUID();
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-// ------------------------------------------------------------------ Offline queue
-// If the browser has no network (or the backend can't be reached),
-// outgoing chat messages are queued locally in localStorage with a
-// stable client_id. Once we're back online we flush the queue - the
-// backend's /api/messages endpoint is idempotent on client_id, so a
-// retried send never creates a duplicate message (see project spec
-// section 16).
-
-interface QueuedMessage {
-  client_id: string;
-  content: string;
-  queued_at: string;
-}
-
-function readQueue(): QueuedMessage[] {
-  try {
-    const raw = localStorage.getItem(QUEUE_KEY);
-    return raw ? (JSON.parse(raw) as QueuedMessage[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeQueue(queue: QueuedMessage[]): void {
-  localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
-}
-
-function enqueue(msg: QueuedMessage): void {
-  const queue = readQueue();
-  queue.push(msg);
-  writeQueue(queue);
-}
-
-function dequeue(clientId: string): void {
-  writeQueue(readQueue().filter((m) => m.client_id !== clientId));
-}
-
-export async function flushOfflineQueue(): Promise<void> {
-  const queue = readQueue();
-  for (const item of queue) {
-    try {
-      await request<ChatMessage>("/api/messages", {
-        method: "POST",
-        body: JSON.stringify({ content: item.content, client_id: item.client_id }),
-      });
-      dequeue(item.client_id);
-    } catch {
-      // Still offline / backend unreachable - stop, try again later.
-      break;
-    }
-  }
-}
-
-export function hasQueuedMessages(): boolean {
-  return readQueue().length > 0;
-}
-
-// ------------------------------------------------------------------ Messages
-
-export async function sendMessage(content: string): Promise<ChatMessage | { queued: true; client_id: string }> {
-  const client_id = newClientId();
-  try {
-    return await request<ChatMessage>("/api/messages", {
-      method: "POST",
-      body: JSON.stringify({ content, client_id }),
-    });
-  } catch {
-    enqueue({ client_id, content, queued_at: new Date().toISOString() });
-    return { queued: true, client_id };
-  }
-}
-
-export async function listMessages(): Promise<ChatMessage[]> {
-  return request<ChatMessage[]>("/api/messages");
 }
 
 // ------------------------------------------------------------------ Tasks
@@ -154,47 +79,68 @@ export async function getDueReminders(): Promise<Task[]> {
 
 // ------------------------------------------------------------------ Memory
 
-export async function listMemory(): Promise<MemoryEntry[]> {
-  return request<MemoryEntry[]>("/api/memory");
+// Both memory layers (M4): core facts (always in Cypher's prompt, limited)
+// and the searchable archive.
+export type MemoryLayer = "core" | "archive";
+
+export interface MemoryItem {
+  layer: MemoryLayer;
+  id: string;
+  text: string;
 }
 
-export async function saveMemory(
-  content: string,
-  category?: string,
-  memory_type: MemoryType = "fact"
-): Promise<MemoryEntry> {
-  return request<MemoryEntry>("/api/memory", {
-    method: "POST",
-    body: JSON.stringify({ content, category, memory_type }),
+export interface MemoryOverview {
+  core: MemoryItem[];
+  archive: MemoryItem[];
+  core_used_tokens: number;
+  core_max_tokens: number;
+}
+
+export async function getMemoryOverview(): Promise<MemoryOverview> {
+  return request<MemoryOverview>("/api/memory/overview");
+}
+
+export async function addMemoryItem(text: string, layer: MemoryLayer): Promise<MemoryItem> {
+  return request<MemoryItem>("/api/memory/items", { method: "POST", body: JSON.stringify({ text, layer }) });
+}
+
+export async function updateMemoryItem(item: MemoryItem, change: { text?: string; move_to?: MemoryLayer }): Promise<MemoryItem> {
+  return request<MemoryItem>(`/api/memory/items/${item.layer}/${encodeURIComponent(item.id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(change),
   });
 }
 
-export async function deleteMemory(id: number): Promise<void> {
-  await request<void>(`/api/memory/${id}`, { method: "DELETE" });
+export async function deleteMemoryItem(item: MemoryItem): Promise<void> {
+  await request<void>(`/api/memory/items/${item.layer}/${encodeURIComponent(item.id)}`, { method: "DELETE" });
 }
 
-// ------------------------------------------------------------------ Pending actions (confirmation flow)
-
-export async function listPendingActions(): Promise<PendingAction[]> {
-  return request<PendingAction[]>("/api/actions?status=awaiting_confirmation");
-}
-
-export async function confirmAction(id: number): Promise<PendingAction> {
-  return request<PendingAction>(`/api/actions/${id}/confirm`, { method: "POST" });
-}
-
-export async function rejectAction(id: number): Promise<PendingAction> {
-  return request<PendingAction>(`/api/actions/${id}/reject`, { method: "POST" });
-}
-
-// ------------------------------------------------------------------ Status
-
-export async function getStatus(): Promise<SystemStatus> {
-  return request<SystemStatus>("/api/status");
+export async function deleteConversationHistory(): Promise<{ deleted: number }> {
+  return request<{ deleted: number }>("/api/conversations", { method: "DELETE" });
 }
 
 export async function getSettingsOverview(): Promise<Settings> {
   return request<Settings>("/api/settings");
+}
+
+// ------------------------------------------------------------------ Provider toggle (Phase 7)
+// Manual-only local/cloud switch for every turn (voice and chat). Never
+// automatic - SettingsView.tsx's toggle is the only place that calls
+// setActiveProvider.
+
+export async function getActiveProvider(): Promise<ActiveProviderInfo> {
+  return request<ActiveProviderInfo>("/api/settings/provider");
+}
+
+export async function setActiveProvider(provider: LlmProviderName): Promise<ActiveProviderInfo> {
+  return request<ActiveProviderInfo>("/api/settings/provider", {
+    method: "POST",
+    body: JSON.stringify({ provider }),
+  });
+}
+
+export async function getUsageSummary(): Promise<UsageSummary> {
+  return request<UsageSummary>("/api/usage");
 }
 
 // ------------------------------------------------------------------ Projects
@@ -220,54 +166,144 @@ export async function deleteProject(id: number): Promise<void> {
   await request<void>(`/api/projects/${id}`, { method: "DELETE" });
 }
 
-// ------------------------------------------------------------------ Voice (local STT/TTS + native tool-calling)
-// Powers useCypherVoiceState.ts (frontend/src/components/CypherVoiceView.tsx).
-// These three endpoints are separate from /api/messages (see backend
-// app/api/tool_chat.py, transcribe.py, speak.py) - none of them touch the
-// production chat pipeline above.
+// ------------------------------------------------------------------ System (M6: diagnostics, audit, logs)
 
-export async function transcribeAudio(audioBlob: Blob): Promise<TranscribeResult> {
-  const formData = new FormData();
-  formData.append("audio", audioBlob, "recording.webm");
-
-  const resp = await fetch(`${BASE_URL}/transcribe`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${USER_TOKEN}` },
-    body: formData,
-  });
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => "");
-    throw new Error(`Transkription fehlgeschlagen (${resp.status}): ${text || resp.statusText}`);
-  }
-  return (await resp.json()) as TranscribeResult;
+export interface ComponentHealth {
+  status: "ok" | "degraded" | "error" | string;
+  message: string;
+  hint: string;
 }
 
-export async function toolChat(message: string): Promise<ToolChatResult> {
-  return request<ToolChatResult>("/api/tool-chat", {
-    method: "POST",
-    body: JSON.stringify({ message }),
-  });
+export interface HealthReport {
+  status: "ok" | "degraded" | "error" | string;
+  version: string;
+  uptime_seconds: number;
+  components: Record<string, ComponentHealth>;
 }
 
-export interface SpeakResult {
-  audioBlob: Blob;
-  audioDurationSeconds: number;
-  generationTimeSeconds: number;
+export interface LatencyStat {
+  count: number;
+  last_ms: number;
+  p50_ms: number;
+  p90_ms: number;
 }
 
-export async function speakText(text: string): Promise<SpeakResult> {
-  const resp = await fetch(`${BASE_URL}/speak`, {
-    method: "POST",
-    headers: { ...authHeaders() },
-    body: JSON.stringify({ text }),
+export interface Diagnostics extends HealthReport {
+  latency: Record<string, LatencyStat>;
+  config: Record<string, unknown>;
+  system: Record<string, unknown>;
+  context_budget: { parts?: Record<string, number>; total?: number; window?: number; fits?: boolean; error?: string };
+}
+
+export interface AuditEntry {
+  id: number;
+  ts: string;
+  conversation_id: string | null;
+  source: string | null;
+  provider: string | null;
+  tool: string;
+  risk: string | null;
+  decision: string;
+  summary: string | null;
+  arguments: Record<string, unknown>;
+  success: boolean | null;
+  error: string | null;
+  duration_ms: number | null;
+}
+
+export interface LogEntry {
+  ts: string;
+  level: string;
+  logger: string;
+  msg: string;
+  request_id?: string;
+}
+
+/** Public, no token needed - the UI must be able to say "Ollama läuft nicht" before pairing. */
+export async function getHealth(signal?: AbortSignal): Promise<HealthReport> {
+  const resp = await fetch(`${BASE_URL}/api/health`, { signal });
+  if (!resp.ok && resp.status !== 503) throw new Error(`HTTP ${resp.status}`);
+  return (await resp.json()) as HealthReport;
+}
+
+export async function getDiagnostics(): Promise<Diagnostics> {
+  return request<Diagnostics>("/api/diagnostics");
+}
+
+export async function getAudit(limit = 100): Promise<AuditEntry[]> {
+  const data = await request<{ entries: AuditEntry[] }>(`/api/audit?limit=${limit}`);
+  return data.entries;
+}
+
+export async function getLogs(level = "INFO", limit = 300): Promise<LogEntry[]> {
+  const data = await request<{ entries: LogEntry[] }>(`/api/logs?limit=${limit}&level=${encodeURIComponent(level)}`);
+  return data.entries;
+}
+
+// ------------------------------------------------------------------ Pairing (phone)
+
+export interface PairingLink {
+  url: string;
+  /** "tailscale" = https via `tailscale serve`, "direct" = http to API_HOST */
+  kind: "tailscale" | "direct";
+  /** Browsers only allow the microphone over HTTPS. */
+  microphone: boolean;
+}
+
+export interface PairingInfo {
+  token: string;
+  links: PairingLink[];
+  /** QR code of the first link as an SVG data URI (null without a link). */
+  qr: string | null;
+  tailscale: { installed: boolean; url: string | null };
+  /** e.g. "tailscale serve --bg 8000" */
+  serve_command: string;
+  note: string;
+}
+
+/** Only answers on the PC itself (403 elsewhere, e.g. on the phone). */
+export async function getPairing(): Promise<PairingInfo> {
+  return request<PairingInfo>("/api/auth/pairing");
+}
+
+// ------------------------------------------------------------------ Voice preferences
+
+export interface VoicePrefs {
+  /** Wake mode: keep listening this long after an answer has finished playing (0 = off). */
+  followup_window_seconds: number;
+}
+
+export async function getVoicePrefs(): Promise<VoicePrefs> {
+  return request<VoicePrefs>("/api/settings/voice");
+}
+
+export async function setVoicePrefs(prefs: VoicePrefs): Promise<VoicePrefs> {
+  return request<VoicePrefs>("/api/settings/voice", { method: "PUT", body: JSON.stringify(prefs) });
+}
+
+// ------------------------------------------------------------------ Safety prompt (FIX2)
+
+export interface CriticalConfirmState {
+  /** true = critical actions ask first (default). */
+  enabled: boolean;
+  mode: "on" | "off_session" | "off_permanent";
+  /** Categories that ALWAYS ask, even when the prompt is off ("rote Linie"). */
+  red_line: string[];
+  red_line_labels: string[];
+}
+
+export const CRITICAL_CONFIRM_EVENT = "cypher:critical-confirm";
+
+export async function getCriticalConfirm(): Promise<CriticalConfirmState> {
+  return request<CriticalConfirmState>("/api/security/critical-confirm");
+}
+
+/** Only works in the browser on the PC itself (the backend refuses the phone, scripts and Cypher's own tools). */
+export async function setCriticalConfirm(enabled: boolean, scope: "session" | "permanent"): Promise<CriticalConfirmState> {
+  const state = await request<CriticalConfirmState>("/api/security/critical-confirm", {
+    method: "PUT",
+    body: JSON.stringify({ enabled, scope }),
   });
-  if (!resp.ok) {
-    const errText = await resp.text().catch(() => "");
-    throw new Error(`Sprachausgabe fehlgeschlagen (${resp.status}): ${errText || resp.statusText}`);
-  }
-  return {
-    audioBlob: await resp.blob(),
-    audioDurationSeconds: Number(resp.headers.get("X-Audio-Duration-Seconds") ?? 0),
-    generationTimeSeconds: Number(resp.headers.get("X-Generation-Time-Seconds") ?? 0),
-  };
+  window.dispatchEvent(new CustomEvent(CRITICAL_CONFIRM_EVENT, { detail: state }));
+  return state;
 }

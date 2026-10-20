@@ -94,3 +94,22 @@ def test_parse_task_query_missing_state_field_defaults_to_enabled():
     stdout = "<<<JARVIS_TASK>>>powershell.exe\n<<<JARVIS_TASK>>>-File x\n"
     info = parse_task_query(stdout)
     assert info["enabled"] is True
+
+
+def test_register_script_passes_launcher_args_and_replaces_legacy_task():
+    from autostart import LEGACY_TASK_NAMES
+
+    script = build_register_task_script(
+        TASK_NAME, Path("C:/Cypher/scripts/start_cypher.ps1"), launcher_args="-NoBrowser", replaces=LEGACY_TASK_NAMES
+    )
+    assert "start_cypher.ps1\" -NoBrowser'" in script
+    # the old task is removed before the new one is registered
+    assert script.index("Unregister-ScheduledTask -TaskName 'JARVIS Autostart'") < script.index("Register-ScheduledTask -TaskName 'Cypher Autostart'")
+
+
+def test_launcher_is_the_new_start_script():
+    from autostart import _launcher_script_path
+
+    assert TASK_NAME == "Cypher Autostart"
+    assert _launcher_script_path().name == "start_cypher.ps1"
+    assert _launcher_script_path().exists()

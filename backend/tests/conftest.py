@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import shutil
+import tempfile
 import sys
 from pathlib import Path
 
@@ -16,12 +18,39 @@ os.environ.setdefault("USER_TOKEN", "test-user-token")
 os.environ.setdefault("AGENT_TOKEN", "test-agent-token")
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 
+# Tests must never touch the developer's real Ollama, logs or data, and must
+# not spend seconds loading Whisper/Piper/LLM models at app startup.
+_TEST_TMP = Path(tempfile.mkdtemp(prefix="cypher-tests-"))
+os.environ["APP_ENV"] = "test"
+os.environ["LOG_DIR"] = str(_TEST_TMP / "logs")
+os.environ["DATA_DIR"] = str(_TEST_TMP / "data")
+os.environ["LOCAL_LLM_BASE_URL"] = "http://127.0.0.1:9"  # discard port: connection refused, instantly
+os.environ["LLM_WARMUP_ON_START"] = "false"
+os.environ["LLM_MONITOR_INTERVAL_SECONDS"] = "0"
+os.environ["WHISPER_WARMUP_ON_START"] = "false"
+os.environ["TTS_WARMUP_ON_START"] = "false"
+
 from app.database import db as db_module  # noqa: E402
 from app.database.db import Base  # noqa: E402
 from app.main import app  # noqa: E402
+from app.security import this_pc  # noqa: E402
+
+# No test asks the real tailscale.exe for this PC's tailnet name.
+this_pc.set_tailscale_hosts((), pinned=True)
 
 USER_TOKEN = os.environ["USER_TOKEN"]
 AGENT_TOKEN = os.environ["AGENT_TOKEN"]
+
+
+@pytest.fixture()
+def outside_tmp():
+    """A fresh folder in the user's temp directory: inside the user profile,
+    outside Cypher's project and outside any git repository - wherever
+    pytest's own tmp_path lies (pytest.ini: backend/.pytest_tmp). For tests
+    whose meaning depends on that, e.g. "a file in your profile"."""
+    folder = Path(tempfile.mkdtemp(prefix="t-", dir=_TEST_TMP))
+    yield folder
+    shutil.rmtree(folder, ignore_errors=True)
 
 
 @pytest.fixture()
@@ -61,3 +90,17 @@ def user_headers():
 @pytest.fixture()
 def agent_headers():
     return {"Authorization": f"Bearer {AGENT_TOKEN}"}
+
+
+@pytest.fixture(autouse=True)
+def _reset_security_state():
+    """Rate-limit buckets, auth lockouts and the token cache are process-wide;
+    without a reset, deliberate wrong-token tests would lock out later tests."""
+    from app.security import tokens
+    from app.security.rate_limit import limiter
+
+    limiter.reset()
+    tokens.reset_cache()
+    yield
+    limiter.reset()
+    tokens.reset_cache()

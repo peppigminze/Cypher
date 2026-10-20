@@ -1,107 +1,262 @@
-import { useCallback, useState } from "react";
-import type { MemoryEntry, MemoryType } from "../types";
-import { deleteMemory, listMemory, saveMemory } from "../services/api";
-import { usePolling } from "../hooks/usePolling";
+import { useCallback, useEffect, useState } from "react";
+import {
+  addMemoryItem,
+  deleteConversationHistory,
+  deleteMemoryItem,
+  getMemoryOverview,
+  updateMemoryItem,
+  type MemoryItem,
+  type MemoryLayer,
+  type MemoryOverview,
+} from "../services/api";
+import { memoryExport } from "../utils/memoryExport";
 
-const TYPE_LABEL: Record<MemoryType, string> = {
-  fact: "Fakt",
-  preference: "Vorliebe",
-  project: "Projekt",
-};
+/**
+ * Memory editor (M4): everything Cypher remembers, editable and deletable.
+ *
+ *   Kern-Gedächtnis  always part of Cypher's prompt - limited, shown with a
+ *                    fill bar. "Merk dir ..." lands here first.
+ *   Archiv           unlimited, searched per question; only matching
+ *                    entries are used.
+ *
+ * Moving an entry between the two is "anpinnen" / "ins Archiv".
+ */
+
+function downloadMemory(data: MemoryOverview): void {
+  const { name, json } = memoryExport(data);
+  const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
+  URL.revokeObjectURL(url);
+}
 
 export function MemoryView() {
-  const [entries, setEntries] = useState<MemoryEntry[]>([]);
-  const [content, setContent] = useState("");
-  const [category, setCategory] = useState("");
-  const [memoryType, setMemoryType] = useState<MemoryType>("fact");
-  const [busy, setBusy] = useState(false);
+  const [data, setData] = useState<MemoryOverview | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const [draftLayer, setDraftLayer] = useState<MemoryLayer>("core");
+  const [editing, setEditing] = useState<{ item: MemoryItem; text: string } | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
+  // Bumped after every change; the effect below then reloads the overview.
+  const [version, setVersion] = useState(0);
+  const refresh = useCallback(() => setVersion((v) => v + 1), []);
+
+  useEffect(() => {
+    let alive = true;
+    getMemoryOverview()
+      .then((overview) => {
+        if (!alive) return;
+        setData(overview);
+        setError(null);
+      })
+      .catch((err) => alive && setError(err instanceof Error ? err.message : String(err)));
+    return () => {
+      alive = false;
+    };
+  }, [version]);
+
+  async function run(action: () => Promise<unknown>, success?: string) {
     try {
-      setEntries(await listMemory());
-    } catch {
-      // keep showing last known list
-    }
-  }, []);
-
-  usePolling(refresh, 8000, []);
-
-  async function handleSave() {
-    const c = content.trim();
-    if (!c || busy) return;
-    setBusy(true);
-    try {
-      const entry = await saveMemory(c, category.trim() || undefined, memoryType);
-      setEntries((prev) => [entry, ...prev]);
-      setContent("");
-      setCategory("");
-    } finally {
-      setBusy(false);
+      await action();
+      setNotice(success ?? null);
+      setError(null);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   }
 
-  async function handleDelete(id: number) {
-    await deleteMemory(id);
-    setEntries((prev) => prev.filter((e) => e.id !== id));
-  }
+  const add = () => {
+    const text = draft.trim();
+    if (!text) return;
+    void run(async () => {
+      await addMemoryItem(text, draftLayer);
+      setDraft("");
+    });
+  };
+
+  const saveEdit = () => {
+    if (!editing) return;
+    const text = editing.text.trim();
+    if (!text) return;
+    void run(async () => {
+      await updateMemoryItem(editing.item, { text });
+      setEditing(null);
+    });
+  };
+
+  const usedPercent = data ? Math.min(100, Math.round((data.core_used_tokens / Math.max(1, data.core_max_tokens)) * 100)) : 0;
+
+  const renderItem = (item: MemoryItem) => {
+    const isEditing = editing?.item.layer === item.layer && editing.item.id === item.id;
+    return (
+      <li className="memory-item" key={`${item.layer}:${item.id}`}>
+        {isEditing ? (
+          <form
+            className="memory-item__edit"
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveEdit();
+            }}
+          >
+            <input
+              className="text-input"
+              value={editing.text}
+              maxLength={300}
+              autoFocus
+              aria-label="Eintrag bearbeiten"
+              onChange={(e) => setEditing({ item, text: e.target.value })}
+              onKeyDown={(e) => e.key === "Escape" && setEditing(null)}
+            />
+            <button type="submit" className="btn-primary">
+              Speichern
+            </button>
+            <button type="button" className="icon-btn" onClick={() => setEditing(null)}>
+              Abbrechen
+            </button>
+          </form>
+        ) : (
+          <>
+            <span className="memory-item__text">{item.text}</span>
+            <span className="memory-item__actions">
+              <button type="button" className="icon-btn" onClick={() => setEditing({ item, text: item.text })}>
+                Bearbeiten
+              </button>
+              <button
+                type="button"
+                className="icon-btn"
+                title={item.layer === "core" ? "Nur noch bei passenden Fragen nutzen" : "Immer mitgeben"}
+                onClick={() => void run(() => updateMemoryItem(item, { move_to: item.layer === "core" ? "archive" : "core" }))}
+              >
+                {item.layer === "core" ? "Ins Archiv" : "Anpinnen"}
+              </button>
+              <button
+                type="button"
+                className="icon-btn icon-btn--danger"
+                onClick={() => {
+                  if (window.confirm(`„${item.text}“ wirklich vergessen?`)) void run(() => deleteMemoryItem(item), "Gelöscht.");
+                }}
+              >
+                Löschen
+              </button>
+            </span>
+          </>
+        )}
+      </li>
+    );
+  };
 
   return (
-    <div>
+    <div className="memory-view">
       <div className="list-header">
-        <h1>Memory</h1>
-        <div className="inline-form">
+        <h1>Gedächtnis</h1>
+        <form
+          className="inline-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            add();
+          }}
+        >
           <input
             className="text-input"
             placeholder="Was soll Cypher sich merken?"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSave()}
-            style={{ minWidth: 220 }}
-          />
-          <input
-            className="text-input"
-            placeholder="Kategorie (optional)"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            style={{ width: 140 }}
+            value={draft}
+            maxLength={300}
+            onChange={(e) => setDraft(e.target.value)}
+            aria-label="Neuer Eintrag"
+            style={{ minWidth: 240 }}
           />
           <select
             className="select-input"
-            value={memoryType}
-            onChange={(e) => setMemoryType(e.target.value as MemoryType)}
+            value={draftLayer}
+            onChange={(e) => setDraftLayer(e.target.value as MemoryLayer)}
+            aria-label="Ablage"
           >
-            <option value="fact">Fakt</option>
-            <option value="preference">Vorliebe</option>
-            <option value="project">Projekt</option>
+            <option value="core">Kern-Gedächtnis</option>
+            <option value="archive">Archiv</option>
           </select>
-          <button className="btn-primary" onClick={handleSave} disabled={busy || !content.trim()}>
-            Speichern
+          <button type="submit" className="btn-primary" disabled={!draft.trim()}>
+            Merken
           </button>
-        </div>
+        </form>
       </div>
 
-      {entries.length === 0 ? (
-        <div className="empty-state">Noch keine Erinnerungen gespeichert.</div>
+      {error && (
+        <p className="memory-view__error" role="alert">
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p className="memory-view__notice" role="status">
+          {notice}
+        </p>
+      )}
+
+      {data === null ? (
+        <div className="empty-state">{error ? "Gedächtnis nicht erreichbar." : "Lade …"}</div>
       ) : (
-        <div className="card-list">
-          {entries.map((m) => (
-            <div className="card" key={m.id}>
-              <div className="card__body">
-                <p className="card__title">{m.content}</p>
-                <div className="card__meta">
-                  <span className="category-tag">{TYPE_LABEL[m.memory_type] ?? m.memory_type}</span>
-                  {m.category && <span className="category-tag">{m.category}</span>}
-                  <span>{new Date(m.updated_at).toLocaleDateString("de-CH")}</span>
-                </div>
-              </div>
-              <div className="card__actions">
-                <button className="icon-btn" onClick={() => handleDelete(m.id)}>
-                  Löschen
-                </button>
-              </div>
+        <>
+          <section className="memory-section" aria-labelledby="core-title">
+            <h2 id="core-title">Kern-Gedächtnis</h2>
+            <p className="memory-section__hint">Steht in jedem Gespräch zur Verfügung.</p>
+            <div
+              className="memory-budget"
+              role="meter"
+              aria-valuemin={0}
+              aria-valuemax={data.core_max_tokens}
+              aria-valuenow={data.core_used_tokens}
+              aria-label="Belegung Kern-Gedächtnis"
+            >
+              <div className="memory-budget__fill" style={{ width: `${usedPercent}%` }} />
             </div>
-          ))}
-        </div>
+            <p className="memory-section__hint">{usedPercent} % belegt</p>
+            {data.core.length === 0 ? (
+              <p className="empty-state">Noch nichts. Sag „Merk dir, dass …“.</p>
+            ) : (
+              <ul className="memory-list">{data.core.map(renderItem)}</ul>
+            )}
+          </section>
+
+          <section className="memory-section" aria-labelledby="archive-title">
+            <h2 id="archive-title">Archiv</h2>
+            <p className="memory-section__hint">Wird nur genutzt, wenn es zur Frage passt.</p>
+            {data.archive.length === 0 ? (
+              <p className="empty-state">Leer.</p>
+            ) : (
+              <ul className="memory-list">{data.archive.map(renderItem)}</ul>
+            )}
+          </section>
+
+          <section className="memory-section">
+            <h2>Gesprächsverlauf</h2>
+            <p className="memory-section__hint">
+              Die letzten Gespräche bleiben gespeichert, damit Cypher nach einem Neustart weiss, worum es ging.
+            </p>
+            <button
+              type="button"
+              className="icon-btn icon-btn--danger"
+              onClick={() => {
+                if (window.confirm("Gesamten gespeicherten Gesprächsverlauf löschen? (Das Gedächtnis oben bleibt.)"))
+                  void run(() => deleteConversationHistory(), "Gesprächsverlauf gelöscht.");
+              }}
+            >
+              Verlauf löschen
+            </button>
+          </section>
+
+          <section className="memory-section">
+            <h2>Exportieren</h2>
+            <p className="memory-section__hint">
+              Alles, was Cypher über dich weiss, als Datei. Ein komplettes Backup (inkl. Notizen und Verlauf) macht backup_cypher.bat.
+            </p>
+            <button type="button" className="icon-btn" onClick={() => downloadMemory(data)}>
+              Als JSON herunterladen
+            </button>
+          </section>
+        </>
       )}
     </div>
   );
