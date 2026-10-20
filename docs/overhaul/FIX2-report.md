@@ -107,7 +107,10 @@ Vor Punkt 3 (Stand `678719f`, Standardwerte) bot Cypher dem Modell **22 Werkzeug
 | `6145cbb` | WIP: Klassifizierer, Policy, PC-Werkzeuge, Sprachbestätigung, Schalter, HUD, Tests |
 | `c8e2bd4` | PowerShell-Tests unabhängig von Adminrechten des Testlaufs |
 | `ba59568` | Alias-Tabelle für App-Begriffe |
-| Doku-Commit | README, ARCHITECTURE, `.env.example`, DEPENDENCIES, ACCEPTANCE, dieser Abschnitt |
+| `fc930b4` | Doku: README, ARCHITECTURE, `.env.example`, DEPENDENCIES, ACCEPTANCE, dieser Abschnitt |
+| `8ad7ab1` | LF für das Frontend erzwingen (Fund aus dem Prettier-Lauf) |
+| `5efa1d9` | Prüfung „Schalter nur über die lokale Oberfläche“ |
+| Abschluss-Commit | Teststände und offene Punkte (unten) |
 
 ### Funde beim Abschluss (behoben)
 
@@ -143,7 +146,7 @@ Alle Tests laufen gegen Attrappen. Echt sind nur harmlose PowerShell-Befehle (`W
 | `frontend/src/components/__tests__/SafetyPrompt.test.tsx` | 9 | Schalter, Warnung, Fehlermeldung, HUD, Karte mit Befehl und Phrase |
 | `frontend/e2e/safety.spec.ts` | 1 | Ausschalten nur nach Warnung, HUD-Hinweis, wieder einschalten |
 
-Teststand der vollen Läufe: siehe Abschluss unten.
+Teststand der vollen Läufe: siehe [Abschluss](#abschluss).
 
 ### Smoke-Test mit echten Aktionen
 
@@ -176,3 +179,23 @@ Ergebnis: Das hält für Handy, fremde Webseiten, DNS-Rebinding, Anfragen ohne B
 6. **Startmenü-Index:** Nach 10 Minuten wird er beim nächsten Gebrauch synchron neu gelesen (laut Modul etwa 1 s, nicht gemessen). Dieser Turn kann dadurch spürbar langsamer sein.
 7. **Tastatur/Maus** über `SendInput` ist fragil (Fokus, Fensterlage). Fenster werden über Titel oder Programmname gefunden, mehrdeutig führt zu einer Rückfrage.
 8. **Testumgebung:** Ein früherer Testlauf als Administrator hat in `%LOCALAPPDATA%\Temp\pytest-of-Silvan` die Einträge `pytest-current` und `pytest-123` mit Administrator-Besitz hinterlassen. Ein normaler `pytest`-Lauf meldet danach am Ende einen `PermissionError` beim Aufräumen, obwohl alle Tests grün sind. Die Läufe hier nutzen deshalb `--basetemp` in einem eigenen Ordner. Entfernen geht nur in einer Administrator-Shell.
+
+## Abschluss
+
+Stand 20. Oktober 2026, Branch `fix/followup-fonts-pccontrol`.
+
+| Lauf | Ergebnis |
+|---|---|
+| Backend, alle Tests (`pytest -q --basetemp …`) | **832 grün** (52,7 s). Ohne `--basetemp` laufen alle Tests grün durch, aber pytest endet beim Aufräumen mit Exit-Code 1 (Grenze 8) |
+| Vitest | **107 grün** (14 Dateien) |
+| Playwright, ganze Suite | **9/9 grün** (smoke, followup, fonts, pwa, safety) |
+| `tsc -b`, ESLint, Prettier | sauber. Prettier erst nach `8ad7ab1`: 10 Dateien hatten im Arbeitsverzeichnis CRLF, ein frischer Klon ohne das neue Attribut hätte 71, mit ihm 0 |
+| `doctor.bat` | keine Fehler, 1 Hinweis: Die laufende Instanz meldet `degraded`, weil `qwen3.5:9b` gerade nicht im Grafikspeicher war (kein Defekt) |
+
+**Offene Punkte**
+
+1. Rote Linie auch für Cyphers Adresse in fremden Programmen (Grenze 1). Empfehlung: Loopback-URLs in jedem Befehlstext als `cypher_secrets` werten, mit Test.
+2. „Ja, ausführen“ auch bei kritischen Aufträgen aus fremdem Inhalt verlangen (Grenze 3), mit Test.
+3. Checkliste PC-Steuerung in [ACCEPTANCE.md](../ACCEPTANCE.md#pc-steuerung-und-sicherheitsabfrage-fix2-vom-nutzer-durchgeführt) vom Nutzer ausfüllen, vor allem Nr. 14 („Editor“ mit `qwen3.5:4b`).
+4. pytest-Reste vom Administrator-Lauf. Option A (empfohlen): einmal in einer Administrator-PowerShell `pytest-current` und `pytest-123` unter `%LOCALAPPDATA%\Temp\pytest-of-Silvan` entfernen, danach geht `pytest -q` wieder ohne Zusatz. Option B: `--basetemp` fest in `pytest.ini` eintragen. Das umgeht das Problem dauerhaft, ändert aber jeden Testlauf.
+5. Grafikspeicher und Latenz mit `num_ctx` 12288 messen, dazu die Befehls-Suite mit 36 Werkzeugen. Die Ergebnisse in neue Dateien schreiben, die M5-Baselines nicht überschreiben.
