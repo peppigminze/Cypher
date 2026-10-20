@@ -3,6 +3,10 @@ run_command / command_status with a REAL PowerShell (FIX2 point 3): output,
 exit codes, UTF-8, timeout, barge-in cancel kills the whole process tree,
 background jobs, the admin-rights hint, and Cypher's secrets staying out
 of the child environment. Only harmless commands run here.
+
+run_command refuses while Cypher's own process is elevated. Whether pytest
+happens to run elevated must not decide these tests, so the check is
+stubbed to "not elevated"; the elevated case has its own tests.
 """
 from __future__ import annotations
 
@@ -10,6 +14,7 @@ import asyncio
 import os
 import sys
 import time
+from types import SimpleNamespace
 
 import psutil
 import pytest
@@ -22,6 +27,19 @@ from app.tools.base import RiskTier
 from app.tools.shell_tools import CommandStatusTool, RunCommandTool
 
 pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="PowerShell tools are Windows-only")
+
+_real_is_elevated = elevation.is_elevated
+
+
+@pytest.fixture(autouse=True)
+def not_elevated(monkeypatch):
+    monkeypatch.setattr(elevation, "is_elevated", lambda: False)
+
+
+def _fake_is_user_an_admin(monkeypatch, answer):
+    """Use the real is_elevated, with shell32.IsUserAnAdmin replaced."""
+    monkeypatch.setattr(elevation, "is_elevated", _real_is_elevated)
+    monkeypatch.setattr(elevation, "ctypes", SimpleNamespace(windll=SimpleNamespace(shell32=SimpleNamespace(IsUserAnAdmin=answer))))
 
 
 @pytest.fixture()
@@ -134,6 +152,26 @@ async def test_refuses_to_run_when_cypher_itself_is_elevated(monkeypatch):
     monkeypatch.setattr(powershell, "start", lambda *a, **k: started.append(a))
     result = await RunCommandTool().execute(command="Get-Date")
     assert result.success is False and "Administratorrechten" in result.error and started == []
+
+
+async def test_elevated_process_starts_and_logs_nothing(monkeypatch, db_tables):
+    _fake_is_user_an_admin(monkeypatch, lambda: 1)
+    assert elevation.is_elevated() is True
+    started = []
+    monkeypatch.setattr(powershell, "start", lambda *a, **k: started.append(a))
+    for background in (False, True):
+        result = await RunCommandTool().execute(command="Write-Output 'nie'", background=background)
+        assert result.success is False and "Administratorrechten" in result.error, background
+    assert started == []
+    with SessionLocal() as db:
+        assert db.query(CommandLog).count() == 0
+
+
+def test_is_elevated_follows_is_user_an_admin(monkeypatch):
+    _fake_is_user_an_admin(monkeypatch, lambda: 0)
+    assert elevation.is_elevated() is False
+    _fake_is_user_an_admin(monkeypatch, lambda: 1)
+    assert elevation.is_elevated() is True
 
 
 async def test_cyphers_secrets_are_not_passed_to_commands(monkeypatch):
