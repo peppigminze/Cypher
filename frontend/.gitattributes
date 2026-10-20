@@ -1,0 +1,3 @@
+# Prettier expects LF. With core.autocrlf=true a Windows checkout would
+# write CRLF and `npm run format:check` would fail on unchanged files.
+* text=auto eol=lf
