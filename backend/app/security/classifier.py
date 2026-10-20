@@ -27,6 +27,7 @@ from typing import Iterable, List, Literal, Optional, Sequence, Tuple
 
 from app.config import PROJECT_ROOT
 from app.pc.known_folders import map_first_part
+from app.security import this_pc
 from app.tools.base import RiskTier
 
 SAFE, CONTROL, WRITE, CRITICAL, BLOCKED = RiskTier.SAFE, RiskTier.CONTROL, RiskTier.WRITE, RiskTier.CRITICAL, RiskTier.BLOCKED
@@ -322,14 +323,23 @@ _SAFE_URI_SCHEMES = {
 }
 
 
+def this_pc_verdict(text: str) -> Optional[Verdict]:
+    """Red line if `text` addresses this PC over the network (app/security/this_pc.py)."""
+    hit = this_pc.reference(text)
+    return verdict(CRITICAL, f"spricht diesen PC übers Netzwerk an ({hit}), z. B. Cyphers eigene API", "cypher_secrets") if hit else None
+
+
 def classify_open_target(target: str) -> Verdict:
+    local = this_pc_verdict(target)
+    return worst([_classify_open_target(target), local]) if local else _classify_open_target(target)
+
+
+def _classify_open_target(target: str) -> Verdict:
     text = target.strip()
     match = re.match(r"^([a-zA-Z][a-zA-Z0-9+.\-]*):(.*)$", text)
     if match and len(match.group(1)) > 1:  # not a drive letter
         scheme = match.group(1).lower()
         if scheme in ("http", "https"):
-            if re.match(r"^https?://(localhost|127\.|\[::1\]|0\.0\.0\.0)", text, re.IGNORECASE):
-                return verdict(CRITICAL, "Adresse auf diesem PC (z. B. Cyphers eigene API)", "cypher_secrets")
             return verdict(WRITE, "öffnet eine Webseite (die Adresse geht ins Netz)")
         if scheme == "file":
             return classify_path(re.sub(r"^file:/*", "", text), "execute")
@@ -733,8 +743,6 @@ def _classify_simple(segment: str, cwd: Optional[str], depth: int) -> Verdict:
         checks = [verdict(WRITE, "Netzwerkzugriff (Daten können den PC verlassen)", "network")]
         if re.search(r"-method\s+(post|put|delete|patch)|-body\b|-infile\b", joined):
             checks.append(verdict(CRITICAL, "sendet Daten ins Internet", "messages"))
-        if re.search(r"(localhost|127\.0\.0\.1|\[::1\])", joined):
-            checks.append(verdict(CRITICAL, "spricht Cyphers eigene API an", "cypher_secrets"))
         outfile = _param_values(args, ("outfile",))
         if outfile:
             checks.append(_classify_paths(outfile, "write", cwd))
@@ -808,6 +816,14 @@ def classify_powershell(command: str, cwd: Optional[str] = None) -> Verdict:
     """Verdict for a whole PowerShell command line (as run_command gets it)."""
     if not command or not command.strip():
         return verdict(BLOCKED, "leerer Befehl")
+    result = _classify_command_line(command, cwd)
+    # This PC as a network target (Cypher's API), whatever program is used
+    # and on every path above - also when the rest was not classifiable.
+    local = this_pc_verdict(command)
+    return worst([result, local]) if local else result
+
+
+def _classify_command_line(command: str, cwd: Optional[str]) -> Verdict:
     if len(command) > 4000:
         return verdict(CRITICAL, "sehr langer Befehl - nicht sicher einstufbar", "unclassifiable")
     if re.search(r"@['\"]\s*\n", command):

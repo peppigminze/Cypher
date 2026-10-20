@@ -14,6 +14,7 @@ certificate transparency logs, see docs/MOBILE.md).
 """
 from __future__ import annotations
 
+import ipaddress
 import json
 import shutil
 import subprocess
@@ -57,6 +58,36 @@ def serves_port(serve_status: str, port: int) -> bool:
     """Pure: does `tailscale serve status` output proxy to our local port?"""
     # e.g. "https://pc.tailnet.ts.net (tailnet only)\n|-- / proxy http://127.0.0.1:8000"
     return any(target in serve_status for target in (f"127.0.0.1:{port}", f"localhost:{port}"))
+
+
+def status_json() -> Optional[str]:
+    return _run(["status", "--json"])
+
+
+def self_identities(status_json: str) -> frozenset:
+    """Pure: this machine's tailnet names and IPs from `tailscale status --json`
+    (full MagicDNS name, its short form, host name, cert domains, IPs)."""
+    try:
+        data = json.loads(status_json)
+    except ValueError:
+        return frozenset()
+    if not isinstance(data, dict):
+        return frozenset()
+    me = data.get("Self") or {}
+    out: set[str] = set()
+    dns = str(me.get("DNSName") or "").rstrip(".").lower()
+    if dns:
+        out.update({dns, dns.split(".", 1)[0]})
+    host = str(me.get("HostName") or "").lower()
+    if host:
+        out.add(host)
+    out.update(str(d).rstrip(".").lower() for d in data.get("CertDomains") or [] if d)
+    for ip in list(me.get("TailscaleIPs") or []) + list(data.get("TailscaleIPs") or []):
+        try:
+            out.add(str(ipaddress.ip_address(str(ip))))
+        except ValueError:
+            continue
+    return frozenset(out)
 
 
 def https_url_from_status(status_json: str) -> Optional[str]:

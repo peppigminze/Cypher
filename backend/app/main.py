@@ -95,11 +95,13 @@ async def lifespan(app: FastAPI):
         logger.info("Deleted %d conversation histories older than %d days.", pruned, settings.CONVERSATION_KEEP_DAYS)
 
     from app.pc import app_index, elevation, powershell  # noqa: PLC0415
+    from app.security import this_pc  # noqa: PLC0415
 
     if elevation.is_elevated():
         logger.warning("SECURITY: Cypher runs with administrator rights. It is meant to run as a normal user - run_command refuses until restarted normally.")
     if sys.platform == "win32":
         app_index.warm_up()  # Start menu index for open_app (about 1 s, in the background)
+    this_pc.warm_up()  # this PC's Tailscale name/IPs for the red line (background)
 
     runtime = Runtime(settings)
     set_runtime(runtime)

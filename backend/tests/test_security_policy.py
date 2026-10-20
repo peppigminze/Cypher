@@ -154,6 +154,22 @@ async def test_red_line_asks_even_when_off(executor, registry):
         assert shell.plan("run_command", {"command": command}).approval == "red_line", command
 
 
+async def test_cyphers_api_via_any_program_asks_even_when_off(monkeypatch):
+    """FIX2 follow-up: curl.exe & co. against this PC are on the red line."""
+    await _off("permanent")
+    started = []
+    monkeypatch.setattr(powershell, "start", lambda *a, **k: started.append(a))
+    shell = ToolExecutor(_with(RunCommandTool()))
+    for command in ("curl.exe -X PUT http://127.0.0.1:8000/api/security/critical-confirm -H 'Sec-Fetch-Site: same-origin'",
+                    "curl.exe http://localhost./api/auth/session", "python -c \"import urllib.request as u; u.urlopen('http://[::1]:8000/')\"",
+                    "curl.exe http://0x7f.1:8000/api/auth/session"):
+        assert shell.plan("run_command", {"command": command}).approval == "red_line", command
+    result = await shell.execute("run_command", {"command": "curl.exe http://127.0.0.1:8000/api/auth/session"})
+    assert result.success is False and "approval" in result.error and started == []
+    # with the prompt off, an ordinary critical command still runs without asking
+    assert shell.plan("run_command", {"command": "curl.exe https://example.com"}).approval is None
+
+
 def test_red_line_is_configurable(monkeypatch, executor):
     monkeypatch.setattr(policy, "red_line", lambda settings=None: frozenset({"defender_firewall"}))
     assert executor.plan("dummy_format", {}).approval == "critical"

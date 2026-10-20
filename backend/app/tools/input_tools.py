@@ -26,7 +26,7 @@ from pydantic import Field
 from app.pc import sendinput
 from app.pc import windows as win
 from app.pc.known_folders import known_folder
-from app.security.classifier import BLOCKED, CONTROL, CRITICAL, WRITE, Verdict, verdict, worst
+from app.security.classifier import BLOCKED, CONTROL, CRITICAL, WRITE, Verdict, this_pc_verdict, verdict, worst
 from app.tools.base import ArgsModel, RiskTier, Tool, ToolResult, register_tool
 
 # Windows where typed text becomes a command or a system change.
@@ -125,6 +125,9 @@ class InputControlTool(Tool):
             parts.append(target_verdict(win.window_at(int(args["x"]), int(args["y"]))))
         elif action in ("type", "key"):
             parts.append(target_verdict(win.foreground()))
+            local = this_pc_verdict(args.get("text") or "") if action == "type" else None
+            if local:  # typed into a terminal or an address bar it is a command/URL too
+                parts.append(local)
         else:  # move, scroll
             parts.append(verdict(CONTROL))
         if action == "key":

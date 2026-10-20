@@ -32,6 +32,10 @@ os.environ["TTS_WARMUP_ON_START"] = "false"
 from app.database import db as db_module  # noqa: E402
 from app.database.db import Base  # noqa: E402
 from app.main import app  # noqa: E402
+from app.security import this_pc  # noqa: E402
+
+# No test asks the real tailscale.exe for this PC's tailnet name.
+this_pc.set_tailscale_hosts((), pinned=True)
 
 USER_TOKEN = os.environ["USER_TOKEN"]
 AGENT_TOKEN = os.environ["AGENT_TOKEN"]
